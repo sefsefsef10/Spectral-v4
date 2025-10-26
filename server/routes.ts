@@ -7487,6 +7487,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 🔒 Policy Administration Routes (IP Moat)
   const { registerPolicyAdminRoutes } = await import("./routes/policy-admin");
   registerPolicyAdminRoutes(app);
+  
+  const { registerBillingRoutes } = await import("./routes/billing");
+  registerBillingRoutes(app);
 
   const httpServer = createServer(app);
   
