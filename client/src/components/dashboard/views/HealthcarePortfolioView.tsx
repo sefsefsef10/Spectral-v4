@@ -64,15 +64,6 @@ export function HealthcarePortfolioView() {
     enabled: !!user?.healthSystemId,
   });
 
-  const { data: complianceBreakdown } = useQuery({
-    queryKey: ["compliance-breakdown", user?.healthSystemId],
-    queryFn: async () => {
-      const res = await fetch(`/api/health-systems/${user?.healthSystemId}/analytics/compliance-breakdown`);
-      if (!res.ok) throw new Error("Failed to fetch compliance breakdown");
-      return res.json();
-    },
-    enabled: !!user?.healthSystemId,
-  });
 
   if (isLoading) {
     return (
@@ -658,60 +649,280 @@ export function HealthcarePortfolioView() {
               </div>
             </TabsContent>
 
-            {/* Compliance Translation Tab */}
+            {/* Compliance Translation Tab - Framework Breakdown */}
             <TabsContent value="compliance" className="space-y-4">
-              {complianceBreakdown?.frameworks?.map((framework: any, idx: number) => (
-                <Card key={idx}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
+              {/* HIPAA Framework */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <FileCheck className="h-4 w-4 text-blue-600" />
+                        HIPAA Compliance
+                      </CardTitle>
+                      <CardDescription>Health Insurance Portability and Accountability Act</CardDescription>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-3xl font-bold">
+                        {healthcareScore?.frameworkBreakdown?.hipaa?.compliantControls || 0}/{healthcareScore?.frameworkBreakdown?.hipaa?.totalControls || 43}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {Math.round(healthcareScore?.frameworkBreakdown?.hipaa?.coveragePercentage || 0)}% coverage
+                      </div>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <Progress value={healthcareScore?.frameworkBreakdown?.hipaa?.coveragePercentage || 0} className="h-3" />
+                    
+                    {healthcareScore?.frameworkBreakdown?.hipaa?.violations && healthcareScore.frameworkBreakdown.hipaa.violations.length > 0 ? (
                       <div>
-                        <CardTitle className="text-lg flex items-center gap-2">
-                          <FileCheck className="h-4 w-4 text-green-600" />
-                          {framework.name}
-                        </CardTitle>
-                        <CardDescription>{framework.description}</CardDescription>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-3xl font-bold">
-                          {framework.met}/{framework.total}
+                        <div className="font-semibold text-sm mb-3 flex items-center gap-2">
+                          <AlertCircle className="h-4 w-4 text-red-600" />
+                          Control Violations ({healthcareScore.frameworkBreakdown.hipaa.violations.length})
                         </div>
-                        <div className="text-sm text-muted-foreground">
-                          {Math.round((framework.met / framework.total) * 100)}% compliance
-                        </div>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      <Progress value={(framework.met / framework.total) * 100} className="h-3 mb-4" />
-                      
-                      {framework.violations && framework.violations.length > 0 && (
-                        <div>
-                          <div className="font-semibold text-sm mb-2 flex items-center gap-2">
-                            <AlertCircle className="h-4 w-4 text-red-600" />
-                            Specific Violations ({framework.violations.length})
-                          </div>
-                          <div className="space-y-1">
-                            {framework.violations.map((violation: string, vIdx: number) => (
-                              <div key={vIdx} className="flex items-start gap-2 text-sm">
-                                <XCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
-                                <span className="text-red-600 font-mono">{violation}</span>
+                        <div className="space-y-2">
+                          {healthcareScore.frameworkBreakdown.hipaa.violations.map((violation: any, vIdx: number) => (
+                            <div key={vIdx} className="p-3 border rounded-lg bg-red-50 dark:bg-red-950/20">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1">
+                                  <div className="font-semibold text-sm text-red-700 dark:text-red-400 font-mono">
+                                    {violation.controlId}
+                                  </div>
+                                  <div className="text-sm text-muted-foreground mt-1">
+                                    {violation.controlName}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <Badge variant={violation.severity === 'critical' ? 'destructive' : violation.severity === 'high' ? 'default' : 'outline'} className="text-xs">
+                                    {violation.severity}
+                                  </Badge>
+                                  <div className="text-xs text-muted-foreground mt-1">
+                                    {violation.count} event{violation.count !== 1 ? 's' : ''}
+                                  </div>
+                                  {violation.requiresReporting && (
+                                    <Badge variant="destructive" className="text-xs mt-1">Reporting Required</Badge>
+                                  )}
+                                </div>
                               </div>
-                            ))}
-                          </div>
+                            </div>
+                          ))}
                         </div>
-                      )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-green-600 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
+                        <CheckCircle2 className="h-4 w-4" />
+                        <span className="text-sm font-semibold">All HIPAA controls met - Full compliance achieved</span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
 
-                      {(!framework.violations || framework.violations.length === 0) && (
-                        <div className="flex items-center gap-2 text-green-600">
-                          <CheckCircle2 className="h-4 w-4" />
-                          <span className="text-sm font-semibold">All controls met - Full compliance achieved</span>
-                        </div>
-                      )}
+              {/* NIST AI RMF Framework */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <FileCheck className="h-4 w-4 text-purple-600" />
+                        NIST AI RMF
+                      </CardTitle>
+                      <CardDescription>AI Risk Management Framework</CardDescription>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    <div className="text-right">
+                      <div className="text-3xl font-bold">
+                        {healthcareScore?.frameworkBreakdown?.nist?.compliantControls || 0}/{healthcareScore?.frameworkBreakdown?.nist?.totalControls || 18}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {Math.round(healthcareScore?.frameworkBreakdown?.nist?.coveragePercentage || 0)}% coverage
+                      </div>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <Progress value={healthcareScore?.frameworkBreakdown?.nist?.coveragePercentage || 0} className="h-3" />
+                    
+                    {healthcareScore?.frameworkBreakdown?.nist?.violations && healthcareScore.frameworkBreakdown.nist.violations.length > 0 ? (
+                      <div>
+                        <div className="font-semibold text-sm mb-3 flex items-center gap-2">
+                          <AlertCircle className="h-4 w-4 text-red-600" />
+                          Control Violations ({healthcareScore.frameworkBreakdown.nist.violations.length})
+                        </div>
+                        <div className="space-y-2">
+                          {healthcareScore.frameworkBreakdown.nist.violations.map((violation: any, vIdx: number) => (
+                            <div key={vIdx} className="p-3 border rounded-lg bg-red-50 dark:bg-red-950/20">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1">
+                                  <div className="font-semibold text-sm text-red-700 dark:text-red-400 font-mono">
+                                    {violation.controlId}
+                                  </div>
+                                  <div className="text-sm text-muted-foreground mt-1">
+                                    {violation.controlName}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <Badge variant={violation.severity === 'critical' ? 'destructive' : violation.severity === 'high' ? 'default' : 'outline'} className="text-xs">
+                                    {violation.severity}
+                                  </Badge>
+                                  <div className="text-xs text-muted-foreground mt-1">
+                                    {violation.count} event{violation.count !== 1 ? 's' : ''}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-green-600 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
+                        <CheckCircle2 className="h-4 w-4" />
+                        <span className="text-sm font-semibold">All NIST AI RMF controls met</span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* FDA SaMD Framework */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <FileCheck className="h-4 w-4 text-green-600" />
+                        FDA SaMD
+                      </CardTitle>
+                      <CardDescription>Software as a Medical Device Guidance</CardDescription>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-3xl font-bold">
+                        {healthcareScore?.frameworkBreakdown?.fda?.compliantControls || 0}/{healthcareScore?.frameworkBreakdown?.fda?.totalControls || 10}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {Math.round(healthcareScore?.frameworkBreakdown?.fda?.coveragePercentage || 0)}% coverage
+                      </div>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <Progress value={healthcareScore?.frameworkBreakdown?.fda?.coveragePercentage || 0} className="h-3" />
+                    
+                    {healthcareScore?.frameworkBreakdown?.fda?.violations && healthcareScore.frameworkBreakdown.fda.violations.length > 0 ? (
+                      <div>
+                        <div className="font-semibold text-sm mb-3 flex items-center gap-2">
+                          <AlertCircle className="h-4 w-4 text-red-600" />
+                          Control Violations ({healthcareScore.frameworkBreakdown.fda.violations.length})
+                        </div>
+                        <div className="space-y-2">
+                          {healthcareScore.frameworkBreakdown.fda.violations.map((violation: any, vIdx: number) => (
+                            <div key={vIdx} className="p-3 border rounded-lg bg-red-50 dark:bg-red-950/20">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1">
+                                  <div className="font-semibold text-sm text-red-700 dark:text-red-400 font-mono">
+                                    {violation.controlId}
+                                  </div>
+                                  <div className="text-sm text-muted-foreground mt-1">
+                                    {violation.controlName}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <Badge variant={violation.severity === 'critical' ? 'destructive' : violation.severity === 'high' ? 'default' : 'outline'} className="text-xs">
+                                    {violation.severity}
+                                  </Badge>
+                                  <div className="text-xs text-muted-foreground mt-1">
+                                    {violation.count} event{violation.count !== 1 ? 's' : ''}
+                                  </div>
+                                  {violation.requiresReporting && (
+                                    <Badge variant="destructive" className="text-xs mt-1">FDA Reporting Required</Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-green-600 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
+                        <CheckCircle2 className="h-4 w-4" />
+                        <span className="text-sm font-semibold">All FDA SaMD controls met</span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* State Laws Framework */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <FileCheck className="h-4 w-4 text-orange-600" />
+                        State AI Laws
+                      </CardTitle>
+                      <CardDescription>CA SB1047, NY AI Act, CO AI Act</CardDescription>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-3xl font-bold">
+                        {healthcareScore?.frameworkBreakdown?.stateLaws?.compliantControls || 0}/{healthcareScore?.frameworkBreakdown?.stateLaws?.totalControls || 5}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {Math.round(healthcareScore?.frameworkBreakdown?.stateLaws?.coveragePercentage || 0)}% coverage
+                      </div>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <Progress value={healthcareScore?.frameworkBreakdown?.stateLaws?.coveragePercentage || 0} className="h-3" />
+                    
+                    {healthcareScore?.frameworkBreakdown?.stateLaws?.violations && healthcareScore.frameworkBreakdown.stateLaws.violations.length > 0 ? (
+                      <div>
+                        <div className="font-semibold text-sm mb-3 flex items-center gap-2">
+                          <AlertCircle className="h-4 w-4 text-red-600" />
+                          Control Violations ({healthcareScore.frameworkBreakdown.stateLaws.violations.length})
+                        </div>
+                        <div className="space-y-2">
+                          {healthcareScore.frameworkBreakdown.stateLaws.violations.map((violation: any, vIdx: number) => (
+                            <div key={vIdx} className="p-3 border rounded-lg bg-red-50 dark:bg-red-950/20">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1">
+                                  <div className="font-semibold text-sm text-red-700 dark:text-red-400 font-mono">
+                                    {violation.controlId}
+                                  </div>
+                                  <div className="text-sm text-muted-foreground mt-1">
+                                    {violation.controlName}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <Badge variant={violation.severity === 'critical' ? 'destructive' : violation.severity === 'high' ? 'default' : 'outline'} className="text-xs">
+                                    {violation.severity}
+                                  </Badge>
+                                  <div className="text-xs text-muted-foreground mt-1">
+                                    {violation.count} event{violation.count !== 1 ? 's' : ''}
+                                  </div>
+                                  {violation.requiresReporting && (
+                                    <Badge variant="destructive" className="text-xs mt-1">State Reporting Required</Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-green-600 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
+                        <CheckCircle2 className="h-4 w-4" />
+                        <span className="text-sm font-semibold">All state law controls met</span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
         </CardContent>
