@@ -1,7 +1,7 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LayoutDashboard, Database, Activity, FileText, Building2, PresentationIcon, Shield, Award, Heart } from "lucide-react";
+import { LayoutDashboard, Database, Activity, FileText, Building2, PresentationIcon, Shield, Award, Heart, Network } from "lucide-react";
 import { useState } from "react";
 import { WebSocketStatus } from "./WebSocketStatus";
 
@@ -26,6 +26,7 @@ export default function Sidebar({
     { id: "compliance", label: "Compliance", icon: Shield },
     { id: "reporting", label: "Reporting", icon: FileText },
     { id: "vendor-directory", label: "Vendor Directory", icon: Building2 },
+    { id: "network-effects", label: "Network", icon: Network },
     { id: "certification-review", label: "Certification Review", icon: Award },
     { id: "board-dashboard", label: "Board Dashboard", icon: PresentationIcon },
   ];
@@ -34,6 +35,7 @@ export default function Sidebar({
     { id: "vendor-dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "certification-intake", label: "Get Certified", icon: Award },
     { id: "trust-page", label: "Trust Page", icon: FileText },
+    { id: "network-reach", label: "Network Reach", icon: Network },
     { id: "customers", label: "Customers", icon: Building2 },
     { id: "performance", label: "Performance", icon: Activity },
   ];

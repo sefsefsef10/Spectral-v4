@@ -11,10 +11,12 @@ import ComplianceView from "@/components/dashboard/views/ComplianceView";
 import { HealthcarePortfolioView } from "@/components/dashboard/views/HealthcarePortfolioView";
 import VendorDashboardView from "@/components/dashboard/views/vendor/VendorDashboardView";
 import TrustPageView from "@/components/dashboard/views/vendor/TrustPageView";
+import NetworkReachView from "@/components/dashboard/views/vendor/NetworkReachView";
 import CustomersView from "@/components/dashboard/views/vendor/CustomersView";
 import PerformanceView from "@/components/dashboard/views/vendor/PerformanceView";
 import CertificationIntakeView from "@/components/dashboard/views/vendor/CertificationIntakeView";
 import CertificationReviewView from "@/components/dashboard/views/CertificationReviewView";
+import NetworkEffectsView from "@/components/dashboard/views/NetworkEffectsView";
 
 export default function Dashboard() {
   const [selectedSystem, setSelectedSystem] = useState<string | null>(null);
@@ -34,6 +36,8 @@ export default function Dashboard() {
           return <CertificationIntakeView />;
         case "trust-page":
           return <TrustPageView />;
+        case "network-reach":
+          return <NetworkReachView />;
         case "customers":
           return <CustomersView />;
         case "performance":
@@ -63,6 +67,8 @@ export default function Dashboard() {
         return <ReportingView />;
       case "vendor-directory":
         return <VendorDirectoryView />;
+      case "network-effects":
+        return <NetworkEffectsView />;
       case "board-dashboard":
         return <BoardDashboardView />;
       case "certification-review":

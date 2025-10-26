@@ -7498,6 +7498,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 🌐 Network Effects API Endpoints
+  app.get("/api/network-metrics/latest", async (req: Request, res: Response) => {
+    try {
+      const { networkMetricsCalculator } = await import("./services/network-metrics-calculator");
+      const snapshot = await networkMetricsCalculator.getLatestSnapshot();
+      res.json(snapshot || {});
+    } catch (error) {
+      logger.error({ err: error }, "Failed to get network metrics");
+      res.status(500).json({ error: "Failed to load network metrics" });
+    }
+  });
+
+  app.get("/api/network-metrics/effects-score", async (req: Request, res: Response) => {
+    try {
+      const { networkMetricsCalculator } = await import("./services/network-metrics-calculator");
+      const score = await networkMetricsCalculator.calculateNetworkEffectsScore();
+      res.json(score);
+    } catch (error) {
+      logger.error({ err: error }, "Failed to get network effects score");
+      res.status(500).json({ error: "Failed to calculate network effects score" });
+    }
+  });
+
+  app.get("/api/spectral-standard/adopters", async (req: Request, res: Response) => {
+    try {
+      const { spectralStandardTracker } = await import("./services/spectral-standard-tracker");
+      const adopters = await spectralStandardTracker.getAllAdoptions();
+      res.json(adopters);
+    } catch (error) {
+      logger.error({ err: error }, "Failed to get Spectral Standard adopters");
+      res.status(500).json({ error: "Failed to load adopters" });
+    }
+  });
+
+  app.get("/api/vendors/:vendorId/network-metrics", validateVendorAccess, async (req: Request, res: Response) => {
+    try {
+      const vendorId = req.params.vendorId;
+      const { vendorAcceptanceWorkflow } = await import("./services/vendor-acceptance-workflow");
+      const metrics = await vendorAcceptanceWorkflow.getVendorNetworkMetrics(vendorId);
+      res.json(metrics);
+    } catch (error) {
+      logger.error({ err: error }, "Failed to get vendor network metrics");
+      res.status(500).json({ error: "Failed to load vendor network metrics" });
+    }
+  });
+
+  app.get("/api/vendors/:vendorId/health-system-acceptances", validateVendorAccess, async (req: Request, res: Response) => {
+    try {
+      const vendorId = req.params.vendorId;
+      const { spectralStandardTracker } = await import("./services/spectral-standard-tracker");
+      const adopters = await spectralStandardTracker.getPublicAdoptions();
+      res.json(adopters.map(a => ({ id: a.healthSystem.id, name: a.healthSystem.name, state: a.healthSystem.state, adoptionType: a.adoptionType })));
+    } catch (error) {
+      logger.error({ err: error }, "Failed to get health system acceptances");
+      res.status(500).json({ error: "Failed to load health system acceptances" });
+    }
+  });
+
   // 🔒 Policy Administration Routes (IP Moat)
   const { registerPolicyAdminRoutes } = await import("./routes/policy-admin");
   registerPolicyAdminRoutes(app);
