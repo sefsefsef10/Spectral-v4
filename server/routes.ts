@@ -2099,6 +2099,324 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== PHI Detection API (Phase 3.1) =====
+
+  // Detect PHI in text
+  app.post("/api/phi-detection/scan", requireAuth, async (req, res) => {
+    try {
+      const schema = z.object({
+        text: z.string(),
+        threshold: z.number().min(0).max(1).optional(),
+      });
+
+      const data = schema.parse(req.body);
+      const { phiDetectionService } = await import("./services/phi-detection");
+
+      const result = await phiDetectionService.detectPHI(data.text, {
+        threshold: data.threshold,
+      });
+
+      // Create audit log
+      const currentUser = await storage.getUser(req.session.userId!);
+      await storage.createAuditLog({
+        userId: currentUser!.id,
+        action: 'phi_detection_scan',
+        resourceType: 'phi_detection',
+        resourceId: 'scan',
+        resourceName: `PHI scan (${result.phi_count} entities found)`,
+        metadata: { has_phi: result.has_phi, phi_count: result.phi_count, risk_score: result.risk_score },
+        healthSystemId: currentUser!.healthSystemId,
+        vendorId: currentUser!.vendorId,
+      });
+
+      res.json(result);
+    } catch (error) {
+      logger.error({ err: error }, "PHI detection scan error");
+      res.status(400).json({ error: "Failed to scan text for PHI" });
+    }
+  });
+
+  // Batch PHI detection
+  app.post("/api/phi-detection/scan-batch", requireAuth, async (req, res) => {
+    try {
+      const schema = z.object({
+        texts: z.array(z.string()),
+        threshold: z.number().min(0).max(1).optional(),
+      });
+
+      const data = schema.parse(req.body);
+      const { phiDetectionService } = await import("./services/phi-detection");
+
+      const results = await phiDetectionService.detectPHIBatch(data.texts, {
+        threshold: data.threshold,
+      });
+
+      const totalPHI = results.reduce((sum, r) => sum + r.phi_count, 0);
+      const textsWithPHI = results.filter(r => r.has_phi).length;
+
+      // Create audit log
+      const currentUser = await storage.getUser(req.session.userId!);
+      await storage.createAuditLog({
+        userId: currentUser!.id,
+        action: 'phi_detection_batch_scan',
+        resourceType: 'phi_detection',
+        resourceId: 'batch-scan',
+        resourceName: `PHI batch scan (${data.texts.length} texts, ${totalPHI} entities)`,
+        metadata: { batch_size: data.texts.length, total_phi: totalPHI, texts_with_phi: textsWithPHI },
+        healthSystemId: currentUser!.healthSystemId,
+        vendorId: currentUser!.vendorId,
+      });
+
+      res.json(results);
+    } catch (error) {
+      logger.error({ err: error }, "PHI detection batch scan error");
+      res.status(400).json({ error: "Failed to scan texts for PHI" });
+    }
+  });
+
+  // Scan AI system output for PHI
+  app.post("/api/ai-systems/:aiSystemId/scan-phi", requireAuth, async (req, res) => {
+    try {
+      const { aiSystemId } = req.params;
+      const schema = z.object({
+        output: z.string(),
+      });
+
+      const data = schema.parse(req.body);
+
+      // Verify access to AI system
+      const aiSystem = await storage.getAISystem(aiSystemId);
+      if (!aiSystem) {
+        return res.status(404).json({ error: "AI system not found" });
+      }
+
+      const currentUser = await storage.getUser(req.session.userId!);
+      if (currentUser!.healthSystemId !== aiSystem.healthSystemId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const { phiDetectionService } = await import("./services/phi-detection");
+      const scanResult = await phiDetectionService.scanAIOutput(aiSystemId, data.output);
+
+      // Create audit log
+      await storage.createAuditLog({
+        userId: currentUser!.id,
+        action: 'ai_system_phi_scan',
+        resourceType: 'ai_system',
+        resourceId: aiSystemId,
+        resourceName: aiSystem.name,
+        metadata: { 
+          passed: scanResult.passed,
+          phi_detected: scanResult.phi_detected,
+          phi_count: scanResult.details.phi_count,
+          risk_score: scanResult.details.risk_score
+        },
+        healthSystemId: currentUser!.healthSystemId,
+        vendorId: currentUser!.vendorId,
+      });
+
+      res.json(scanResult);
+    } catch (error) {
+      logger.error({ err: error }, "AI system PHI scan error");
+      res.status(400).json({ error: "Failed to scan AI output for PHI" });
+    }
+  });
+
+  // ===== Clinical Validation Dataset API (Phase 3.2) =====
+
+  // Get all validation datasets
+  app.get("/api/validation-datasets", requireAuth, async (req, res) => {
+    try {
+      const { category } = req.query;
+      const { clinicalDatasetLibrary } = await import("./services/clinical-validation/dataset-library");
+
+      const datasets = category
+        ? await clinicalDatasetLibrary.getDatasetsByCategory(String(category))
+        : await clinicalDatasetLibrary.getActiveDatasets();
+
+      res.json(datasets);
+    } catch (error) {
+      logger.error({ err: error }, "Get validation datasets error");
+      res.status(500).json({ error: "Failed to fetch validation datasets" });
+    }
+  });
+
+  // Get specific validation dataset
+  app.get("/api/validation-datasets/:datasetId", requireAuth, async (req, res) => {
+    try {
+      const { datasetId } = req.params;
+      const { clinicalDatasetLibrary } = await import("./services/clinical-validation/dataset-library");
+
+      const dataset = await clinicalDatasetLibrary.getDataset(datasetId);
+      if (!dataset) {
+        return res.status(404).json({ error: "Dataset not found" });
+      }
+
+      res.json(dataset);
+    } catch (error) {
+      logger.error({ err: error }, "Get validation dataset error");
+      res.status(500).json({ error: "Failed to fetch validation dataset" });
+    }
+  });
+
+  // Create new validation dataset (admin only)
+  app.post("/api/validation-datasets", requireAuth, async (req, res) => {
+    try {
+      const currentUser = await storage.getUser(req.session.userId!);
+      if (!currentUser || currentUser.permissions !== 'admin') {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      const schema = z.object({
+        name: z.string(),
+        category: z.enum(['radiology', 'pathology', 'cardiology', 'oncology', 'general', 'emergency', 'pediatrics']),
+        description: z.string().optional(),
+        testCases: z.array(z.object({
+          input: z.any(),
+          expected_output: z.any().optional(),
+          ground_truth: z.any(),
+          metadata: z.record(z.any()).optional(),
+        })),
+        metadataSource: z.string().optional(),
+      });
+
+      const data = schema.parse(req.body);
+      const { clinicalDatasetLibrary } = await import("./services/clinical-validation/dataset-library");
+
+      const dataset = await clinicalDatasetLibrary.createDataset(data);
+
+      // Create audit log
+      await storage.createAuditLog({
+        userId: currentUser.id,
+        action: 'create_validation_dataset',
+        resourceType: 'validation_dataset',
+        resourceId: dataset.id,
+        resourceName: dataset.name,
+        metadata: { category: dataset.category, testCases: dataset.testCases.length },
+        healthSystemId: currentUser.healthSystemId,
+        vendorId: currentUser.vendorId,
+      });
+
+      res.status(201).json(dataset);
+    } catch (error) {
+      logger.error({ err: error }, "Create validation dataset error");
+      res.status(400).json({ error: "Failed to create validation dataset" });
+    }
+  });
+
+  // Update validation dataset (admin only)
+  app.patch("/api/validation-datasets/:datasetId", requireAuth, async (req, res) => {
+    try {
+      const currentUser = await storage.getUser(req.session.userId!);
+      if (!currentUser || currentUser.permissions !== 'admin') {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      const { datasetId } = req.params;
+      const schema = z.object({
+        name: z.string().optional(),
+        description: z.string().optional(),
+        testCases: z.array(z.object({
+          input: z.any(),
+          expected_output: z.any().optional(),
+          ground_truth: z.any(),
+          metadata: z.record(z.any()).optional(),
+        })).optional(),
+        metadataSource: z.string().optional(),
+        active: z.boolean().optional(),
+      });
+
+      const data = schema.parse(req.body);
+      const { clinicalDatasetLibrary } = await import("./services/clinical-validation/dataset-library");
+
+      const dataset = await clinicalDatasetLibrary.updateDataset(datasetId, data);
+
+      // Create audit log
+      await storage.createAuditLog({
+        userId: currentUser.id,
+        action: 'update_validation_dataset',
+        resourceType: 'validation_dataset',
+        resourceId: dataset.id,
+        resourceName: dataset.name,
+        metadata: data,
+        healthSystemId: currentUser.healthSystemId,
+        vendorId: currentUser.vendorId,
+      });
+
+      res.json(dataset);
+    } catch (error) {
+      logger.error({ err: error }, "Update validation dataset error");
+      res.status(400).json({ error: "Failed to update validation dataset" });
+    }
+  });
+
+  // Delete validation dataset (admin only)
+  app.delete("/api/validation-datasets/:datasetId", requireAuth, async (req, res) => {
+    try {
+      const currentUser = await storage.getUser(req.session.userId!);
+      if (!currentUser || currentUser.permissions !== 'admin') {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      const { datasetId } = req.params;
+      const { clinicalDatasetLibrary } = await import("./services/clinical-validation/dataset-library");
+
+      const dataset = await clinicalDatasetLibrary.getDataset(datasetId);
+      if (!dataset) {
+        return res.status(404).json({ error: "Dataset not found" });
+      }
+
+      await clinicalDatasetLibrary.deleteDataset(datasetId);
+
+      // Create audit log
+      await storage.createAuditLog({
+        userId: currentUser.id,
+        action: 'delete_validation_dataset',
+        resourceType: 'validation_dataset',
+        resourceId: datasetId,
+        resourceName: dataset.name,
+        metadata: {},
+        healthSystemId: currentUser.healthSystemId,
+        vendorId: currentUser.vendorId,
+      });
+
+      res.json({ message: "Dataset deleted successfully" });
+    } catch (error) {
+      logger.error({ err: error }, "Delete validation dataset error");
+      res.status(500).json({ error: "Failed to delete validation dataset" });
+    }
+  });
+
+  // Initialize sample datasets (admin only, one-time operation)
+  app.post("/api/validation-datasets/initialize-samples", requireAuth, async (req, res) => {
+    try {
+      const currentUser = await storage.getUser(req.session.userId!);
+      if (!currentUser || currentUser.permissions !== 'admin') {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      const { clinicalDatasetLibrary } = await import("./services/clinical-validation/dataset-library");
+      await clinicalDatasetLibrary.initializeSampleDatasets();
+
+      // Create audit log
+      await storage.createAuditLog({
+        userId: currentUser.id,
+        action: 'initialize_sample_datasets',
+        resourceType: 'validation_dataset',
+        resourceId: 'all',
+        resourceName: 'Sample Clinical Datasets',
+        metadata: {},
+        healthSystemId: currentUser.healthSystemId,
+        vendorId: currentUser.vendorId,
+      });
+
+      res.json({ message: "Sample datasets initialized successfully" });
+    } catch (error) {
+      logger.error({ err: error }, "Initialize sample datasets error");
+      res.status(500).json({ error: "Failed to initialize sample datasets" });
+    }
+  });
+
   // ===== AI Monitoring Webhook Routes (Public) =====
   
   // LangSmith webhook receiver for AI telemetry events (HMAC-SHA256 verified)

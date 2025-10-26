@@ -119,6 +119,25 @@ app.use(express.urlencoded({ extended: false }));
     logger.warn({ err: error }, "Failed to seed state regulations");
     // Don't exit - allow server to start even if catalog initialization fails
   }
+
+  // Initialize clinical validation datasets (Phase 3.2)
+  try {
+    const { clinicalDatasetLibrary } = await import("./services/clinical-validation/dataset-library");
+    await clinicalDatasetLibrary.initializeSampleDatasets();
+  } catch (error: any) {
+    logger.warn({ err: error }, "Failed to initialize validation datasets");
+  }
+
+  // Verify PHI detection service dependencies (Phase 3.1)
+  try {
+    const { phiDetectionService } = await import("./services/phi-detection");
+    // Test that spaCy model is available
+    await phiDetectionService.detectPHI("test", { threshold: 0.9 });
+    logger.info("PHI detection service initialized successfully");
+  } catch (error: any) {
+    logger.error({ err: error }, "Failed to initialize PHI detection service - spaCy model may be missing");
+    logger.warn("Run: python3 -m spacy download en_core_web_sm");
+  }
   
   // Seed database in development
   if (app.get("env") === "development") {
