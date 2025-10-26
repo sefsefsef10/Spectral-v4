@@ -897,6 +897,39 @@ export class DatabaseStorage implements IStorage {
       .where(eq(complianceReports.healthSystemId, healthSystemId))
       .orderBy(desc(complianceReports.generatedAt));
   }
+
+  // Billing Account operations
+  async getBillingAccountByTenant(tenantId: string, role: "health_system" | "vendor"): Promise<BillingAccount | undefined> {
+    const condition = role === "health_system"
+      ? eq(billingAccounts.healthSystemId, tenantId)
+      : eq(billingAccounts.vendorId, tenantId);
+    
+    return db.query.billingAccounts.findFirst({
+      where: condition,
+    });
+  }
+
+  async getActiveSubscriptionByTenant(tenantId: string): Promise<Subscription | undefined> {
+    // First get the billing account
+    const billingAccount = await db.query.billingAccounts.findFirst({
+      where: or(
+        eq(billingAccounts.healthSystemId, tenantId),
+        eq(billingAccounts.vendorId, tenantId)
+      ),
+    });
+
+    if (!billingAccount) {
+      return undefined;
+    }
+
+    // Then get the active subscription
+    return db.query.subscriptions.findFirst({
+      where: and(
+        eq(subscriptions.billingAccountId, billingAccount.id),
+        eq(subscriptions.status, 'active')
+      ),
+    });
+  }
 }
 
 export const storage = new DatabaseStorage();

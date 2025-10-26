@@ -1043,6 +1043,8 @@ export const subscriptions = pgTable("subscriptions", {
   billingAccountId: varchar("billing_account_id").notNull().references(() => billingAccounts.id, { onDelete: "cascade" }),
   stripeSubscriptionId: text("stripe_subscription_id").unique(),
   planTier: text("plan_tier").notNull(), // 'foundation', 'growth', 'enterprise'
+  planPrice: text("plan_price").notNull().default('0'), // Monthly price in dollars (stored as string for precision)
+  currency: text("currency").notNull().default('usd'),
   status: text("status").notNull(), // 'active', 'past_due', 'canceled', 'incomplete'
   currentPeriodStart: timestamp("current_period_start").notNull(),
   currentPeriodEnd: timestamp("current_period_end").notNull(),
@@ -1056,24 +1058,41 @@ export const subscriptions = pgTable("subscriptions", {
 // Invoices for billing records
 export const invoices = pgTable("invoices", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  billingAccountId: varchar("billing_account_id").notNull().references(() => billingAccounts.id, { onDelete: "cascade" }),
   subscriptionId: varchar("subscription_id").notNull().references(() => subscriptions.id, { onDelete: "cascade" }),
+  invoiceNumber: text("invoice_number").notNull().unique(),
   stripeInvoiceId: text("stripe_invoice_id").unique(),
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
+  subtotal: text("subtotal").notNull(), // Stored as string for precision
+  tax: text("tax").notNull().default('0'),
+  total: text("total").notNull(),
+  currency: text("currency").notNull().default('usd'),
   amountDue: integer("amount_due").notNull(), // in cents
   amountPaid: integer("amount_paid").notNull().default(0),
   status: text("status").notNull(), // 'draft', 'open', 'paid', 'uncollectible', 'void'
+  lineItems: jsonb("line_items"), // Array of {description, quantity, unitPrice, amount}
   dueDate: timestamp("due_date"),
   paidAt: timestamp("paid_at"),
+  finalizedAt: timestamp("finalized_at"),
+  voidedAt: timestamp("voided_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => ({
   stripeInvoiceIdx: sql`CREATE INDEX IF NOT EXISTS idx_invoices_stripe ON ${table} (stripe_invoice_id)`,
+  invoiceNumberIdx: sql`CREATE INDEX IF NOT EXISTS idx_invoices_number ON ${table} (invoice_number)`,
+  uniqueSubscriptionPeriod: sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_subscription_period ON ${table} (subscription_id, period_start, period_end)`,
 }));
 
 // Usage meters for consumption tracking
 export const usageMeters = pgTable("usage_meters", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  subscriptionId: varchar("subscription_id").references(() => subscriptions.id, { onDelete: "cascade" }),
   healthSystemId: varchar("health_system_id").references(() => healthSystems.id, { onDelete: "cascade" }),
   vendorId: varchar("vendor_id").references(() => vendors.id, { onDelete: "cascade" }),
+  meterType: text("meter_type").notNull(), // 'ai_systems_monitored', 'compliance_checks_run', 'alerts_generated', etc.
   metricName: text("metric_name").notNull(), // 'ai_systems', 'alerts', 'reports', 'api_calls', 'users', 'certifications'
+  unitPrice: text("unit_price").notNull().default('0'), // Price per unit (stored as string for precision)
   currentValue: integer("current_value").notNull().default(0),
   periodStart: timestamp("period_start").notNull(),
   periodEnd: timestamp("period_end").notNull(),
@@ -1081,19 +1100,24 @@ export const usageMeters = pgTable("usage_meters", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => ({
   meterIdx: sql`CREATE INDEX IF NOT EXISTS idx_usage_meters ON ${table} (health_system_id, vendor_id, metric_name, period_start)`,
+  subscriptionIdx: sql`CREATE INDEX IF NOT EXISTS idx_usage_meters_subscription ON ${table} (subscription_id)`,
 }));
 
 // Usage events for granular tracking
 export const usageEvents = pgTable("usage_events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  meterId: varchar("meter_id").references(() => usageMeters.id, { onDelete: "cascade" }),
   healthSystemId: varchar("health_system_id").references(() => healthSystems.id, { onDelete: "cascade" }),
   vendorId: varchar("vendor_id").references(() => vendors.id, { onDelete: "cascade" }),
   metricName: text("metric_name").notNull(),
+  quantity: integer("quantity").notNull().default(1), // Number of units consumed
   increment: integer("increment").notNull().default(1),
+  timestamp: timestamp("timestamp").notNull().defaultNow(), // When the event occurred
   metadata: jsonb("metadata"),
   recordedAt: timestamp("recorded_at").notNull().defaultNow(),
 }, (table) => ({
   eventIdx: sql`CREATE INDEX IF NOT EXISTS idx_usage_events ON ${table} (health_system_id, vendor_id, recorded_at DESC)`,
+  meterIdx: sql`CREATE INDEX IF NOT EXISTS idx_usage_events_meter ON ${table} (meter_id, timestamp DESC)`,
 }));
 
 export const insertBillingAccountSchema = createInsertSchema(billingAccounts);

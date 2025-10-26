@@ -3840,6 +3840,167 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==========================================
+  // BILLING & INVOICE API
+  // ==========================================
+
+  // Generate monthly invoices (admin only - typically run via cron)
+  app.post("/api/billing/invoices/generate-monthly", requireAuth, async (req, res) => {
+    try {
+      const { billingMonth } = req.body; // ISO date string for the billing month
+      
+      const { automatedInvoicingService } = await import("./services/billing/automated-invoicing");
+      const month = billingMonth ? new Date(billingMonth) : new Date();
+      
+      const generatedInvoices = await automatedInvoicingService.generateMonthlyInvoices(month);
+      
+      res.json({
+        success: true,
+        month: month.toISOString(),
+        generatedCount: generatedInvoices.length,
+        invoices: generatedInvoices,
+      });
+    } catch (error) {
+      logger.error({ err: error }, "Invoice generation error");
+      res.status(500).json({ error: "Failed to generate invoices" });
+    }
+  });
+
+  // Get invoice list for current user's billing account
+  app.get("/api/billing/invoices", requireAuth, async (req, res) => {
+    try {
+      if (!req.session.userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      
+      const user = await storage.getUser(req.session.userId);
+      if (!user) {
+        return res.status(401).json({ error: "User not found" });
+      }
+      
+      // Determine billing account based on user role
+      const tenantId = user.role === "health_system" ? user.healthSystemId : user.vendorId;
+      if (!tenantId) {
+        return res.status(400).json({ error: "No billing account associated with this user" });
+      }
+      
+      // Find billing account for this tenant
+      const billingAccount = await storage.getBillingAccountByTenant(tenantId, user.role);
+      if (!billingAccount) {
+        return res.status(404).json({ error: "Billing account not found" });
+      }
+      
+      const { automatedInvoicingService } = await import("./services/billing/automated-invoicing");
+      const invoices = await automatedInvoicingService.getInvoicesByBillingAccount(billingAccount.id);
+      
+      res.json(invoices);
+    } catch (error) {
+      logger.error({ err: error }, "Error fetching invoices");
+      res.status(500).json({ error: "Failed to fetch invoices" });
+    }
+  });
+
+  // Get upcoming invoice preview
+  app.get("/api/billing/invoices/upcoming", requireAuth, async (req, res) => {
+    try {
+      if (!req.session.userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      
+      const user = await storage.getUser(req.session.userId);
+      if (!user) {
+        return res.status(401).json({ error: "User not found" });
+      }
+      
+      const tenantId = user.role === "health_system" ? user.healthSystemId : user.vendorId;
+      if (!tenantId) {
+        return res.status(400).json({ error: "No billing account associated with this user" });
+      }
+      
+      // Find active subscription
+      const subscription = await storage.getActiveSubscriptionByTenant(tenantId);
+      if (!subscription) {
+        return res.status(404).json({ error: "No active subscription found" });
+      }
+      
+      const { automatedInvoicingService } = await import("./services/billing/automated-invoicing");
+      const preview = await automatedInvoicingService.getUpcomingInvoicePreview(subscription.id);
+      
+      res.json({
+        subscription: {
+          id: subscription.id,
+          planTier: subscription.planTier,
+          currentPeriodStart: subscription.currentPeriodStart,
+          currentPeriodEnd: subscription.currentPeriodEnd,
+        },
+        preview,
+      });
+    } catch (error) {
+      logger.error({ err: error }, "Error fetching upcoming invoice");
+      res.status(500).json({ error: "Failed to fetch upcoming invoice" });
+    }
+  });
+
+  // Finalize an invoice (change from draft to open)
+  app.post("/api/billing/invoices/:id/finalize", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const { automatedInvoicingService } = await import("./services/billing/automated-invoicing");
+      const invoice = await automatedInvoicingService.finalizeInvoice(id);
+      
+      res.json(invoice);
+    } catch (error) {
+      logger.error({ err: error }, "Error finalizing invoice");
+      res.status(500).json({ error: "Failed to finalize invoice" });
+    }
+  });
+
+  // Mark invoice as paid (typically called by Stripe webhook)
+  app.post("/api/billing/invoices/:id/mark-paid", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { paymentIntentId } = req.body;
+      
+      const { automatedInvoicingService } = await import("./services/billing/automated-invoicing");
+      const invoice = await automatedInvoicingService.markInvoicePaid(id, paymentIntentId);
+      
+      res.json(invoice);
+    } catch (error) {
+      logger.error({ err: error }, "Error marking invoice as paid");
+      res.status(500).json({ error: "Failed to mark invoice as paid" });
+    }
+  });
+
+  // Void an invoice
+  app.post("/api/billing/invoices/:id/void", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { reason } = req.body;
+      
+      const { automatedInvoicingService } = await import("./services/billing/automated-invoicing");
+      const invoice = await automatedInvoicingService.voidInvoice(id, reason);
+      
+      res.json(invoice);
+    } catch (error) {
+      logger.error({ err: error }, "Error voiding invoice");
+      res.status(500).json({ error: "Failed to void invoice" });
+    }
+  });
+
+  // Get overdue invoices (admin only)
+  app.get("/api/billing/invoices/overdue", requireAuth, async (req, res) => {
+    try {
+      const { automatedInvoicingService } = await import("./services/billing/automated-invoicing");
+      const overdueInvoices = await automatedInvoicingService.getOverdueInvoices();
+      
+      res.json(overdueInvoices);
+    } catch (error) {
+      logger.error({ err: error }, "Error fetching overdue invoices");
+      res.status(500).json({ error: "Failed to fetch overdue invoices" });
+    }
+  });
+
+  // ==========================================
   // PUBLIC VENDOR TRUST PAGE API (no auth)
   // ==========================================
   
