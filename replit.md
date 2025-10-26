@@ -53,7 +53,17 @@ Production-grade ML-based certification testing infrastructure:
   - Detection method tracking (fairlearn-ml vs variance-fallback)
   - Files: `server/services/bias-detection/index.ts`, `server/services/bias-detection/fairlearn-service.py`, `server/services/vendor-testing/bias-detection-test.ts`
   
-- **Impact:** Certification now has real technical teeth instead of checkbox compliance. ML-based testing catches sophisticated PHI exposure and bias that simple regex/variance methods miss. Critical for maintaining certification credibility with health systems and preventing regulatory incidents.
+- **Clinical Accuracy Validation (MVP - REQUIRES CLINICIAN REVIEW):**
+  - Evidence-based clinical datasets with 11 test cases across 6 specialties
+  - Specialties: Cardiology, Endocrinology, Infectious Disease, Neurology, Emergency Medicine, Pediatrics
+  - Each case includes: clinical scenario, ground truth diagnosis, urgency level, evidence-based treatment, validation criteria
+  - Clinical validator with negation detection and synonym matching (basic implementation)
+  - Scoring: 75/100 threshold (35% keywords, 30% concepts, 20% contraindications, 15% bonuses)
+  - **Limitations**: Basic NLP (not production-grade); requires scispaCy/cTAKES for advanced negation/synonym handling; needs licensed clinician review before real clinical use
+  - **Status**: MVP-ready for demo/testing, not production-ready for real clinical decisions
+  - Files: `server/services/clinical-validation/datasets.ts`, `server/services/clinical-validation/validator.ts`, `server/services/vendor-testing/clinical-accuracy-test.ts`
+
+- **Impact:** Certification now has real technical teeth instead of checkbox compliance. ML-based testing catches sophisticated PHI exposure and bias that simple regex/variance methods miss. Clinical validation provides evidence-based accuracy testing (with documented limitations). Critical for maintaining certification credibility with health systems and preventing regulatory incidents.
 
 ### Legal Foundation (Oct 2025)
 Complete legal template infrastructure for first customer deployment and M&A readiness:

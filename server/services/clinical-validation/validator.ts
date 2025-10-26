@@ -141,10 +141,10 @@ export class ClinicalValidator {
     
     // Find all occurrences of the keyword
     const regex = new RegExp(`\\b${this.escapeRegex(keywordLower)}\\w*\\b`, 'gi');
-    const matches = textLower.matchAll(regex);
+    let match;
     
-    for (const match of matches) {
-      const matchIndex = match.index!;
+    while ((match = regex.exec(textLower)) !== null) {
+      const matchIndex = match.index;
       
       // Check 30 characters before the match for negation words
       const contextStart = Math.max(0, matchIndex - 30);
