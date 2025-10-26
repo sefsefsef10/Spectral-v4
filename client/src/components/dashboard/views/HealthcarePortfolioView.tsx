@@ -16,7 +16,9 @@ import {
   Clock,
   TrendingUp,
   TrendingDown,
-  Minus
+  Minus,
+  XCircle,
+  AlertCircle
 } from "lucide-react";
 
 export function HealthcarePortfolioView() {
@@ -37,6 +39,36 @@ export function HealthcarePortfolioView() {
     queryFn: async () => {
       const res = await fetch(`/api/health-systems/${user?.healthSystemId}/analytics/response-times`);
       if (!res.ok) throw new Error("Failed to fetch response times");
+      return res.json();
+    },
+    enabled: !!user?.healthSystemId,
+  });
+
+  const { data: phiRiskBreakdown } = useQuery({
+    queryKey: ["phi-risk-breakdown", user?.healthSystemId],
+    queryFn: async () => {
+      const res = await fetch(`/api/health-systems/${user?.healthSystemId}/analytics/phi-risk-breakdown`);
+      if (!res.ok) throw new Error("Failed to fetch PHI risk breakdown");
+      return res.json();
+    },
+    enabled: !!user?.healthSystemId,
+  });
+
+  const { data: clinicalSafetyBreakdown } = useQuery({
+    queryKey: ["clinical-safety-breakdown", user?.healthSystemId],
+    queryFn: async () => {
+      const res = await fetch(`/api/health-systems/${user?.healthSystemId}/analytics/clinical-safety-breakdown`);
+      if (!res.ok) throw new Error("Failed to fetch clinical safety breakdown");
+      return res.json();
+    },
+    enabled: !!user?.healthSystemId,
+  });
+
+  const { data: complianceBreakdown } = useQuery({
+    queryKey: ["compliance-breakdown", user?.healthSystemId],
+    queryFn: async () => {
+      const res = await fetch(`/api/health-systems/${user?.healthSystemId}/analytics/compliance-breakdown`);
+      if (!res.ok) throw new Error("Failed to fetch compliance breakdown");
       return res.json();
     },
     enabled: !!user?.healthSystemId,
@@ -413,6 +445,262 @@ export function HealthcarePortfolioView() {
           </CardContent>
         </Card>
       )}
+
+      {/* Detailed Breakdown */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Healthcare-Specific Metrics Breakdown</CardTitle>
+          <CardDescription>Deep-dive into PHI protection, clinical safety, and compliance</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="phi" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="phi">PHI Protection</TabsTrigger>
+              <TabsTrigger value="clinical">Clinical Safety</TabsTrigger>
+              <TabsTrigger value="compliance">Compliance Translation</TabsTrigger>
+            </TabsList>
+
+            {/* PHI Protection Tab */}
+            <TabsContent value="phi" className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-blue-600" />
+                      Overall PHI Risk
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-4xl font-bold">{phiRiskBreakdown?.overall || 0}</span>
+                        <span className="text-lg text-muted-foreground">/100</span>
+                      </div>
+                      <Progress value={phiRiskBreakdown?.overall || 0} className="h-3" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg">HIPAA Control Mapping</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">164.312(a) - Access Controls</span>
+                        <Badge variant={phiRiskBreakdown?.mappedControls?.includes('164.312(a)') ? 'default' : 'destructive'}>
+                          {phiRiskBreakdown?.mappedControls?.includes('164.312(a)') ? 'Met' : 'Violation'}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">164.312(b) - Audit Controls</span>
+                        <Badge variant={phiRiskBreakdown?.mappedControls?.includes('164.312(b)') ? 'default' : 'destructive'}>
+                          {phiRiskBreakdown?.mappedControls?.includes('164.312(b)') ? 'Met' : 'Violation'}
+                        </Badge>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm">PHI Exposure Events</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold text-red-600">
+                      {phiRiskBreakdown?.phiExposures || 0}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">10x weight multiplier</p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm">Data Leakage Events</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold text-orange-600">
+                      {phiRiskBreakdown?.dataLeaks || 0}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">High priority</p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm">Unauthorized Access</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold text-yellow-600">
+                      {phiRiskBreakdown?.unauthorizedAccess || 0}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Moderate priority</p>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            {/* Clinical Safety Tab */}
+            <TabsContent value="clinical" className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Heart className="h-4 w-4 text-red-600" />
+                      Overall Clinical Safety
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-4xl font-bold">{clinicalSafetyBreakdown?.overall || 0}</span>
+                        <span className="text-lg text-muted-foreground">/100</span>
+                      </div>
+                      <Progress value={clinicalSafetyBreakdown?.overall || 0} className="h-3" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg">Patient Safety Status</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center gap-2">
+                      {clinicalSafetyBreakdown?.patientSafetyIncidents === 0 ? (
+                        <>
+                          <CheckCircle2 className="h-8 w-8 text-green-600" />
+                          <div>
+                            <div className="font-semibold text-green-600">No Incidents</div>
+                            <div className="text-xs text-muted-foreground">Zero patient harm events</div>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="h-8 w-8 text-red-600" />
+                          <div>
+                            <div className="font-semibold text-red-600">{clinicalSafetyBreakdown?.patientSafetyIncidents} Incidents</div>
+                            <div className="text-xs text-muted-foreground">Requires immediate review</div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-4">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm">Clinical Accuracy</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">
+                      {clinicalSafetyBreakdown?.components?.accuracy || 0}
+                    </div>
+                    <Progress value={clinicalSafetyBreakdown?.components?.accuracy || 0} className="h-2 mt-2" />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm">Bias Detection</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">
+                      {clinicalSafetyBreakdown?.components?.bias || 0}
+                    </div>
+                    <Progress value={clinicalSafetyBreakdown?.components?.bias || 0} className="h-2 mt-2" />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm">Hallucination Rate</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">
+                      {clinicalSafetyBreakdown?.components?.hallucinations || 0}
+                    </div>
+                    <Progress value={clinicalSafetyBreakdown?.components?.hallucinations || 0} className="h-2 mt-2" />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm">Patient Safety</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">
+                      {clinicalSafetyBreakdown?.components?.patientSafety || 0}
+                    </div>
+                    <Progress value={clinicalSafetyBreakdown?.components?.patientSafety || 0} className="h-2 mt-2" />
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            {/* Compliance Translation Tab */}
+            <TabsContent value="compliance" className="space-y-4">
+              {complianceBreakdown?.frameworks?.map((framework: any, idx: number) => (
+                <Card key={idx}>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <FileCheck className="h-4 w-4 text-green-600" />
+                          {framework.name}
+                        </CardTitle>
+                        <CardDescription>{framework.description}</CardDescription>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-3xl font-bold">
+                          {framework.met}/{framework.total}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {Math.round((framework.met / framework.total) * 100)}% compliance
+                        </div>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <Progress value={(framework.met / framework.total) * 100} className="h-3 mb-4" />
+                      
+                      {framework.violations && framework.violations.length > 0 && (
+                        <div>
+                          <div className="font-semibold text-sm mb-2 flex items-center gap-2">
+                            <AlertCircle className="h-4 w-4 text-red-600" />
+                            Specific Violations ({framework.violations.length})
+                          </div>
+                          <div className="space-y-1">
+                            {framework.violations.map((violation: string, vIdx: number) => (
+                              <div key={vIdx} className="flex items-start gap-2 text-sm">
+                                <XCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
+                                <span className="text-red-600 font-mono">{violation}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {(!framework.violations || framework.violations.length === 0) && (
+                        <div className="flex items-center gap-2 text-green-600">
+                          <CheckCircle2 className="h-4 w-4" />
+                          <span className="text-sm font-semibold">All controls met - Full compliance achieved</span>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 }
