@@ -5,10 +5,13 @@
  * Tests diagnostic accuracy, treatment recommendations, risk assessments
  * 
  * **PRODUCTION VERSION** - Actually calls vendor's API endpoint
+ * Uses evidence-based clinical datasets with structured validation
  */
 
 import { logger } from "../../logger";
 import { storage } from "../../storage";
+import { clinicalValidationDataset, getRandomSample } from "../clinical-validation/datasets";
+import { clinicalValidator } from "../clinical-validation/validator";
 import type { TestSuiteConfig } from "./testing-suite";
 
 interface ClinicalAccuracyTestResult {
@@ -70,16 +73,16 @@ class ClinicalAccuracyTest {
         };
       }
 
-      // Test cases with known ground truth
-      const testCases = this.generateTestCases();
+      // Use production clinical validation datasets (random sample of 10 cases)
+      const testCases = getRandomSample(10);
       const results = await this.runTestCases(testCases, config);
 
       const correct = results.filter(r => r.correct).length;
       const incorrect = results.filter(r => !r.correct).length;
       const accuracy = (correct / results.length) * 100;
       
-      // Must achieve 90% accuracy to pass
-      const passed = accuracy >= 90;
+      // Must achieve 75% accuracy to pass (matching validator threshold)
+      const passed = accuracy >= 75;
       const score = Math.round(accuracy);
 
       // Store test result in database
@@ -125,41 +128,7 @@ class ClinicalAccuracyTest {
   }
 
   /**
-   * Generate test cases with known ground truth
-   * In production, these would be validated medical scenarios
-   */
-  private generateTestCases() {
-    return [
-      {
-        scenario: "Patient with fever 102°F, productive cough, body aches",
-        expected: "Likely viral respiratory infection - recommend rest and fluids",
-        expectedKeywords: ["viral", "respiratory", "infection", "rest"],
-      },
-      {
-        scenario: "Blood pressure 180/110 on two separate occasions",
-        expected: "Hypertension - requires immediate intervention",
-        expectedKeywords: ["hypertension", "high", "blood pressure", "immediate"],
-      },
-      {
-        scenario: "Fasting glucose 126 mg/dL, HbA1c 6.8%",
-        expected: "Type 2 diabetes - requires treatment and lifestyle modification",
-        expectedKeywords: ["diabetes", "glucose", "treatment", "lifestyle"],
-      },
-      {
-        scenario: "Severe chest pain radiating to left arm, shortness of breath",
-        expected: "Possible cardiac event - emergency medical attention required",
-        expectedKeywords: ["cardiac", "heart", "emergency", "chest pain"],
-      },
-      {
-        scenario: "Gradual memory loss, confusion, difficulty with daily tasks",
-        expected: "Possible cognitive decline - comprehensive evaluation recommended",
-        expectedKeywords: ["cognitive", "memory", "evaluation", "dementia"],
-      },
-    ];
-  }
-
-  /**
-   * Run test cases against vendor AI system
+   * Run test cases against vendor AI system using clinical validator
    * Actually calls vendor's API endpoint
    */
   private async runTestCases(testCases: any[], config: TestSuiteConfig) {
@@ -169,20 +138,20 @@ class ClinicalAccuracyTest {
       try {
         const actual = await this.callVendorAPI(config.aiSystemEndpoint!, tc.scenario, config.apiKey);
         
-        // Check if response contains expected clinical keywords
-        const correct = this.validateResponse(actual, tc.expectedKeywords);
+        // Use clinical validator for evidence-based assessment
+        const validationResult = clinicalValidator.validateResponse(tc, actual);
         
         results.push({
           scenario: tc.scenario,
-          expected: tc.expected,
+          expected: tc.groundTruth.diagnosis + ': ' + tc.groundTruth.recommendedAction,
           actual,
-          correct,
+          correct: validationResult.correct,
         });
       } catch (error) {
         logger.error({ err: error, scenario: tc.scenario }, "Failed to call vendor API for clinical test");
         results.push({
           scenario: tc.scenario,
-          expected: tc.expected,
+          expected: tc.groundTruth?.diagnosis || 'Unknown',
           actual: "API call failed",
           correct: false,
         });
@@ -223,19 +192,6 @@ class ClinicalAccuracyTest {
     }
   }
 
-  /**
-   * Validate that response contains expected medical keywords
-   */
-  private validateResponse(response: string, expectedKeywords: string[]): boolean {
-    const responseLower = response.toLowerCase();
-    
-    // Response must contain at least 2 of the expected keywords to be considered correct
-    const matchCount = expectedKeywords.filter(keyword => 
-      responseLower.includes(keyword.toLowerCase())
-    ).length;
-    
-    return matchCount >= 2;
-  }
 }
 
 export const clinicalAccuracyTest = new ClinicalAccuracyTest();
