@@ -284,14 +284,42 @@ router.post('/:id/test', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Access denied' });
     }
     
-    const success = await providerSyncService.testConnection(req.params.id);
-    
-    if (success) {
-      // Update status to active
-      await storage.updateProviderConnection(req.params.id, { status: 'active' });
+    try {
+      const success = await providerSyncService.testConnection(req.params.id);
+      
+      if (success) {
+        // Update status to active and clear any previous errors
+        await storage.updateProviderConnection(req.params.id, { 
+          status: 'active',
+          lastError: null 
+        });
+        
+        res.json({ success: true, message: 'Connection successful' });
+      } else {
+        // Update status to error with message
+        await storage.updateProviderConnection(req.params.id, { 
+          status: 'error',
+          lastError: 'Connection test failed - please verify credentials and base URL' 
+        });
+        
+        res.json({ success: false, message: 'Connection failed' });
+      }
+    } catch (testError) {
+      // Capture specific error and store in database
+      const errorMessage = testError instanceof Error ? testError.message : 'Unknown connection error';
+      
+      await storage.updateProviderConnection(req.params.id, { 
+        status: 'error',
+        lastError: errorMessage 
+      });
+      
+      logger.error({ err: testError, connectionId: req.params.id }, 'Connection test exception');
+      
+      res.status(500).json({ 
+        error: 'Connection test failed', 
+        message: errorMessage 
+      });
     }
-    
-    res.json({ success, message: success ? 'Connection successful' : 'Connection failed' });
     
   } catch (error) {
     logger.error({ err: error }, 'Connection test failed');

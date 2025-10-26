@@ -91,7 +91,7 @@ export default function ROICalculator() {
               size="lg"
               variant="outline"
               className="mt-6 bg-primary-foreground text-primary hover:bg-primary-foreground/90"
-              onClick={() => console.log("Calculate Savings clicked")}
+              onClick={() => window.location.href = 'mailto:sales@spectral.health?subject=ROI%20Calculation%20Request'}
               data-testid="button-calculate-savings"
             >
               Calculate Your Savings

@@ -57,7 +57,7 @@ export default function Navigation() {
             </Link>
             <Button
               variant="outline"
-              onClick={() => console.log("Talk to Expert clicked")}
+              onClick={() => window.location.href = 'mailto:sales@spectral.health?subject=Expert%20Consultation%20Request'}
               data-testid="button-talk-expert"
             >
               Talk to an Expert
@@ -108,7 +108,7 @@ export default function Navigation() {
               <Button
                 variant="outline"
                 className="w-full"
-                onClick={() => console.log("Talk to Expert clicked")}
+                onClick={() => window.location.href = 'mailto:sales@spectral.health?subject=Expert%20Consultation%20Request'}
                 data-testid="mobile-button-talk-expert"
               >
                 Talk to an Expert

@@ -110,7 +110,7 @@ export default function Pricing() {
                 <Button
                   className="w-full"
                   variant={tier.highlighted ? "default" : "outline"}
-                  onClick={() => console.log(`${tier.buttonText} clicked`)}
+                  onClick={() => window.location.href = `mailto:sales@spectral.health?subject=${encodeURIComponent(tier.name + ' Plan Inquiry')}`}
                   data-testid={`button-${index}`}
                 >
                   {tier.buttonText}

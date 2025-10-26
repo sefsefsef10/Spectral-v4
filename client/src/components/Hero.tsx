@@ -39,7 +39,7 @@ export default function Hero() {
               size="lg"
               variant="outline"
               className="text-lg px-8 py-6 w-full sm:w-auto backdrop-blur-sm bg-background/10"
-              onClick={() => console.log("Calculate savings clicked")}
+              onClick={() => window.location.href = 'mailto:sales@spectral.health?subject=ROI%20Calculation%20Request'}
               data-testid="button-calculate-savings-hero"
             >
               Calculate Your Savings

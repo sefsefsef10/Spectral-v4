@@ -52,7 +52,7 @@ export default function Footer() {
             <ul className="space-y-2 text-sm">
               <li>
                 <button
-                  onClick={() => console.log("About clicked")}
+                  onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
                   className="text-muted-foreground hover-elevate px-2 py-1 rounded-md"
                   data-testid="footer-link-about"
                 >
@@ -61,7 +61,7 @@ export default function Footer() {
               </li>
               <li>
                 <button
-                  onClick={() => console.log("Careers clicked")}
+                  onClick={() => window.location.href = 'mailto:careers@spectral.health'}
                   className="text-muted-foreground hover-elevate px-2 py-1 rounded-md"
                   data-testid="footer-link-careers"
                 >
@@ -70,7 +70,7 @@ export default function Footer() {
               </li>
               <li>
                 <button
-                  onClick={() => console.log("Contact clicked")}
+                  onClick={() => window.location.href = 'mailto:contact@spectral.health'}
                   className="text-muted-foreground hover-elevate px-2 py-1 rounded-md"
                   data-testid="footer-link-contact"
                 >
@@ -83,7 +83,7 @@ export default function Footer() {
           <div>
             <h4 className="font-semibold mb-4">Get Started</h4>
             <Button
-              onClick={() => console.log("Schedule demo clicked")}
+              onClick={() => window.location.href = 'mailto:sales@spectral.health?subject=Demo%20Request'}
               className="w-full mb-3"
               data-testid="footer-button-demo"
             >
@@ -91,7 +91,7 @@ export default function Footer() {
             </Button>
             <Button
               variant="outline"
-              onClick={() => console.log("Talk to expert clicked")}
+              onClick={() => window.location.href = 'mailto:sales@spectral.health?subject=Expert%20Consultation%20Request'}
               className="w-full"
               data-testid="footer-button-expert"
             >
