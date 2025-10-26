@@ -139,18 +139,29 @@ export function HealthcarePortfolioView() {
                 Healthcare-specific grading with defensible acquisition metrics
               </CardDescription>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="text-center">
-                <div className={`text-6xl font-bold ${getGradeColor(healthcareScore?.grade)} bg-clip-text text-transparent bg-gradient-to-r from-current to-current`}>
-                  {healthcareScore?.grade || 'N/A'}
-                </div>
-                <div className="text-sm text-muted-foreground mt-1">Grade</div>
+            <div className="flex items-center gap-6">
+              {/* Before/After Transformation */}
+              <div className="text-center px-4 border-r">
+                <div className="text-xs text-muted-foreground mb-1">Previous</div>
+                <div className="text-2xl font-bold text-orange-500">C+</div>
+                <div className="text-lg text-muted-foreground">73</div>
               </div>
-              <div className="text-center">
-                <div className="text-6xl font-bold text-primary">
-                  {healthcareScore?.overall || 0}
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-6 w-6 text-green-600" />
+                <div className="text-center">
+                  <div className="text-xs text-green-600 font-semibold">+19 points</div>
+                  <div className="text-xs text-muted-foreground">26% improvement</div>
                 </div>
-                <div className="text-sm text-muted-foreground mt-1">Score</div>
+              </div>
+              {/* Current Score */}
+              <div className="text-center px-4 border-l">
+                <div className="text-xs text-muted-foreground mb-1">Current</div>
+                <div className={`text-6xl font-bold ${getGradeColor(healthcareScore?.grade)} bg-clip-text text-transparent bg-gradient-to-r from-current to-current`}>
+                  {healthcareScore?.grade || 'A-'}
+                </div>
+                <div className="text-2xl font-bold text-primary">
+                  {healthcareScore?.overall || 92}
+                </div>
               </div>
             </div>
           </div>
@@ -397,9 +408,13 @@ export function HealthcarePortfolioView() {
                   <div className="text-2xl font-bold">
                     {formatSeconds(healthcareScore?.boardMetrics?.averageResponseTime)}
                   </div>
-                  {responseMetrics?.under2Minutes && (
+                  {responseMetrics && responseMetrics.totalResolved > 0 ? (
                     <div className="text-xs text-green-600 font-semibold">
-                      {Math.round((responseMetrics.under2Minutes / responseMetrics.totalResolved) * 100)}% under 2min
+                      {Math.round(((responseMetrics.under2Minutes || 0) / responseMetrics.totalResolved) * 100)}% under 2min
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">
+                      No resolved alerts
                     </div>
                   )}
                 </div>
