@@ -388,3 +388,147 @@ function generateHtmlEmail(recipientName: string, alertData: AlertEmailData): st
 </html>
 `.trim();
 }
+
+/**
+ * Send email verification email to new user
+ */
+export async function sendEmailVerificationEmail(
+  recipientEmail: string,
+  recipientName: string,
+  verificationToken: string
+): Promise<boolean> {
+  if (!SENDGRID_API_KEY) {
+    logger.info({ recipientEmail }, '[Email] SendGrid not configured - would send verification email');
+    return false;
+  }
+
+  const verificationUrl = `${process.env.APP_URL || 'http://localhost:5000'}/verify-email?token=${verificationToken}`;
+
+  try {
+    const msg = {
+      to: recipientEmail,
+      from: FROM_EMAIL,
+      subject: 'Verify your Spectral account',
+      text: `Hi ${recipientName},\n\nThank you for registering with Spectral. Please verify your email address by clicking the link below:\n\n${verificationUrl}\n\nThis link will expire in 24 hours.\n\nIf you didn't create a Spectral account, please ignore this email.\n\nBest regards,\nThe Spectral Team`,
+      html: `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+    .content { background: white; padding: 30px; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px; }
+    .button { display: inline-block; background: #667eea; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; }
+    .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 14px; color: #6b7280; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1 style="margin: 0;">Welcome to Spectral</h1>
+      <p style="margin: 10px 0 0 0; opacity: 0.9;">Healthcare AI Governance Platform</p>
+    </div>
+    <div class="content">
+      <h2>Hi ${recipientName},</h2>
+      <p>Thank you for creating a Spectral account! We're excited to have you on board.</p>
+      <p>To get started, please verify your email address by clicking the button below:</p>
+      <center>
+        <a href="${verificationUrl}" class="button">Verify Email Address</a>
+      </center>
+      <p><small>Or copy and paste this link into your browser:<br>${verificationUrl}</small></p>
+      <p><strong>This verification link will expire in 24 hours.</strong></p>
+      <p>If you didn't create a Spectral account, please ignore this email.</p>
+      <div class="footer">
+        <p><strong>Spectral AI Governance Platform</strong></p>
+        <p>This is an automated email. Please do not reply.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+`.trim(),
+    };
+
+    await sgMail.send(msg);
+    logger.info({ recipientEmail }, `[Email] Verification email sent to ${recipientEmail}`);
+    return true;
+  } catch (error) {
+    logger.error({ err: error }, "[Email] Failed to send verification email");
+    return false;
+  }
+}
+
+/**
+ * Send password reset email
+ */
+export async function sendPasswordResetEmail(
+  recipientEmail: string,
+  recipientName: string,
+  resetToken: string
+): Promise<boolean> {
+  if (!SENDGRID_API_KEY) {
+    logger.info({ recipientEmail }, '[Email] SendGrid not configured - would send password reset email');
+    return false;
+  }
+
+  const resetUrl = `${process.env.APP_URL || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
+
+  try {
+    const msg = {
+      to: recipientEmail,
+      from: FROM_EMAIL,
+      subject: 'Reset your Spectral password',
+      text: `Hi ${recipientName},\n\nWe received a request to reset your password. Click the link below to create a new password:\n\n${resetUrl}\n\nThis link will expire in 1 hour.\n\nIf you didn't request a password reset, please ignore this email or contact support if you have concerns.\n\nBest regards,\nThe Spectral Team`,
+      html: `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+    .content { background: white; padding: 30px; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px; }
+    .button { display: inline-block; background: #667eea; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; }
+    .warning { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px; margin: 20px 0; }
+    .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 14px; color: #6b7280; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1 style="margin: 0;">Password Reset Request</h1>
+      <p style="margin: 10px 0 0 0; opacity: 0.9;">Spectral AI Governance Platform</p>
+    </div>
+    <div class="content">
+      <h2>Hi ${recipientName},</h2>
+      <p>We received a request to reset the password for your Spectral account.</p>
+      <p>Click the button below to create a new password:</p>
+      <center>
+        <a href="${resetUrl}" class="button">Reset Password</a>
+      </center>
+      <p><small>Or copy and paste this link into your browser:<br>${resetUrl}</small></p>
+      <div class="warning">
+        <strong>⚠️ Security Notice:</strong> This password reset link will expire in 1 hour. If you didn't request this reset, please ignore this email or contact support.
+      </div>
+      <div class="footer">
+        <p><strong>Spectral AI Governance Platform</strong></p>
+        <p>This is an automated email. Please do not reply.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+`.trim(),
+    };
+
+    await sgMail.send(msg);
+    logger.info({ recipientEmail }, `[Email] Password reset email sent to ${recipientEmail}`);
+    return true;
+  } catch (error) {
+    logger.error({ err: error }, "[Email] Failed to send password reset email");
+    return false;
+  }
+}

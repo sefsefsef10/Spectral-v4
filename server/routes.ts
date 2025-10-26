@@ -5,6 +5,7 @@ import { storage } from "./storage";
 import { hashPassword, verifyPassword, sanitizeUser } from "./auth";
 import { getCsrfToken } from "./middleware/csrf";
 import { authRateLimit, apiRateLimit, mfaRateLimit, webhookRateLimit } from "./middleware/rate-limit";
+import { verifyWebhookSignature } from "./middleware/webhook-security";
 import { generateMFASecret, verifyMFAToken, verifyBackupCode, hashBackupCodes } from "./services/mfa";
 import { 
   insertUserSchema,
@@ -21,6 +22,8 @@ import { DEMO_HEALTH_SYSTEM_ID, DEMO_VENDOR_VIZAI_ID } from "./constants";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
+import crypto from "crypto";
+import { sendEmailVerificationEmail, sendPasswordResetEmail } from "./services/email-notification";
 
 // Middleware to require authentication
 function requireAuth(req: Request, res: Response, next: () => void) {
@@ -131,11 +134,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Hash password
       const hashedPassword = await hashPassword(data.password);
-      
+
+      // Generate email verification token
+      const verificationToken = crypto.randomBytes(32).toString('hex');
+      const verificationExpiry = new Date();
+      verificationExpiry.setHours(verificationExpiry.getHours() + 24); // 24 hour expiry
+
       // Create organization based on role
       let healthSystemId: string | null = null;
       let vendorId: string | null = null;
-      
+
       if (data.role === "health_system") {
         const healthSystem = await storage.createHealthSystem({
           name: data.organizationName,
@@ -148,7 +156,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         vendorId = vendor.id;
       }
-      
+
       // Create user with org association - first user is admin
       const user = await storage.createUser({
         username: data.username,
@@ -158,11 +166,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         permissions: 'admin', // First user for organization is always admin
         healthSystemId,
         vendorId,
+        emailVerificationToken: verificationToken,
+        emailVerificationExpiry: verificationExpiry,
       });
-      
+
+      // Send verification email
+      try {
+        await sendEmailVerificationEmail(data.email, data.username, verificationToken);
+        logger.info({ userId: user.id, email: data.email }, "Verification email sent");
+      } catch (error) {
+        logger.error({ error, userId: user.id }, "Failed to send verification email");
+        // Continue with registration even if email fails
+      }
+
       // Set session
       req.session.userId = user.id;
-      
+
       res.status(201).json(sanitizeUser(user));
     } catch (error) {
       res.status(400).json({ error: "Invalid registration data" });
@@ -236,13 +255,178 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!req.session.userId) {
       return res.status(401).json({ error: "Not authenticated" });
     }
-    
+
     const user = await storage.getUser(req.session.userId);
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
-    
+
     res.json(sanitizeUser(user));
+  });
+
+  // ===== Email Verification Routes =====
+
+  // Verify email with token
+  app.post("/api/auth/verify-email", async (req, res) => {
+    try {
+      const schema = z.object({
+        token: z.string(),
+      });
+
+      const { token } = schema.parse(req.body);
+
+      // Find user by verification token
+      const user = await storage.getUserByVerificationToken(token);
+      if (!user) {
+        return res.status(400).json({ error: "Invalid or expired verification token" });
+      }
+
+      // Check if token is expired
+      if (user.emailVerificationExpiry && new Date() > user.emailVerificationExpiry) {
+        return res.status(400).json({ error: "Verification token has expired" });
+      }
+
+      // Mark email as verified and clear token
+      await storage.updateUser(user.id, {
+        emailVerified: true,
+        emailVerificationToken: null,
+        emailVerificationExpiry: null,
+      });
+
+      logger.info({ userId: user.id, email: user.email }, "Email verified successfully");
+
+      res.json({ message: "Email verified successfully" });
+    } catch (error) {
+      logger.error({ error }, "Email verification error");
+      res.status(400).json({ error: "Invalid verification request" });
+    }
+  });
+
+  // Resend verification email
+  app.post("/api/auth/resend-verification", authRateLimit, async (req, res) => {
+    try {
+      const schema = z.object({
+        email: z.string().email(),
+      });
+
+      const { email } = schema.parse(req.body);
+
+      // Find user by email
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        // Don't reveal if email exists for security
+        return res.json({ message: "If the email exists, a verification email has been sent" });
+      }
+
+      // Check if already verified
+      if (user.emailVerified) {
+        return res.status(400).json({ error: "Email is already verified" });
+      }
+
+      // Generate new verification token
+      const verificationToken = crypto.randomBytes(32).toString('hex');
+      const expiryDate = new Date();
+      expiryDate.setHours(expiryDate.getHours() + 24); // 24 hour expiry
+
+      // Update user with new token
+      await storage.updateUser(user.id, {
+        emailVerificationToken: verificationToken,
+        emailVerificationExpiry: expiryDate,
+      });
+
+      // Send verification email
+      const name = user.firstName || user.username;
+      await sendEmailVerificationEmail(user.email, name, verificationToken);
+
+      logger.info({ userId: user.id, email: user.email }, "Verification email resent");
+
+      res.json({ message: "If the email exists, a verification email has been sent" });
+    } catch (error) {
+      logger.error({ error }, "Resend verification error");
+      res.status(400).json({ error: "Invalid request" });
+    }
+  });
+
+  // ===== Password Reset Routes =====
+
+  // Request password reset
+  app.post("/api/auth/forgot-password", authRateLimit, async (req, res) => {
+    try {
+      const schema = z.object({
+        email: z.string().email(),
+      });
+
+      const { email } = schema.parse(req.body);
+
+      // Find user by email
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        // Don't reveal if email exists for security
+        return res.json({ message: "If the email exists, a password reset email has been sent" });
+      }
+
+      // Generate reset token
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      const expiryDate = new Date();
+      expiryDate.setHours(expiryDate.getHours() + 1); // 1 hour expiry
+
+      // Update user with reset token
+      await storage.updateUser(user.id, {
+        resetToken,
+        resetTokenExpiry: expiryDate,
+      });
+
+      // Send password reset email
+      const name = user.firstName || user.username;
+      await sendPasswordResetEmail(user.email, name, resetToken);
+
+      logger.info({ userId: user.id, email: user.email }, "Password reset email sent");
+
+      res.json({ message: "If the email exists, a password reset email has been sent" });
+    } catch (error) {
+      logger.error({ error }, "Forgot password error");
+      res.status(400).json({ error: "Invalid request" });
+    }
+  });
+
+  // Reset password with token
+  app.post("/api/auth/reset-password", authRateLimit, async (req, res) => {
+    try {
+      const schema = z.object({
+        token: z.string(),
+        newPassword: z.string().min(6),
+      });
+
+      const { token, newPassword } = schema.parse(req.body);
+
+      // Find user by reset token
+      const user = await storage.getUserByResetToken(token);
+      if (!user) {
+        return res.status(400).json({ error: "Invalid or expired reset token" });
+      }
+
+      // Check if token is expired
+      if (user.resetTokenExpiry && new Date() > user.resetTokenExpiry) {
+        return res.status(400).json({ error: "Reset token has expired" });
+      }
+
+      // Hash new password
+      const hashedPassword = await hashPassword(newPassword);
+
+      // Update user password and clear reset token
+      await storage.updateUser(user.id, {
+        password: hashedPassword,
+        resetToken: null,
+        resetTokenExpiry: null,
+      });
+
+      logger.info({ userId: user.id, email: user.email }, "Password reset successfully");
+
+      res.json({ message: "Password reset successfully" });
+    } catch (error) {
+      logger.error({ error }, "Reset password error");
+      res.status(400).json({ error: "Invalid reset request" });
+    }
   });
 
   // ===== MFA/2FA Routes =====
@@ -1952,22 +2136,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== AI Monitoring Webhook Routes (Public) =====
   
   // LangSmith webhook receiver for AI telemetry events
-  app.post("/api/webhooks/langsmith/:aiSystemId", webhookRateLimit, async (req, res) => {
+  app.post("/api/webhooks/langsmith/:aiSystemId", webhookRateLimit, verifyWebhookSignature('langsmith'), async (req, res) => {
     try {
       const { aiSystemId } = req.params;
-      const secret = req.query.secret as string || req.headers.authorization?.replace("Bearer ", "");
-      
-      // Validate webhook secret (in production, this should be per-AI system)
-      const WEBHOOK_SECRET = process.env.LANGSMITH_WEBHOOK_SECRET;
-      if (!WEBHOOK_SECRET) {
-        logger.error("LANGSMITH_WEBHOOK_SECRET not configured");
-        return res.status(500).json({ error: "Webhook integration not configured" });
-      }
-      if (secret !== WEBHOOK_SECRET) {
-        logger.warn({ aiSystemId }, "Invalid webhook secret attempt");
-        return res.status(401).json({ error: "Invalid webhook secret" });
-      }
-      
+
       // Verify AI system exists
       const aiSystem = await storage.getAISystem(aiSystemId);
       if (!aiSystem) {
@@ -2203,22 +2375,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Arize AI webhook receiver for model monitoring
-  app.post("/api/webhooks/arize/:aiSystemId", webhookRateLimit, async (req, res) => {
+  app.post("/api/webhooks/arize/:aiSystemId", webhookRateLimit, verifyWebhookSignature('arize'), async (req, res) => {
     try {
       const { aiSystemId } = req.params;
-      const secret = req.query.secret as string || req.headers.authorization?.replace("Bearer ", "");
-      
-      // Validate webhook secret
-      const ARIZE_WEBHOOK_SECRET = process.env.ARIZE_WEBHOOK_SECRET;
-      if (!ARIZE_WEBHOOK_SECRET) {
-        logger.error("ARIZE_WEBHOOK_SECRET not configured");
-        return res.status(500).json({ error: "Webhook integration not configured" });
-      }
-      if (secret !== ARIZE_WEBHOOK_SECRET) {
-        logger.warn({ aiSystemId }, "Invalid Arize webhook secret attempt");
-        return res.status(401).json({ error: "Invalid webhook secret" });
-      }
-      
+
       // Verify AI system exists
       const aiSystem = await storage.getAISystem(aiSystemId);
       if (!aiSystem) {
@@ -2326,22 +2486,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // LangFuse webhook receiver for AI observability telemetry
-  app.post("/api/webhooks/langfuse/:aiSystemId", webhookRateLimit, async (req, res) => {
+  app.post("/api/webhooks/langfuse/:aiSystemId", webhookRateLimit, verifyWebhookSignature('langfuse'), async (req, res) => {
     try {
       const { aiSystemId } = req.params;
-      const secret = req.query.secret as string || req.headers.authorization?.replace("Bearer ", "");
-      
-      // Validate webhook secret
-      const LANGFUSE_WEBHOOK_SECRET = process.env.LANGFUSE_WEBHOOK_SECRET;
-      if (!LANGFUSE_WEBHOOK_SECRET) {
-        logger.error("LANGFUSE_WEBHOOK_SECRET not configured");
-        return res.status(500).json({ error: "Webhook integration not configured" });
-      }
-      if (secret !== LANGFUSE_WEBHOOK_SECRET) {
-        logger.warn({ aiSystemId }, "Invalid LangFuse webhook secret attempt");
-        return res.status(401).json({ error: "Invalid webhook secret" });
-      }
-      
+
       // Verify AI system exists
       const aiSystem = await storage.getAISystem(aiSystemId);
       if (!aiSystem) {
@@ -2448,22 +2596,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Weights & Biases webhook receiver for ML experiment tracking
-  app.post("/api/webhooks/wandb/:aiSystemId", webhookRateLimit, async (req, res) => {
+  app.post("/api/webhooks/wandb/:aiSystemId", webhookRateLimit, verifyWebhookSignature('wandb'), async (req, res) => {
     try {
       const { aiSystemId } = req.params;
-      const secret = req.query.secret as string || req.headers.authorization?.replace("Bearer ", "");
-      
-      // Validate webhook secret
-      const WANDB_WEBHOOK_SECRET = process.env.WANDB_WEBHOOK_SECRET;
-      if (!WANDB_WEBHOOK_SECRET) {
-        logger.error("WANDB_WEBHOOK_SECRET not configured");
-        return res.status(500).json({ error: "Webhook integration not configured" });
-      }
-      if (secret !== WANDB_WEBHOOK_SECRET) {
-        logger.warn({ aiSystemId }, "Invalid W&B webhook secret attempt");
-        return res.status(401).json({ error: "Invalid webhook secret" });
-      }
-      
+
       // Verify AI system exists
       const aiSystem = await storage.getAISystem(aiSystemId);
       if (!aiSystem) {
@@ -2564,9 +2700,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PagerDuty webhook receiver for incident management
-  app.post("/api/webhooks/pagerduty", webhookRateLimit, async (req, res) => {
+  app.post("/api/webhooks/pagerduty", webhookRateLimit, verifyWebhookSignature('pagerduty'), async (req, res) => {
     try {
-      // PagerDuty webhook signature verification would go here in production
       const payload = req.body;
       
       // PagerDuty sends incident events
@@ -2604,7 +2739,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // DataDog webhook receiver for infrastructure monitoring
-  app.post("/api/webhooks/datadog", webhookRateLimit, async (req, res) => {
+  app.post("/api/webhooks/datadog", webhookRateLimit, verifyWebhookSignature('datadog'), async (req, res) => {
     try {
       const payload = req.body;
       
@@ -2647,7 +2782,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Twilio webhook receiver for SMS delivery events
-  app.post("/api/webhooks/twilio", webhookRateLimit, async (req, res) => {
+  app.post("/api/webhooks/twilio", webhookRateLimit, verifyWebhookSignature('twilio'), async (req, res) => {
     try {
       const payload = req.body;
       
@@ -2672,7 +2807,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Slack webhook receiver for interactive events
-  app.post("/api/webhooks/slack", webhookRateLimit, async (req, res) => {
+  app.post("/api/webhooks/slack", webhookRateLimit, verifyWebhookSignature('slack'), async (req, res) => {
     try {
       const payload = req.body;
       
@@ -2703,7 +2838,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Epic EHR FHIR webhook for clinical data events
-  app.post("/api/webhooks/epic/:aiSystemId", webhookRateLimit, async (req, res) => {
+  app.post("/api/webhooks/epic/:aiSystemId", webhookRateLimit, verifyWebhookSignature('epic'), async (req, res) => {
     try {
       const { aiSystemId } = req.params;
       
@@ -2740,7 +2875,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Cerner EHR FHIR webhook for clinical data events
-  app.post("/api/webhooks/cerner/:aiSystemId", webhookRateLimit, async (req, res) => {
+  app.post("/api/webhooks/cerner/:aiSystemId", webhookRateLimit, verifyWebhookSignature('cerner'), async (req, res) => {
     try {
       const { aiSystemId } = req.params;
       
@@ -2776,7 +2911,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Athenahealth EHR FHIR webhook for clinical data events
-  app.post("/api/webhooks/athenahealth/:aiSystemId", webhookRateLimit, async (req, res) => {
+  app.post("/api/webhooks/athenahealth/:aiSystemId", webhookRateLimit, verifyWebhookSignature('athenahealth'), async (req, res) => {
     try {
       const { aiSystemId } = req.params;
       
