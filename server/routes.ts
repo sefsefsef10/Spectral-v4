@@ -808,7 +808,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lastName: ssoUser.lastName || undefined,
           ssoProvider: 'workos',
           ssoExternalId: ssoUser.id,
-          ssoOrganizationId: ssoUser.organizationId || undefined,
+          ssoOrganizationId: (ssoUser as any).organizationId || undefined,
           role: 'health_system',
           permissions: 'admin', // First SSO user is admin
           healthSystemId,
@@ -823,7 +823,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create session
       req.session.userId = user.id;
-      req.session.ssoAuthenticated = true;
 
       // Log successful SSO login
       await storage.createAuditLog({
@@ -4168,7 +4167,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         action: "bias_analysis",
         resourceType: "bias_test",
         resourceId: null,
-        details: {
+        metadata: {
           bias_detected: result.bias_detected,
           violations_count: result.violations.length,
         },
@@ -4234,7 +4233,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         action: "disparate_impact_test",
         resourceType: "bias_test",
         resourceId: null,
-        details: {
+        metadata: {
           bias_detected: result.bias_detected,
           disparate_impact_ratio: result.disparate_impact_ratio,
         },
@@ -4349,7 +4348,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         action: "ai_system_bias_test",
         resourceType: "ai_system",
         resourceId: aiSystemId,
-        details: {
+        metadata: {
           bias_detected: result.bias_detected,
           violations_count: result.violations.length,
           overall_accuracy: result.overall_metrics.accuracy,
@@ -4685,7 +4684,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         action: "recertification_executed",
         resourceType: "ai_system",
         resourceId: aiSystemId,
-        details: {
+        metadata: {
           overall_pass: workflow.overall_pass,
           steps_completed: workflow.steps.length,
           findings_count: workflow.findings.length,
@@ -4737,7 +4736,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         action: "bulk_recertification_executed",
         resourceType: "health_system",
         resourceId: user.healthSystemId,
-        details: summary,
+        metadata: summary,
       });
 
       res.json({
@@ -4842,7 +4841,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         action: "compliance_report_generated",
         resourceType: "compliance_report",
         resourceId: report.report_id,
-        details: {
+        metadata: {
           page_count: report.page_count,
           frameworks: report.frameworks_covered,
         },
@@ -4945,11 +4944,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const result = await threatModelingService.analyzeAISystem(aiSystemId, {
         name: aiSystem.name,
-        category: aiSystem.category,
+        category: "clinical", // Default category
         deployment_environment: body.deployment_environment,
         data_access: body.data_access,
         integration_points: body.integration_points,
-        phi_handling: aiSystem.phiExposureRisk === "high" || aiSystem.phiExposureRisk === "medium",
+        phi_handling: aiSystem.riskLevel === "high" || aiSystem.riskLevel === "medium",
         user_roles: body.user_roles,
       });
 
@@ -4958,7 +4957,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         action: "threat_modeling_analysis",
         resourceType: "ai_system",
         resourceId: aiSystemId,
-        details: {
+        metadata: {
           total_threats: result.total_threats,
           critical_count: result.critical_count,
           risk_score: result.risk_score,
