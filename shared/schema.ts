@@ -73,6 +73,10 @@ export const auditLogs = pgTable("audit_logs", {
 }, (table) => ({
   // Index for time-based audit log queries (compliance reporting)
   createdAtIdx: sql`CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON ${table} (created_at DESC)`,
+  // Index for filtering audit logs by health system (compliance reporting)
+  healthSystemIdx: sql`CREATE INDEX IF NOT EXISTS idx_audit_logs_health_system ON ${table} (health_system_id)`,
+  // Index for filtering audit logs by user (user activity tracking)
+  userIdx: sql`CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON ${table} (user_id)`,
 }));
 
 export const healthSystems = pgTable("health_systems", {
@@ -180,6 +184,8 @@ export const providerConnections = pgTable("provider_connections", {
 }, (table) => ({
   // Unique constraint: one connection per provider per health system
   healthSystemProviderUnique: sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_provider_connections_unique ON ${table} (health_system_id, provider_type)`,
+  // Index for filtering connections by health system (faster joins)
+  healthSystemIdx: sql`CREATE INDEX IF NOT EXISTS idx_provider_connections_health_system ON ${table} (health_system_id)`,
 }));
 
 export const monitoringAlerts = pgTable("monitoring_alerts", {
