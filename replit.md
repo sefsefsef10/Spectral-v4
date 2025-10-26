@@ -3,6 +3,28 @@
 ## Overview
 Spectral is a B2B SaaS platform designed for healthcare organizations and AI vendors to govern, monitor, and ensure compliance of AI systems. It aims to mitigate compliance risks, address operational blind spots, and streamline AI procurement in healthcare, with the ambition of becoming the leading AI governance platform in the sector.
 
+## Recent Changes (2025-10-26): Roadmap Progress
+
+**18-Month Roadmap Execution Progress:**
+- ✅ **Phase 1 (Translation Engine Moat)**: COMPLETE - 50 compliance controls, Event Normalizer, State Law Engine
+- ✅ **Phase 2 (Network Effects)**: COMPLETE - Vendor Acceptance, Spectral Standard Tracker, Network Metrics
+- ✅ **Phase 3 (Executive Reporting)**: COMPLETE - Executive Summary Generator, Audit Evidence Packager, Report Scheduler, Regulatory Alert Service
+- ✅ **Phase 4 (Business Model)**: COMPLETE - Policy Enforcement Engine, AI Discovery Crawler, Usage Metering (interface)
+- ⏸️ **Phase 5 (Scale & Acquisition)**: Pending
+
+### Phase 4 Completion (Business Model & Product Polish)
+**New Tables**: `policy_rules`, `policy_enforcement_logs`, `ai_discovery_jobs`
+
+**Backend Services (Production)** ✅:
+- **Policy Enforcement Engine** (`policy-enforcement-engine.ts`): Real-time governance policy evaluation with approval workflows, violation tracking, enforcement actions (block deployment, require approval, restrict access, escalate to admin), policy statistics dashboard
+- **AI Discovery Crawler** (`ai-discovery-crawler.ts`): Automated AI system discovery across healthcare infrastructure (EHR scans, vendor surveys, API crawlers), confidence scoring, deduplication, discovery job tracking, mock EHR integrations for Epic/Cerner
+- **Usage Metering Service** (`usage-metering-service.ts`): Interface for tracking usage limits (AI systems, alerts, reports, API calls, users, certifications), plan limits (foundation/growth/enterprise), overage calculations, actual usage reconciliation (NOTE: Requires billing tables to be added to schema for persistence)
+
+**Design Notes**:
+- Policy engine uses risk level values (low=1, medium=2, high=3, critical=4) for comparisons
+- AI discovery filters high-confidence systems (>=0.7 confidence)
+- Usage metering provides complete interface but operates in stub mode until billing schema added
+
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
