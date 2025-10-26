@@ -7,9 +7,13 @@ export default function ROICalculator() {
     <section className="py-16 md:py-20 lg:py-24 bg-muted/30">
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
         <div className="text-center mb-12 md:mb-16">
-          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4">
-            The Math
+          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6">
+            Build vs. Buy: The Real Cost
           </h2>
+          <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto">
+            Building AI governance infrastructure yourself costs <span className="font-semibold text-destructive">$15M + 5 years</span>. 
+            See what Spectral saves you.
+          </p>
         </div>
 
         <div className="grid md:grid-cols-2 gap-8 lg:gap-12 mb-12">
