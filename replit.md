@@ -24,6 +24,19 @@ Spectral is a B2B SaaS platform for healthcare organizations to govern, monitor,
 - Privacy: 2 types | Security: 5 types | Performance: 3 types
 - Safety: 4 types | Fairness: 3 types | Quality: 3 types
 
+**Event Normalizer (Production)** ✅: Intelligent telemetry processing system
+- Category-specific pattern matching for all 20 event types
+- Confidence scoring for event classification (0-1 scale)
+- Automated severity derivation (critical, high, medium, low)
+- Backward compatibility with legacy event types (drift, phi_leakage, bias, latency, error)
+- Integrated with Translation Engine for real-time compliance violation detection
+
+**Compliance Mapping Expansion** ✅: 11 new handler methods
+- Privacy: `handleUnauthorizedAccess` (HIPAA 164.308(a)(4))
+- Security: `handlePromptInjection`, `handleAuthFailure`, `handleRateLimitExceeded`, `handleInputValidationFailure`, `handleVersionMismatch`
+- Safety: `handleClinicalAccuracy` (FDA-CV-1), `handleFalseAlerts` (FDA-AV-1), `handleHarmfulOutput` (CA SB 1047)
+- Quality: `handleDataQuality` (NIST MANAGE-4.2), `handleExplainabilityFailure` (NYC LL144)
+
 **New Tables**: `control_versions`, `event_types`, `state_regulations`, `adaptive_threshold_models`, `regulatory_updates`
 
 ### Network Effects & Marketplace (Phase 2) 🌐
