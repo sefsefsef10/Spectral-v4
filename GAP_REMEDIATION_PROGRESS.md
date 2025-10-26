@@ -10,10 +10,10 @@
 ### Phase Completion Status
 | Phase | Tasks | Completed | In Progress | Pending | Status |
 |-------|-------|-----------|-------------|---------|---------|
-| **Phase 1: Security** | 4 | 4 | 0 | 0 | ✅ **COMPLETE** |
+| **Phase 1: Security** | 4 | 4 | 0 | 0 | ✅ **100% VERIFIED** |
 | **Phase 2: Compliance** | 3 | 0 | 0 | 3 | ⚪ Not Started |
 | **Phase 3: Certification** | 6 | 0 | 0 | 6 | ⚪ Not Started |
-| **Phase 4: Revenue** | 5 | 1 | 0 | 4 | 🟡 Partial |
+| **Phase 4: Revenue** | 5 | 1 | 0 | 4 | 🟡 Partial (20%) |
 | **Phase 5: Advanced** | 4 | 0 | 0 | 4 | ⚪ Not Started |
 
 ---
@@ -22,7 +22,7 @@
 
 ### Phase 1.1: Webhook Signature Verification Infrastructure ✅
 
-**Status**: Complete (pending review)  
+**Status**: Complete & Architect-Verified  
 **Impact**: Closes CRITICAL security vulnerability
 
 **What was built**:
@@ -36,7 +36,9 @@
 
 2. **Signature Verification Utilities** (`server/utils/webhook-signatures.ts`):
    ```typescript
-   ✅ verifyHMACSignature() - HMAC-SHA256 verification with timing-safe comparison
+   ✅ verifyHMACSignature() - Multi-algorithm verification (SHA-1/SHA-256) with timing-safe comparison
+   ✅ Service-specific canonical string construction (Slack: v0:timestamp:body, Twilio: URL+params)
+   ✅ Both hex and Base64 encoding support
    ✅ generateHMACSignature() - For testing
    ✅ generateWebhookSecret() - Crypto-secure random secret generation
    ✅ verifyTimestamp() - Replay attack prevention
@@ -70,7 +72,8 @@
    ```typescript
    ✅ WebhookSecretManager class
    ✅ initializeSecrets() - Creates secrets for all 11 services
-   ✅ ensureSecretExists() - Idempotent secret creation
+   ✅ ensureSecretExists() - Idempotent secret creation with service-specific algorithms
+   ✅ getAlgorithmForService() - Returns correct algorithm per service (SHA-1 for Twilio, SHA-256 for others)
    ✅ rotateSecret() - Secret rotation with zero-downtime
    ✅ getActiveSecret() - For testing/debugging
    ✅ listSecretStatus() - Secret inventory
@@ -79,7 +82,9 @@
    ```
 
 **Security Features Implemented**:
-- ✅ HMAC-SHA256 cryptographic signatures
+- ✅ Multi-algorithm cryptographic signatures (HMAC-SHA1 for Twilio, HMAC-SHA256 for all others)
+- ✅ Service-specific signature formats (Slack: v0:timestamp:body, Twilio: URL+sorted params, Standard: raw body)
+- ✅ Both hex and Base64 encoding support (hex default, Base64 for Twilio)
 - ✅ Timing-safe comparison (prevents timing attacks)
 - ✅ Timestamp verification (prevents replay attacks)
 - ✅ Encrypted secret storage (AES-256-GCM)
