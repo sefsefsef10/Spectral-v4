@@ -36,9 +36,10 @@ export const sessionStore = new PgSession({
 });
 
 // Session configuration with PostgreSQL store
+// Note: SESSION_SECRET is validated by validateSpectralEnv() - no fallback allowed
 app.use(session({
   store: sessionStore,
-  secret: process.env.SESSION_SECRET || "spectral-dev-secret-change-in-production",
+  secret: process.env.SESSION_SECRET!,
   resave: false,
   saveUninitialized: false,
   cookie: {

@@ -16,6 +16,12 @@
 
 import { storage } from "../../storage";
 import { logger } from "../../logger";
+import { 
+  validateTelemetry, 
+  logScoringAudit, 
+  getDataQuality, 
+  getConfidenceModifier 
+} from "./telemetry-validator";
 
 export interface PHIRiskScore {
   score: number; // 0-100 (100 = perfect PHI protection)
@@ -77,9 +83,49 @@ const PHI_HIPAA_CONTROLS = {
  */
 export async function calculatePHIRiskScore(aiSystemId: string): Promise<number> {
   try {
-    // Get recent PHI-related telemetry events (last 24 hours)
-    const events = await storage.getAITelemetryEvents(aiSystemId);
-    const recentEvents = events.filter((e: any) => {
+    // Get ALL telemetry events (not just recent) for validation
+    const allEvents = await storage.getAITelemetryEvents(aiSystemId);
+    
+    // Validate telemetry data freshness and completeness
+    const validation = validateTelemetry(allEvents, 'phi-risk');
+    const dataQuality = getDataQuality(validation);
+    
+    // Log warnings and errors
+    if (validation.warnings.length > 0) {
+      logger.warn({ 
+        aiSystemId, 
+        warnings: validation.warnings,
+        telemetryAge: `${Math.round(validation.age)}h`,
+        eventCount: validation.eventCount
+      }, 'PHI risk scoring: data quality warnings');
+    }
+    
+    if (validation.errors.length > 0) {
+      logger.error({ 
+        aiSystemId, 
+        errors: validation.errors,
+        telemetryAge: `${Math.round(validation.age)}h`,
+        eventCount: validation.eventCount
+      }, 'PHI risk scoring: data quality errors - returning degraded score');
+      
+      // SHORT-CIRCUIT: Return degraded score immediately when validation fails
+      // This prevents stale/missing telemetry from inflating grades
+      logScoringAudit({
+        timestamp: new Date(),
+        aiSystemId,
+        scoringType: 'phi-risk',
+        telemetryAge: validation.age,
+        eventCount: validation.eventCount,
+        score: 0,
+        dataQuality: 'missing',
+        warnings: validation.errors,
+      });
+      
+      return 0;
+    }
+    
+    // Filter for recent events (last 24 hours) for scoring
+    const recentEvents = allEvents.filter((e: any) => {
       const eventTime = new Date(e.timestamp).getTime();
       const dayAgo = Date.now() - (24 * 60 * 60 * 1000);
       return eventTime > dayAgo;
@@ -119,12 +165,43 @@ export async function calculatePHIRiskScore(aiSystemId: string): Promise<number>
     // Convert to 0-100 score (inverted: higher score = better protection)
     // Cap at 200 points max for normalization
     const normalizedRisk = Math.min(totalRiskPoints, 200);
-    const score = Math.max(0, 100 - (normalizedRisk / 2));
+    let score = Math.max(0, 100 - (normalizedRisk / 2));
+    
+    // Apply confidence modifier based on data quality
+    // Stale data gets penalized, missing data gets heavily penalized
+    const confidenceModifier = getConfidenceModifier(dataQuality);
+    score = score * confidenceModifier;
+    
+    // Audit log for due diligence
+    logScoringAudit({
+      timestamp: new Date(),
+      aiSystemId,
+      scoringType: 'phi-risk',
+      telemetryAge: validation.age,
+      eventCount: validation.eventCount,
+      score: Math.round(score),
+      dataQuality,
+      warnings: validation.warnings,
+    });
 
     return Math.round(score);
   } catch (error) {
     logger.error({ error, aiSystemId }, "Failed to calculate PHI risk score");
-    return 50; // Default to medium score on error
+    
+    // Audit log the failure
+    logScoringAudit({
+      timestamp: new Date(),
+      aiSystemId,
+      scoringType: 'phi-risk',
+      telemetryAge: Infinity,
+      eventCount: 0,
+      score: 0,
+      dataQuality: 'missing',
+      warnings: ['Scoring calculation failed - returning degraded score'],
+    });
+    
+    // Return degraded score (0) instead of optimistic 50
+    return 0;
   }
 }
 

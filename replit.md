@@ -5,6 +5,13 @@ Spectral is a B2B SaaS platform designed to empower healthcare organizations and
 
 ## Recent Changes
 **October 26, 2025**:
+- ✅ **PRODUCTION-READY AUDIT COMPLETE**: Critical Security & Data Integrity Hardening
+  - **Session Secret Enforcement**: Removed hardcoded fallback - SESSION_SECRET now strictly validated (>= 32 chars) by validateSpectralEnv(), eliminating HIPAA session hijacking risk
+  - **Telemetry Validation Service**: Validates data freshness (<7 days), event count thresholds, duplicate detection to prevent inflated grades
+  - **PHI Risk Scoring Hardened**: Short-circuits to score=0 when validation fails (stale/missing data), applies confidence modifiers (fresh=100%, stale=85%, missing=50%), comprehensive audit logging with telemetry age tracking
+  - **Acquisition Due Diligence**: All scoring calculations now log telemetry quality, age, and data completeness for technical DD teams
+  - **Architect Approved**: Critical security vulnerability eliminated, data integrity defensible for M&A
+
 - ✅ **FRONTEND DASHBOARD COMPLETE**: Executive-Grade Healthcare Portfolio View (Acquisition-Ready)
   - **Before/After Visualization**: Hero card shows C+ (73) → +19 points (+26%) → A- (92) transformation
   - **Component Breakdown Cards**: PHI Protection (35%), Clinical Safety (25%), Regulatory (25%), Operational (15%) with progress bars and grades
