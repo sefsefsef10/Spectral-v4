@@ -362,7 +362,7 @@ export async function calculatePortfolioClinicalSafety(healthSystemId: string): 
   totalRiskEvents: number;
 }> {
   try {
-    const systems = await storage.getAISystemsByHealthSystem(healthSystemId);
+    const systems = await storage.getAISystems(healthSystemId);
 
     if (systems.length === 0) {
       return {
@@ -387,23 +387,23 @@ export async function calculatePortfolioClinicalSafety(healthSystemId: string): 
       })
     );
 
-    const systemScores = systemAssessments.map(s => ({
+    const systemScores = systemAssessments.map((s: any) => ({
       systemId: s.systemId,
       systemName: s.systemName,
       score: s.score,
     }));
 
     // Portfolio score is average
-    const avgScore = systemScores.reduce((sum: number, s) => sum + s.score, 0) / systemScores.length;
+    const avgScore = systemScores.reduce((sum: number, s: any) => sum + s.score, 0) / systemScores.length;
 
     // Count critical safety issues (patient safety incidents + critical hallucinations)
     const criticalSafetyIssues = systemAssessments.reduce(
-      (sum: number, s) => sum + s.assessment.riskFactors.patientSafetyIncidents, 
+      (sum: number, s: any) => sum + s.assessment.riskFactors.patientSafetyIncidents, 
       0
     );
 
     // Total risk events across all categories
-    const totalRiskEvents = systemAssessments.reduce((sum: number, s) => {
+    const totalRiskEvents = systemAssessments.reduce((sum: number, s: any) => {
       const rf = s.assessment.riskFactors;
       return sum + rf.inaccurateDiagnoses + rf.biasViolations + rf.hallucinationEvents + rf.patientSafetyIncidents;
     }, 0);
