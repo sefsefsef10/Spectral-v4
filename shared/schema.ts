@@ -1142,6 +1142,44 @@ export const usageEvents = pgTable("usage_events", {
   meterIdx: sql`CREATE INDEX IF NOT EXISTS idx_usage_events_meter ON ${table} (meter_id, timestamp DESC)`,
 }));
 
+// 🔒 TRANSLATION ENGINE IP MOAT - Versioned Policy System
+// Stores encrypted, versioned compliance mapping policies (CORE IP)
+export const policyVersions = pgTable("policy_versions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  version: text("version").notNull(), // Semantic versioning: '1.0.0', '1.1.0', '2.0.0'
+  eventType: text("event_type").notNull(), // 'phi_exposure', 'bias_detected', etc.
+  framework: text("framework").notNull(), // 'HIPAA', 'NIST_AI_RMF', 'FDA_SaMD'
+  encryptedRuleLogic: text("encrypted_rule_logic").notNull(), // AES-256-GCM encrypted mapping logic
+  ruleHash: text("rule_hash").notNull(), // SHA-256 hash for integrity verification
+  status: text("status").notNull().default('active'), // 'active', 'deprecated', 'archived'
+  effectiveDate: timestamp("effective_date").notNull().defaultNow(),
+  deprecatedDate: timestamp("deprecated_date"),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  // Index for looking up active policies by event type
+  eventTypeStatusIdx: sql`CREATE INDEX IF NOT EXISTS idx_policy_versions_event_status ON ${table} (event_type, status)`,
+  // Unique constraint: one active policy per event+framework
+  activeVersionIdx: sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_policy_active_version ON ${table} (event_type, framework) WHERE status = 'active'`,
+}));
+
+// Audit log for policy changes (critical for M&A due diligence)
+export const policyChangeLogs = pgTable("policy_change_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  policyVersionId: varchar("policy_version_id").notNull().references(() => policyVersions.id, { onDelete: "cascade" }),
+  changeType: text("change_type").notNull(), // 'created', 'activated', 'deprecated', 'archived'
+  previousVersion: text("previous_version"), // Version being replaced
+  newVersion: text("new_version").notNull(),
+  changeReason: text("change_reason").notNull(), // Business justification for policy change
+  changedBy: varchar("changed_by").notNull().references(() => users.id, { onDelete: "set null" }),
+  reviewedBy: varchar("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+  approvedAt: timestamp("approved_at"),
+  metadata: jsonb("metadata"), // Impact analysis, affected systems count, etc.
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertPolicyVersionSchema = createInsertSchema(policyVersions);
+export const insertPolicyChangeLogSchema = createInsertSchema(policyChangeLogs);
 export const insertBillingAccountSchema = createInsertSchema(billingAccounts);
 export const insertSubscriptionSchema = createInsertSchema(subscriptions);
 export const insertInvoiceSchema = createInsertSchema(invoices);
@@ -1175,3 +1213,9 @@ export type InsertUsageMeter = z.infer<typeof insertUsageMeterSchema>;
 
 export type UsageEvent = typeof usageEvents.$inferSelect;
 export type InsertUsageEvent = z.infer<typeof insertUsageEventSchema>;
+
+export type PolicyVersion = typeof policyVersions.$inferSelect;
+export type InsertPolicyVersion = z.infer<typeof insertPolicyVersionSchema>;
+
+export type PolicyChangeLog = typeof policyChangeLogs.$inferSelect;
+export type InsertPolicyChangeLog = z.infer<typeof insertPolicyChangeLogSchema>;
