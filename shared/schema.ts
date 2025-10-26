@@ -277,6 +277,86 @@ export const complianceTemplates = pgTable("compliance_templates", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// 🔒 PHASE 1: TRANSLATION ENGINE EXPANSION
+
+// Control version history for quarterly regulatory updates
+export const controlVersions = pgTable("control_versions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  controlId: varchar("control_id").notNull().references(() => complianceControls.id, { onDelete: "cascade" }),
+  version: integer("version").notNull(),
+  changes: jsonb("changes"), // What changed from previous version
+  regulatorySource: text("regulatory_source"), // HHS guidance, FDA update, etc.
+  changeReason: text("change_reason"),
+  changedBy: varchar("changed_by").references(() => users.id, { onDelete: "set null" }),
+  effectiveDate: timestamp("effective_date").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Expanded event types taxonomy (15+ types vs current 5)
+export const eventTypes = pgTable("event_types", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventType: text("event_type").notNull().unique(),
+  category: text("category"), // 'privacy', 'performance', 'safety', 'security'
+  description: text("description").notNull(),
+  telemetryFields: jsonb("telemetry_fields"), // Expected fields in payload
+  normalizer: text("normalizer"), // Which normalizer function to use
+  defaultSeverity: text("default_severity"),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// State-specific regulations (CA, CO, NYC)
+export const stateRegulations = pgTable("state_regulations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  state: text("state").notNull(), // 'CA', 'CO', 'NY'
+  regulationName: text("regulation_name").notNull(), // 'CA SB 1047', 'CO AI Act'
+  controlId: text("control_id").notNull(),
+  controlName: text("control_name").notNull(),
+  description: text("description").notNull(),
+  requiresReporting: boolean("requires_reporting").default(false),
+  reportingDeadlineDays: integer("reporting_deadline_days"),
+  effectiveDate: timestamp("effective_date").notNull(),
+  sunsetDate: timestamp("sunset_date"),
+  mappedEventTypes: jsonb("mapped_event_types"),
+  detectionLogic: jsonb("detection_logic"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Adaptive threshold models (ML-based, per health system)
+export const adaptiveThresholdModels = pgTable("adaptive_threshold_models", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  healthSystemId: varchar("health_system_id").notNull().references(() => healthSystems.id, { onDelete: "cascade" }),
+  eventType: text("event_type").notNull(),
+  modelType: text("model_type").notNull(), // 'statistical', 'ml_regression', 'ensemble'
+  modelConfig: jsonb("model_config"), // Hyperparameters
+  thresholds: jsonb("thresholds"), // Current learned thresholds
+  trainingDataSummary: jsonb("training_data_summary"),
+  lastTrainedAt: timestamp("last_trained_at"),
+  accuracy: text("accuracy"),
+  falsePositiveRate: text("false_positive_rate"),
+  falseNegativeRate: text("false_negative_rate"),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Regulatory updates queue for continuous compliance
+export const regulatoryUpdates = pgTable("regulatory_updates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  framework: text("framework").notNull(),
+  updateType: text("update_type").notNull(), // 'new_control', 'control_revision', 'interpretation'
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  source: text("source"), // URL to official guidance
+  impactedControls: jsonb("impacted_controls"),
+  actionRequired: text("action_required"),
+  status: text("status").notNull().default("pending"),
+  reviewedBy: varchar("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+  reviewedAt: timestamp("reviewed_at"),
+  publishedDate: timestamp("published_date").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // 📡 AI MONITORING - LangSmith Integration
 // Stores telemetry events from AI monitoring platforms
 export const aiTelemetryEvents = pgTable("ai_telemetry_events", {
@@ -486,8 +566,269 @@ export const complianceViolations = pgTable("compliance_violations", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// 🌐 PHASE 2: NETWORK EFFECTS & MARKETPLACE
+
+// Vendor acceptance tracking
+export const vendorAcceptances = pgTable("vendor_acceptances", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  healthSystemId: varchar("health_system_id").notNull().references(() => healthSystems.id, { onDelete: "cascade" }),
+  vendorId: varchar("vendor_id").notNull().references(() => vendors.id, { onDelete: "cascade" }),
+  certificationId: varchar("certification_id").references(() => complianceCertifications.id, { onDelete: "set null" }),
+  status: text("status").notNull().default("pending"),
+  acceptedDate: timestamp("accepted_date"),
+  expirationDate: timestamp("expiration_date"),
+  acceptedBy: varchar("accepted_by").references(() => users.id, { onDelete: "set null" }),
+  rejectionReason: text("rejection_reason"),
+  requiredInRFP: boolean("required_in_rfp").default(false),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Health system - vendor relationships for network density
+export const healthSystemVendorRelationships = pgTable("health_system_vendor_relationships", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  healthSystemId: varchar("health_system_id").notNull().references(() => healthSystems.id, { onDelete: "cascade" }),
+  vendorId: varchar("vendor_id").notNull().references(() => vendors.id, { onDelete: "cascade" }),
+  relationshipType: text("relationship_type").notNull(),
+  contractValue: integer("contract_value"),
+  startDate: timestamp("start_date"),
+  endDate: timestamp("end_date"),
+  aiSystemsCount: integer("ai_systems_count").default(0),
+  spectralVerifiedRequired: boolean("spectral_verified_required").default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Spectral Standard adoption tracking
+export const spectralStandardAdoptions = pgTable("spectral_standard_adoptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  healthSystemId: varchar("health_system_id").notNull().references(() => healthSystems.id, { onDelete: "cascade" }),
+  adoptionType: text("adoption_type").notNull(),
+  scope: text("scope"),
+  categories: jsonb("categories"),
+  announcedDate: timestamp("announced_date").notNull(),
+  effectiveDate: timestamp("effective_date").notNull(),
+  publiclyAnnounced: boolean("publicly_announced").default(false),
+  pressReleaseUrl: text("press_release_url"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Network metrics daily snapshots
+export const networkMetricsDailySnapshots = pgTable("network_metrics_daily_snapshots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  snapshotDate: timestamp("snapshot_date").notNull(),
+  totalHealthSystems: integer("total_health_systems").notNull(),
+  activeHealthSystems: integer("active_health_systems").notNull(),
+  totalVendors: integer("total_vendors").notNull(),
+  certifiedVendors: integer("certified_vendors").notNull(),
+  totalAcceptances: integer("total_acceptances").notNull(),
+  spectralStandardAdopters: integer("spectral_standard_adopters").notNull(),
+  networkDensity: text("network_density"),
+  averageAcceptanceRate: text("average_acceptance_rate"),
+  newHealthSystemsThisWeek: integer("new_health_systems_this_week"),
+  newVendorsThisWeek: integer("new_vendors_this_week"),
+  newCertificationsThisWeek: integer("new_certifications_this_week"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// 📊 PHASE 3: EXECUTIVE REPORTING & AUTOMATION
+
+// Executive reports
+export const executiveReports = pgTable("executive_reports", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  healthSystemId: varchar("health_system_id").notNull().references(() => healthSystems.id, { onDelete: "cascade" }),
+  reportType: text("report_type").notNull(),
+  reportTitle: text("report_title").notNull(),
+  reportPeriod: text("report_period"),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  narrative: text("narrative"),
+  keyMetrics: jsonb("key_metrics"),
+  riskSummary: jsonb("risk_summary"),
+  complianceStatus: jsonb("compliance_status"),
+  actionItems: jsonb("action_items"),
+  trendAnalysis: jsonb("trend_analysis"),
+  pdfUrl: text("pdf_url"),
+  generatedBy: varchar("generated_by").references(() => users.id, { onDelete: "set null" }),
+  reviewedBy: varchar("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+  reviewedAt: timestamp("reviewed_at"),
+  status: text("status").notNull().default("draft"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Audit evidence packages
+export const auditEvidencePackages = pgTable("audit_evidence_packages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  healthSystemId: varchar("health_system_id").notNull().references(() => healthSystems.id, { onDelete: "cascade" }),
+  framework: text("framework").notNull(),
+  packageType: text("package_type").notNull(),
+  auditPeriod: text("audit_period"),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  evidenceItems: jsonb("evidence_items"),
+  controlsCovered: jsonb("controls_covered"),
+  completenessScore: text("completeness_score"),
+  packageUrl: text("package_url"),
+  generatedBy: varchar("generated_by").references(() => users.id, { onDelete: "set null" }),
+  status: text("status").notNull().default("pending"),
+  deliveredTo: text("delivered_to"),
+  deliveredAt: timestamp("delivered_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Report schedules
+export const reportSchedules = pgTable("report_schedules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  healthSystemId: varchar("health_system_id").notNull().references(() => healthSystems.id, { onDelete: "cascade" }),
+  reportType: text("report_type").notNull(),
+  frequency: text("frequency").notNull(),
+  dayOfWeek: integer("day_of_week"),
+  dayOfMonth: integer("day_of_month"),
+  monthOfQuarter: integer("month_of_quarter"),
+  recipients: jsonb("recipients"),
+  includeExecutiveSummary: boolean("include_executive_summary").default(true),
+  includeDetailedMetrics: boolean("include_detailed_metrics").default(false),
+  lastRunAt: timestamp("last_run_at"),
+  nextRunAt: timestamp("next_run_at").notNull(),
+  active: boolean("active").notNull().default(true),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Regulatory alerts
+export const regulatoryAlerts = pgTable("regulatory_alerts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  framework: text("framework").notNull(),
+  alertType: text("alert_type").notNull(),
+  title: text("title").notNull(),
+  summary: text("summary").notNull(),
+  impactLevel: text("impact_level").notNull(),
+  affectedControls: jsonb("affected_controls"),
+  affectedHealthSystems: jsonb("affected_health_systems"),
+  actionRequired: text("action_required"),
+  deadline: timestamp("deadline"),
+  sourceUrl: text("source_url"),
+  publishedDate: timestamp("published_date").notNull(),
+  acknowledgedBy: jsonb("acknowledged_by"),
+  status: text("status").notNull().default("active"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// 💰 PHASE 4: BUSINESS MODEL & PRODUCT POLISH
+
+// Policy rules
+export const policyRules = pgTable("policy_rules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  healthSystemId: varchar("health_system_id").notNull().references(() => healthSystems.id, { onDelete: "cascade" }),
+  policyName: text("policy_name").notNull(),
+  policyType: text("policy_type").notNull(),
+  scope: text("scope").notNull(),
+  scopeFilter: jsonb("scope_filter"),
+  conditions: jsonb("conditions"),
+  enforcementActions: jsonb("enforcement_actions"),
+  approvalWorkflow: jsonb("approval_workflow"),
+  active: boolean("active").notNull().default(true),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Policy enforcement logs
+export const policyEnforcementLogs = pgTable("policy_enforcement_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  policyId: varchar("policy_id").notNull().references(() => policyRules.id, { onDelete: "cascade" }),
+  aiSystemId: varchar("ai_system_id").notNull().references(() => aiSystems.id, { onDelete: "cascade" }),
+  violationType: text("violation_type").notNull(),
+  actionTaken: text("action_taken").notNull(),
+  details: jsonb("details"),
+  resolvedBy: varchar("resolved_by").references(() => users.id, { onDelete: "set null" }),
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// AI discovery jobs
+export const aiDiscoveryJobs = pgTable("ai_discovery_jobs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  healthSystemId: varchar("health_system_id").notNull().references(() => healthSystems.id, { onDelete: "cascade" }),
+  discoveryType: text("discovery_type").notNull(),
+  dataSource: text("data_source"),
+  status: text("status").notNull().default("pending"),
+  aiSystemsFound: integer("ai_systems_found").default(0),
+  aiSystemsNew: integer("ai_systems_new").default(0),
+  aiSystemsUpdated: integer("ai_systems_updated").default(0),
+  results: jsonb("results"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// 🚀 PHASE 5: SCALE & ACQUISITION POSITIONING
+
+// Vendor performance metrics
+export const vendorPerformanceMetrics = pgTable("vendor_performance_metrics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  vendorId: varchar("vendor_id").notNull().references(() => vendors.id, { onDelete: "cascade" }),
+  period: text("period").notNull(),
+  customerCount: integer("customer_count").default(0),
+  activeDeployments: integer("active_deployments").default(0),
+  averageComplianceScore: text("average_compliance_score"),
+  violationsCount: integer("violations_count").default(0),
+  criticalViolations: integer("critical_violations").default(0),
+  certificationRenewalRate: text("certification_renewal_rate"),
+  customerSatisfaction: text("customer_satisfaction"),
+  uptimePercentage: text("uptime_percentage"),
+  supportResponseTime: text("support_response_time"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Health system rollup metrics
+export const healthSystemRollupMetrics = pgTable("health_system_rollup_metrics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  healthSystemId: varchar("health_system_id").notNull().references(() => healthSystems.id, { onDelete: "cascade" }),
+  period: text("period").notNull(),
+  totalAISystems: integer("total_ai_systems").default(0),
+  activeAISystems: integer("active_ai_systems").default(0),
+  averageRiskScore: text("average_risk_score"),
+  portfolioComplianceScore: text("portfolio_compliance_score"),
+  openViolations: integer("open_violations").default(0),
+  resolvedViolationsThisPeriod: integer("resolved_violations_this_period").default(0),
+  averageResolutionTime: text("average_resolution_time"),
+  certifiedVendorPercentage: text("certified_vendor_percentage"),
+  policyComplianceRate: text("policy_compliance_rate"),
+  executiveReportsGenerated: integer("executive_reports_generated").default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Network effects proof metrics
+export const networkEffectsProofMetrics = pgTable("network_effects_proof_metrics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  period: text("period").notNull(),
+  totalHealthSystems: integer("total_health_systems").default(0),
+  activeHealthSystems: integer("active_health_systems").default(0),
+  totalVendors: integer("total_vendors").default(0),
+  certifiedVendors: integer("certified_vendors").default(0),
+  totalConnections: integer("total_connections").default(0),
+  spectralStandardAdopters: integer("spectral_standard_adopters").default(0),
+  avgAcceptancesPerVendor: text("avg_acceptances_per_vendor"),
+  networkDensityScore: text("network_density_score"),
+  viralCoefficient: text("viral_coefficient"),
+  crossSideLiquidity: text("cross_side_liquidity"),
+  healthSystemGrowthRate: text("health_system_growth_rate"),
+  vendorGrowthRate: text("vendor_growth_rate"),
+  acceptanceGrowthRate: text("acceptance_growth_rate"),
+  avgSalesCycleLength: integer("avg_sales_cycle_length"),
+  avgDealSize: integer("avg_deal_size"),
+  winRateWithNetworkEffects: text("win_rate_with_network_effects"),
+  churnRate: text("churn_rate"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // 🔒 TRANSLATION ENGINE - Required Actions
-// Stores remediation actions generated from compliance violations
 export const requiredActions = pgTable("required_actions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   violationId: varchar("violation_id").notNull().references(() => complianceViolations.id, { onDelete: "cascade" }),

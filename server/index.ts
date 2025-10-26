@@ -96,6 +96,15 @@ app.use(express.urlencoded({ extended: false }));
     logger.error({ err: error }, "Failed to initialize database indexes");
     // Don't exit - allow server to start even if indexes fail
   }
+
+  // Initialize compliance controls catalog and event types taxonomy (Phase 1)
+  try {
+    const { initializeComplianceCatalog } = await import("./services/initialize-catalog");
+    await initializeComplianceCatalog();
+  } catch (error: any) {
+    logger.warn({ err: error }, "Failed to initialize compliance catalog");
+    // Don't exit - allow server to start even if catalog initialization fails
+  }
   
   // Seed database in development
   if (app.get("env") === "development") {

@@ -15,6 +15,13 @@
       "when": 1761445159879,
       "tag": "0001_massive_morbius",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1761445955309,
+      "tag": "0002_adorable_shockwave",
+      "breakpoints": true
     }
   ]
 }

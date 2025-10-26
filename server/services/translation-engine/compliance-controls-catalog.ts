@@ -1,0 +1,610 @@
+import { db } from '../../db';
+import { complianceControls, eventTypes } from '../../../shared/schema';
+import { eq } from 'drizzle-orm';
+
+interface ComplianceControl {
+  id: string;
+  framework: string;
+  controlId: string;
+  controlName: string;
+  description: string;
+  category: string;
+  severity: string;
+  requiredEvidence: string[];
+  triggerThreshold?: number;
+}
+
+const HIPAA_CONTROLS: ComplianceControl[] = [
+  {
+    id: 'hipaa-164-308-a-1',
+    framework: 'HIPAA',
+    controlId: '164.308(a)(1)',
+    controlName: 'Security Management Process',
+    description: 'Implement policies and procedures to prevent, detect, contain, and correct security violations',
+    category: 'Administrative Safeguards',
+    severity: 'high',
+    requiredEvidence: ['security_policies', 'risk_assessment', 'incident_response_plan'],
+  },
+  {
+    id: 'hipaa-164-308-a-3',
+    framework: 'HIPAA',
+    controlId: '164.308(a)(3)',
+    controlName: 'Workforce Security',
+    description: 'Ensure workforce members have appropriate access to PHI and prevent unauthorized access',
+    category: 'Administrative Safeguards',
+    severity: 'high',
+    requiredEvidence: ['access_authorization', 'workforce_clearance', 'termination_procedures'],
+  },
+  {
+    id: 'hipaa-164-308-a-4',
+    framework: 'HIPAA',
+    controlId: '164.308(a)(4)',
+    controlName: 'Information Access Management',
+    description: 'Authorize access to PHI consistent with applicable HIPAA requirements',
+    category: 'Administrative Safeguards',
+    severity: 'critical',
+    requiredEvidence: ['access_establishment', 'access_modification', 'access_logs'],
+    triggerThreshold: 0,
+  },
+  {
+    id: 'hipaa-164-308-a-5',
+    framework: 'HIPAA',
+    controlId: '164.308(a)(5)',
+    controlName: 'Security Awareness and Training',
+    description: 'Implement security awareness and training program for all workforce members',
+    category: 'Administrative Safeguards',
+    severity: 'medium',
+    requiredEvidence: ['training_records', 'security_reminders', 'phishing_tests'],
+  },
+  {
+    id: 'hipaa-164-308-a-6',
+    framework: 'HIPAA',
+    controlId: '164.308(a)(6)',
+    controlName: 'Security Incident Procedures',
+    description: 'Identify and respond to suspected or known security incidents',
+    category: 'Administrative Safeguards',
+    severity: 'high',
+    requiredEvidence: ['incident_response', 'breach_notification', 'incident_logs'],
+  },
+  {
+    id: 'hipaa-164-308-a-8',
+    framework: 'HIPAA',
+    controlId: '164.308(a)(8)',
+    controlName: 'Evaluation',
+    description: 'Perform periodic technical and nontechnical evaluation of security safeguards',
+    category: 'Administrative Safeguards',
+    severity: 'medium',
+    requiredEvidence: ['security_audit', 'compliance_assessment', 'evaluation_reports'],
+  },
+  {
+    id: 'hipaa-164-310-a-1',
+    framework: 'HIPAA',
+    controlId: '164.310(a)(1)',
+    controlName: 'Facility Access Controls',
+    description: 'Limit physical access to facilities while ensuring authorized access',
+    category: 'Physical Safeguards',
+    severity: 'high',
+    requiredEvidence: ['facility_access_logs', 'badge_system', 'visitor_logs'],
+  },
+  {
+    id: 'hipaa-164-310-d-1',
+    framework: 'HIPAA',
+    controlId: '164.310(d)(1)',
+    controlName: 'Device and Media Controls',
+    description: 'Implement policies for receiving and removing hardware and electronic media',
+    category: 'Physical Safeguards',
+    severity: 'high',
+    requiredEvidence: ['disposal_procedures', 'media_reuse', 'accountability_logs'],
+  },
+  {
+    id: 'hipaa-164-312-a-1',
+    framework: 'HIPAA',
+    controlId: '164.312(a)(1)',
+    controlName: 'Access Control',
+    description: 'Implement technical policies to allow only authorized access to ePHI',
+    category: 'Technical Safeguards',
+    severity: 'critical',
+    requiredEvidence: ['unique_user_id', 'emergency_access', 'automatic_logoff', 'encryption'],
+    triggerThreshold: 0,
+  },
+  {
+    id: 'hipaa-164-312-a-2',
+    framework: 'HIPAA',
+    controlId: '164.312(a)(2)',
+    controlName: 'Audit Controls',
+    description: 'Implement hardware, software, and procedures that record and examine access to ePHI',
+    category: 'Technical Safeguards',
+    severity: 'high',
+    requiredEvidence: ['audit_logs', 'log_review', 'monitoring_system'],
+  },
+  {
+    id: 'hipaa-164-312-b',
+    framework: 'HIPAA',
+    controlId: '164.312(b)',
+    controlName: 'Integrity Controls',
+    description: 'Implement policies to ensure ePHI is not improperly altered or destroyed',
+    category: 'Technical Safeguards',
+    severity: 'critical',
+    requiredEvidence: ['data_integrity_checks', 'digital_signatures', 'change_logs'],
+    triggerThreshold: 0,
+  },
+  {
+    id: 'hipaa-164-312-c-1',
+    framework: 'HIPAA',
+    controlId: '164.312(c)(1)',
+    controlName: 'Person or Entity Authentication',
+    description: 'Implement procedures to verify person or entity seeking access to ePHI',
+    category: 'Technical Safeguards',
+    severity: 'critical',
+    requiredEvidence: ['authentication_system', 'mfa', 'identity_verification'],
+    triggerThreshold: 0,
+  },
+  {
+    id: 'hipaa-164-312-d',
+    framework: 'HIPAA',
+    controlId: '164.312(d)',
+    controlName: 'Transmission Security',
+    description: 'Implement technical security measures to guard against unauthorized access to ePHI transmitted over networks',
+    category: 'Technical Safeguards',
+    severity: 'critical',
+    requiredEvidence: ['encryption_in_transit', 'network_security', 'vpn'],
+    triggerThreshold: 0,
+  },
+  {
+    id: 'hipaa-164-312-e-1',
+    framework: 'HIPAA',
+    controlId: '164.312(e)(1)',
+    controlName: 'Encryption and Decryption',
+    description: 'Implement mechanism to encrypt and decrypt ePHI',
+    category: 'Technical Safeguards',
+    severity: 'critical',
+    requiredEvidence: ['encryption_at_rest', 'key_management', 'encryption_standards'],
+    triggerThreshold: 0,
+  },
+];
+
+const NIST_AI_RMF_CONTROLS: ComplianceControl[] = [
+  {
+    id: 'nist-govern-1-1',
+    framework: 'NIST AI RMF',
+    controlId: 'GOVERN-1.1',
+    controlName: 'AI Risk Management Strategy',
+    description: 'Legal and regulatory requirements involving AI are understood, managed, and documented',
+    category: 'Governance',
+    severity: 'high',
+    requiredEvidence: ['risk_strategy', 'regulatory_mapping', 'compliance_documentation'],
+  },
+  {
+    id: 'nist-govern-1-2',
+    framework: 'NIST AI RMF',
+    controlId: 'GOVERN-1.2',
+    controlName: 'AI Risk Management Culture',
+    description: 'Organizational AI risk culture is established and prioritized',
+    category: 'Governance',
+    severity: 'medium',
+    requiredEvidence: ['culture_assessment', 'training_program', 'accountability_framework'],
+  },
+  {
+    id: 'nist-govern-2-1',
+    framework: 'NIST AI RMF',
+    controlId: 'GOVERN-2.1',
+    controlName: 'AI Risk Management Roles',
+    description: 'Roles and responsibilities for AI risk management are clearly defined',
+    category: 'Governance',
+    severity: 'high',
+    requiredEvidence: ['role_definitions', 'raci_matrix', 'accountability_logs'],
+  },
+  {
+    id: 'nist-govern-3-1',
+    framework: 'NIST AI RMF',
+    controlId: 'GOVERN-3.1',
+    controlName: 'AI Risk Tolerance',
+    description: 'Organizational risk tolerance for AI systems is determined and documented',
+    category: 'Governance',
+    severity: 'high',
+    requiredEvidence: ['risk_tolerance', 'risk_appetite', 'approval_thresholds'],
+  },
+  {
+    id: 'nist-map-1-1',
+    framework: 'NIST AI RMF',
+    controlId: 'MAP-1.1',
+    controlName: 'AI System Context',
+    description: 'Context and business value of AI system is defined and documented',
+    category: 'Map',
+    severity: 'medium',
+    requiredEvidence: ['system_context', 'use_case', 'business_value'],
+  },
+  {
+    id: 'nist-map-2-1',
+    framework: 'NIST AI RMF',
+    controlId: 'MAP-2.1',
+    controlName: 'AI Impact Assessment',
+    description: 'Impact of AI system on individuals, groups, and society is assessed',
+    category: 'Map',
+    severity: 'high',
+    requiredEvidence: ['impact_assessment', 'stakeholder_analysis', 'harm_assessment'],
+  },
+  {
+    id: 'nist-map-3-1',
+    framework: 'NIST AI RMF',
+    controlId: 'MAP-3.1',
+    controlName: 'AI System Capabilities',
+    description: 'Capabilities, limitations, and known risks of AI system are documented',
+    category: 'Map',
+    severity: 'high',
+    requiredEvidence: ['capability_docs', 'limitation_docs', 'risk_register'],
+  },
+  {
+    id: 'nist-measure-1-1',
+    framework: 'NIST AI RMF',
+    controlId: 'MEASURE-1.1',
+    controlName: 'AI Performance Metrics',
+    description: 'Appropriate metrics for AI system performance are identified and tracked',
+    category: 'Measure',
+    severity: 'high',
+    requiredEvidence: ['performance_metrics', 'monitoring_dashboard', 'baseline_metrics'],
+  },
+  {
+    id: 'nist-measure-2-1',
+    framework: 'NIST AI RMF',
+    controlId: 'MEASURE-2.1',
+    controlName: 'AI Bias Testing',
+    description: 'AI systems are tested for harmful bias across demographic groups',
+    category: 'Measure',
+    severity: 'critical',
+    requiredEvidence: ['bias_testing', 'fairness_metrics', 'demographic_analysis'],
+    triggerThreshold: 5,
+  },
+  {
+    id: 'nist-measure-2-2',
+    framework: 'NIST AI RMF',
+    controlId: 'MEASURE-2.2',
+    controlName: 'AI Data Quality',
+    description: 'Training and operational data quality is measured and monitored',
+    category: 'Measure',
+    severity: 'high',
+    requiredEvidence: ['data_quality_metrics', 'data_validation', 'data_monitoring'],
+  },
+  {
+    id: 'nist-measure-3-1',
+    framework: 'NIST AI RMF',
+    controlId: 'MEASURE-3.1',
+    controlName: 'AI Safety Validation',
+    description: 'AI system safety is validated through rigorous testing',
+    category: 'Measure',
+    severity: 'critical',
+    requiredEvidence: ['safety_testing', 'edge_case_testing', 'failure_mode_analysis'],
+    triggerThreshold: 0,
+  },
+  {
+    id: 'nist-manage-1-1',
+    framework: 'NIST AI RMF',
+    controlId: 'MANAGE-1.1',
+    controlName: 'AI Risk Response',
+    description: 'Responses to identified AI risks are planned and executed',
+    category: 'Manage',
+    severity: 'high',
+    requiredEvidence: ['risk_response_plan', 'mitigation_actions', 'residual_risk'],
+  },
+  {
+    id: 'nist-manage-2-1',
+    framework: 'NIST AI RMF',
+    controlId: 'MANAGE-2.1',
+    controlName: 'AI Incident Response',
+    description: 'Incidents involving AI systems are identified and managed',
+    category: 'Manage',
+    severity: 'critical',
+    requiredEvidence: ['incident_response', 'escalation_procedures', 'incident_logs'],
+    triggerThreshold: 0,
+  },
+  {
+    id: 'nist-manage-3-1',
+    framework: 'NIST AI RMF',
+    controlId: 'MANAGE-3.1',
+    controlName: 'AI Continuous Monitoring',
+    description: 'AI systems are continuously monitored for changes in performance or risk',
+    category: 'Manage',
+    severity: 'high',
+    requiredEvidence: ['monitoring_system', 'performance_tracking', 'drift_detection'],
+  },
+];
+
+const FDA_SAMD_CONTROLS: ComplianceControl[] = [
+  {
+    id: 'fda-samd-1',
+    framework: 'FDA SaMD',
+    controlId: 'SaMD-1',
+    controlName: 'Clinical Validation',
+    description: 'Software clinical validity is demonstrated through appropriate clinical evidence',
+    category: 'Clinical Evaluation',
+    severity: 'critical',
+    requiredEvidence: ['clinical_studies', 'validation_data', 'performance_claims'],
+    triggerThreshold: 90,
+  },
+  {
+    id: 'fda-samd-2',
+    framework: 'FDA SaMD',
+    controlId: 'SaMD-2',
+    controlName: 'Analytical Validation',
+    description: 'Software analytical validity is demonstrated through verification and validation',
+    category: 'Technical Evaluation',
+    severity: 'critical',
+    requiredEvidence: ['verification_testing', 'validation_testing', 'performance_data'],
+    triggerThreshold: 95,
+  },
+  {
+    id: 'fda-samd-3',
+    framework: 'FDA SaMD',
+    controlId: 'SaMD-3',
+    controlName: 'Software Safety Classification',
+    description: 'Software is classified based on significance of information and healthcare situation',
+    category: 'Risk Classification',
+    severity: 'high',
+    requiredEvidence: ['risk_classification', 'safety_analysis', 'harm_assessment'],
+  },
+  {
+    id: 'fda-samd-4',
+    framework: 'FDA SaMD',
+    controlId: 'SaMD-4',
+    controlName: 'Quality Management System',
+    description: 'QMS compliant with 21 CFR Part 820 or ISO 13485 is maintained',
+    category: 'Quality System',
+    severity: 'critical',
+    requiredEvidence: ['qms_documentation', 'design_controls', 'change_management'],
+    triggerThreshold: 0,
+  },
+  {
+    id: 'fda-samd-5',
+    framework: 'FDA SaMD',
+    controlId: 'SaMD-5',
+    controlName: 'Cybersecurity Controls',
+    description: 'Cybersecurity risks are identified, managed, and documented per FDA guidance',
+    category: 'Cybersecurity',
+    severity: 'critical',
+    requiredEvidence: ['threat_model', 'security_controls', 'vulnerability_management'],
+    triggerThreshold: 0,
+  },
+  {
+    id: 'fda-samd-6',
+    framework: 'FDA SaMD',
+    controlId: 'SaMD-6',
+    controlName: 'Post-Market Surveillance',
+    description: 'System for monitoring device performance and adverse events is established',
+    category: 'Post-Market',
+    severity: 'critical',
+    requiredEvidence: ['surveillance_plan', 'complaint_handling', 'adverse_event_reporting'],
+    triggerThreshold: 0,
+  },
+  {
+    id: 'fda-samd-7',
+    framework: 'FDA SaMD',
+    controlId: 'SaMD-7',
+    controlName: 'Algorithm Change Management',
+    description: 'Changes to AI/ML algorithms are controlled and documented',
+    category: 'Change Control',
+    severity: 'high',
+    requiredEvidence: ['change_control', 'regression_testing', 'version_control'],
+  },
+  {
+    id: 'fda-samd-8',
+    framework: 'FDA SaMD',
+    controlId: 'SaMD-8',
+    controlName: 'Labeling and Instructions',
+    description: 'Device labeling and instructions for use are accurate and comprehensive',
+    category: 'Labeling',
+    severity: 'high',
+    requiredEvidence: ['labeling_docs', 'ifu', 'warnings_precautions'],
+  },
+  {
+    id: 'fda-samd-9',
+    framework: 'FDA SaMD',
+    controlId: 'SaMD-9',
+    controlName: 'Data Privacy and Security',
+    description: 'Patient data privacy and security requirements are met',
+    category: 'Privacy',
+    severity: 'critical',
+    requiredEvidence: ['privacy_assessment', 'data_protection', 'hipaa_compliance'],
+    triggerThreshold: 0,
+  },
+  {
+    id: 'fda-samd-10',
+    framework: 'FDA SaMD',
+    controlId: 'SaMD-10',
+    controlName: 'Explainability and Transparency',
+    description: 'AI/ML decision-making process is explainable to appropriate stakeholders',
+    category: 'Explainability',
+    severity: 'high',
+    requiredEvidence: ['explainability_docs', 'transparency_report', 'clinician_guidance'],
+  },
+];
+
+const ISO27001_CONTROLS: ComplianceControl[] = [
+  {
+    id: 'iso27001-a5-1',
+    framework: 'ISO 27001',
+    controlId: 'A.5.1',
+    controlName: 'Information Security Policies',
+    description: 'Information security policies defined and approved by management',
+    category: 'Organizational',
+    severity: 'high',
+    requiredEvidence: ['security_policies', 'management_approval', 'policy_review'],
+  },
+  {
+    id: 'iso27001-a6-1',
+    framework: 'ISO 27001',
+    controlId: 'A.6.1',
+    controlName: 'Screening',
+    description: 'Background verification checks on candidates for employment',
+    category: 'People',
+    severity: 'medium',
+    requiredEvidence: ['background_checks', 'screening_procedures', 'verification_records'],
+  },
+  {
+    id: 'iso27001-a8-1',
+    framework: 'ISO 27001',
+    controlId: 'A.8.1',
+    controlName: 'Inventory of Assets',
+    description: 'Assets associated with information are identified and inventory maintained',
+    category: 'Asset Management',
+    severity: 'high',
+    requiredEvidence: ['asset_inventory', 'ownership_assignment', 'classification'],
+  },
+  {
+    id: 'iso27001-a9-1',
+    framework: 'ISO 27001',
+    controlId: 'A.9.1',
+    controlName: 'Access Control Policy',
+    description: 'Access control policy established, documented and reviewed',
+    category: 'Access Control',
+    severity: 'critical',
+    requiredEvidence: ['access_policy', 'access_reviews', 'authorization_records'],
+    triggerThreshold: 0,
+  },
+  {
+    id: 'iso27001-a10-1',
+    framework: 'ISO 27001',
+    controlId: 'A.10.1',
+    controlName: 'Cryptographic Controls',
+    description: 'Policy on use of cryptographic controls implemented',
+    category: 'Cryptography',
+    severity: 'critical',
+    requiredEvidence: ['crypto_policy', 'key_management', 'encryption_implementation'],
+    triggerThreshold: 0,
+  },
+  {
+    id: 'iso27001-a12-1',
+    framework: 'ISO 27001',
+    controlId: 'A.12.1',
+    controlName: 'Operational Procedures',
+    description: 'Operating procedures documented and made available to users',
+    category: 'Operations',
+    severity: 'medium',
+    requiredEvidence: ['operational_docs', 'procedures', 'user_access'],
+  },
+  {
+    id: 'iso27001-a16-1',
+    framework: 'ISO 27001',
+    controlId: 'A.16.1',
+    controlName: 'Incident Management',
+    description: 'Management responsibilities and procedures established for security incidents',
+    category: 'Incident Management',
+    severity: 'high',
+    requiredEvidence: ['incident_procedures', 'response_plan', 'incident_logs'],
+  },
+  {
+    id: 'iso27001-a18-1',
+    framework: 'ISO 27001',
+    controlId: 'A.18.1',
+    controlName: 'Compliance with Legal Requirements',
+    description: 'Legal, statutory, regulatory and contractual requirements identified and documented',
+    category: 'Compliance',
+    severity: 'high',
+    requiredEvidence: ['legal_register', 'compliance_mapping', 'audit_reports'],
+  },
+];
+
+const STATE_SPECIFIC_CONTROLS: ComplianceControl[] = [
+  {
+    id: 'ca-sb1047-1',
+    framework: 'California SB 1047',
+    controlId: 'CA-SB1047-1',
+    controlName: 'Critical Decision Disclosure',
+    description: 'AI systems making critical decisions must disclose AI involvement',
+    category: 'Transparency',
+    severity: 'high',
+    requiredEvidence: ['disclosure_notices', 'user_interface', 'transparency_docs'],
+  },
+  {
+    id: 'ca-sb1047-2',
+    framework: 'California SB 1047',
+    controlId: 'CA-SB1047-2',
+    controlName: 'Catastrophic Risk Assessment',
+    description: 'Frontier models assessed for catastrophic safety risks',
+    category: 'Safety',
+    severity: 'critical',
+    requiredEvidence: ['risk_assessment', 'safety_testing', 'incident_prevention'],
+    triggerThreshold: 0,
+  },
+  {
+    id: 'co-ai-act-1',
+    framework: 'Colorado AI Act',
+    controlId: 'CO-AI-1',
+    controlName: 'Algorithmic Discrimination Prevention',
+    description: 'High-risk AI systems assessed and monitored for discriminatory outcomes',
+    category: 'Fairness',
+    severity: 'critical',
+    requiredEvidence: ['discrimination_testing', 'fairness_metrics', 'impact_assessment'],
+    triggerThreshold: 5,
+  },
+  {
+    id: 'nyc-144-1',
+    framework: 'NYC Local Law 144',
+    controlId: 'NYC-144-1',
+    controlName: 'AEDT Bias Audit',
+    description: 'Automated employment decision tools undergo annual bias audits',
+    category: 'Employment',
+    severity: 'critical',
+    requiredEvidence: ['bias_audit', 'audit_report', 'public_disclosure'],
+    triggerThreshold: 0,
+  },
+];
+
+const ALL_CONTROLS = [
+  ...HIPAA_CONTROLS,
+  ...NIST_AI_RMF_CONTROLS,
+  ...FDA_SAMD_CONTROLS,
+  ...ISO27001_CONTROLS,
+  ...STATE_SPECIFIC_CONTROLS,
+];
+
+export class ComplianceControlsCatalog {
+  async initializeCatalog(): Promise<void> {
+    console.log('Initializing compliance controls catalog...');
+    
+    for (const control of ALL_CONTROLS) {
+      const existing = await db.query.complianceControls.findFirst({
+        where: eq(complianceControls.controlId, control.controlId),
+      });
+
+      if (!existing) {
+        await db.insert(complianceControls).values({
+          framework: control.framework,
+          controlId: control.controlId,
+          controlName: control.controlName,
+          description: control.description,
+          evidenceRequirements: control.requiredEvidence,
+        });
+        console.log(`✓ Added control: ${control.framework} ${control.controlId}`);
+      }
+    }
+
+    console.log(`✓ Compliance catalog initialized with ${ALL_CONTROLS.length} controls`);
+  }
+
+  async getControlsByFramework(framework: string) {
+    return ALL_CONTROLS.filter(c => c.framework === framework);
+  }
+
+  async getControlById(controlId: string) {
+    return ALL_CONTROLS.find(c => c.id === controlId);
+  }
+
+  async getAllControls() {
+    return ALL_CONTROLS;
+  }
+
+  getControlsCount(): { total: number; byFramework: Record<string, number> } {
+    const byFramework: Record<string, number> = {};
+    
+    for (const control of ALL_CONTROLS) {
+      byFramework[control.framework] = (byFramework[control.framework] || 0) + 1;
+    }
+
+    return {
+      total: ALL_CONTROLS.length,
+      byFramework,
+    };
+  }
+}
+
+export const complianceControlsCatalog = new ComplianceControlsCatalog();
