@@ -21,6 +21,7 @@ import {
   vendorTestResults,
   billingAccounts,
   subscriptions,
+  roiMetrics,
   type User, 
   type InsertUser,
   type UserInvitation,
@@ -62,6 +63,8 @@ import {
   type InsertVendorTestResult,
   type BillingAccount,
   type Subscription,
+  type RoiMetric,
+  type InsertRoiMetric,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, or } from "drizzle-orm";
@@ -1080,6 +1083,24 @@ export class DatabaseStorage implements IStorage {
 
   async getAISystemsByHealthSystem(healthSystemId: string): Promise<AISystem[]> {
     return this.getAISystems(healthSystemId);
+  }
+
+  // ROI Metrics
+  async createROIMetric(metric: InsertRoiMetric): Promise<RoiMetric> {
+    const [created] = await db.insert(roiMetrics).values(metric).returning();
+    return created;
+  }
+
+  async getROIMetricsByHealthSystem(healthSystemId: string): Promise<RoiMetric[]> {
+    return db.select().from(roiMetrics)
+      .where(eq(roiMetrics.healthSystemId, healthSystemId))
+      .orderBy(desc(roiMetrics.recordedAt));
+  }
+
+  async getROIMetricsByVendor(vendorId: string): Promise<RoiMetric[]> {
+    return db.select().from(roiMetrics)
+      .where(eq(roiMetrics.vendorId, vendorId))
+      .orderBy(desc(roiMetrics.recordedAt));
   }
 }
 

@@ -17,6 +17,7 @@ import PerformanceView from "@/components/dashboard/views/vendor/PerformanceView
 import CertificationIntakeView from "@/components/dashboard/views/vendor/CertificationIntakeView";
 import CertificationReviewView from "@/components/dashboard/views/CertificationReviewView";
 import NetworkEffectsView from "@/components/dashboard/views/NetworkEffectsView";
+import ProcurementLanguageGenerator from "@/components/procurement/ProcurementLanguageGenerator";
 
 export default function Dashboard() {
   const [selectedSystem, setSelectedSystem] = useState<string | null>(null);
@@ -69,6 +70,8 @@ export default function Dashboard() {
         return <VendorDirectoryView />;
       case "network-effects":
         return <NetworkEffectsView />;
+      case "procurement-generator":
+        return <ProcurementLanguageGenerator />;
       case "board-dashboard":
         return <BoardDashboardView />;
       case "certification-review":

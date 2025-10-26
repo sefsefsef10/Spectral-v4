@@ -7498,6 +7498,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 💰 ROI Metrics API Endpoints
+  app.get("/api/roi-metrics", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      let metrics;
+      if (user.role === "health_system" && user.healthSystemId) {
+        metrics = await storage.getROIMetricsByHealthSystem(user.healthSystemId);
+      } else if (user.role === "vendor" && user.vendorId) {
+        metrics = await storage.getROIMetricsByVendor(user.vendorId);
+      } else {
+        metrics = [];
+      }
+
+      res.json(metrics);
+    } catch (error) {
+      logger.error({ err: error }, "Failed to get ROI metrics");
+      res.status(500).json({ error: "Failed to load ROI metrics" });
+    }
+  });
+
+  app.post("/api/roi-metrics", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      if (!user.healthSystemId && !user.vendorId) {
+        return res.status(403).json({ error: "User must belong to a health system or vendor" });
+      }
+
+      const validationSchema = z.object({
+        metricType: z.string(),
+        metricCategory: z.string(),
+        value: z.number().int(),
+        unit: z.string(),
+        description: z.string(),
+        aiSystemId: z.string().optional(),
+        certificationId: z.string().optional(),
+        metadata: z.any().optional(),
+      });
+
+      const validated = validationSchema.parse(req.body);
+
+      const metricData = {
+        ...validated,
+        healthSystemId: user.healthSystemId || null,
+        vendorId: user.vendorId || null,
+      };
+
+      const metric = await storage.createROIMetric(metricData);
+      res.status(201).json(metric);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request data", details: error.errors });
+      }
+      logger.error({ err: error }, "Failed to create ROI metric");
+      res.status(500).json({ error: "Failed to create ROI metric" });
+    }
+  });
+
   // 🌐 Network Effects API Endpoints
   app.get("/api/network-metrics/latest", async (req: Request, res: Response) => {
     try {

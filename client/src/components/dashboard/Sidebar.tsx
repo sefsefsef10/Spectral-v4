@@ -27,6 +27,7 @@ export default function Sidebar({
     { id: "reporting", label: "Reporting", icon: FileText },
     { id: "vendor-directory", label: "Vendor Directory", icon: Building2 },
     { id: "network-effects", label: "Network", icon: Network },
+    { id: "procurement-generator", label: "Procurement", icon: FileText },
     { id: "certification-review", label: "Certification Review", icon: Award },
     { id: "board-dashboard", label: "Board Dashboard", icon: PresentationIcon },
   ];

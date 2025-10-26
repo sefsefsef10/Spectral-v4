@@ -1,5 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingUp, DollarSign, Clock, Shield, Award } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/lib/auth";
 
 interface ROIMetric {
   type: string;
@@ -15,7 +17,55 @@ interface ROIMetricsCardProps {
 }
 
 export default function ROIMetricsCard({ metrics = [] }: ROIMetricsCardProps) {
-  const demoMetrics: ROIMetric[] = metrics.length > 0 ? metrics : [
+  const { user } = useAuth();
+  
+  const { data: apiMetrics, isLoading, error } = useQuery<ROIMetric[]>({
+    queryKey: ["/api/roi-metrics"],
+    enabled: !!user,
+    queryFn: async () => {
+      const response = await fetch("/api/roi-metrics");
+      if (!response.ok) {
+        throw new Error("Failed to fetch ROI metrics");
+      }
+      return response.json();
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-green-600" />
+            Business Value Delivered
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8 text-muted-foreground">Loading ROI metrics...</div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-green-600" />
+            Business Value Delivered
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8 text-destructive">
+            Failed to load ROI metrics. Please try again later.
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const displayMetrics: ROIMetric[] = (apiMetrics && apiMetrics.length > 0) ? apiMetrics : metrics.length > 0 ? metrics : [
     {
       type: "cost_avoided",
       category: "compliance",
@@ -80,7 +130,7 @@ export default function ROIMetricsCard({ metrics = [] }: ROIMetricsCardProps) {
     }
   };
 
-  const totalValue = demoMetrics.reduce((sum, metric) => {
+  const totalValue = displayMetrics.reduce((sum, metric) => {
     if (metric.unit === "usd") return sum + metric.value;
     return sum;
   }, 0);
@@ -103,7 +153,7 @@ export default function ROIMetricsCard({ metrics = [] }: ROIMetricsCardProps) {
         </div>
 
         <div className="space-y-3">
-          {demoMetrics.map((metric, index) => (
+          {displayMetrics.map((metric, index) => (
             <div key={index} className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
               <div className="mt-1">{getIcon(metric.category)}</div>
               <div className="flex-1 min-w-0">
