@@ -7,22 +7,16 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { ensureCsrfToken, validateCsrfToken } from "./middleware/csrf";
 import { logger } from "./logger";
+import { validateSpectralEnv } from "./utils/validate-env";
+
+// Validate environment variables on startup (dev + prod)
+validateSpectralEnv();
 
 const app = express();
 
 declare module 'http' {
   interface IncomingMessage {
     rawBody: unknown
-  }
-}
-
-// Validate required secrets in production
-if (process.env.NODE_ENV === "production") {
-  if (!process.env.SESSION_SECRET) {
-    throw new Error("SESSION_SECRET environment variable is required in production");
-  }
-  if (process.env.SESSION_SECRET.length < 32) {
-    throw new Error("SESSION_SECRET must be at least 32 characters long");
   }
 }
 
