@@ -12,6 +12,7 @@
 import { logger } from "../../logger";
 import { storage } from "../../storage";
 import { getThresholds } from "./threshold-config";
+import { policyLoader } from "./policy-loader";
 import type {
   ParsedEvent,
   ComplianceViolation,
@@ -26,6 +27,41 @@ export class ComplianceMapping {
   
   constructor() {
     this.loadMappingRules();
+  }
+  
+  /**
+   * 🔒 IP MOAT - Load policy from encrypted database
+   * 
+   * Checks database-backed policies first, falls back to static rules if not found.
+   * This hybrid approach activates the IP moat while maintaining reliability.
+   */
+  private async loadPolicyForEvent(eventType: string, framework: string): Promise<ComplianceViolation[] | null> {
+    try {
+      const policy = await policyLoader.getPolicy(eventType, framework);
+      
+      if (!policy) {
+        return null; // No database policy found, fallback to static rules
+      }
+      
+      // Found encrypted policy - convert to violations format
+      return policy.frameworks.map(fw => ({
+        framework: fw.framework as Framework,
+        controlId: fw.controlId,
+        controlName: fw.controlName,
+        violationType: fw.violationType as any,
+        severity: fw.severity as Severity,
+        requiresReporting: fw.requiresReporting,
+        reportingDeadline: fw.reportingDeadlineDays 
+          ? this.calculateDeadline(fw.reportingDeadlineDays)
+          : undefined,
+        description: `${fw.controlName} - Event type: ${eventType}`,
+        affectedSystem: {} as any, // Will be filled by caller
+        detectedAt: new Date(),
+      }));
+    } catch (error) {
+      logger.error({ error, eventType, framework }, 'Failed to load policy from database - using static fallback');
+      return null; // Fallback to static rules on error
+    }
   }
   
   /**
@@ -132,6 +168,8 @@ export class ComplianceMapping {
    * - NIST AI RMF: MANAGE-4.1 (performance monitoring)
    * - HIPAA: 164.312(b) (audit controls)
    * - FDA: PCCP-ML (predetermined change control)
+   * 
+   * 🔒 IP MOAT: Uses encrypted database policies when available
    */
   private async handleDrift(event: ParsedEvent, aiSystem: AISystem): Promise<ComplianceViolation[]> {
     const violations: ComplianceViolation[] = [];
@@ -140,8 +178,30 @@ export class ComplianceMapping {
     // Get configurable thresholds for this health system
     const thresholds = await getThresholds(aiSystem.healthSystemId);
     
-    // NIST AI RMF - Performance Monitoring
-    if (accuracyDrop > thresholds.drift.accuracyDropMedium) {
+    // 🔒 STEP 1: Try loading from encrypted database policy (IP MOAT)
+    const dbPolicy = await this.loadPolicyForEvent('model_drift', 'NIST_AI_RMF');
+    
+    if (dbPolicy && dbPolicy.length > 0 && accuracyDrop > thresholds.drift.accuracyDropMedium) {
+      // Found encrypted policy - use it and enrich with event details
+      for (const violation of dbPolicy) {
+        violations.push({
+          ...violation,
+          severity: accuracyDrop > thresholds.drift.accuracyDropHigh ? 'high' : 'medium',
+          description: `AI system accuracy dropped by ${(accuracyDrop * 100).toFixed(1)}%, exceeding acceptable performance threshold. Requires investigation and potential model retraining.`,
+          affectedSystem: {
+            id: aiSystem.id,
+            name: aiSystem.name,
+            department: aiSystem.department,
+          },
+          detectedAt: event.metadata.timestamp,
+        });
+      }
+      logger.debug({ eventType: 'model_drift' }, '🔒 Using encrypted database policy (IP MOAT activated)');
+    } else if (accuracyDrop > thresholds.drift.accuracyDropMedium) {
+      // STEP 2: Fallback to static rules if no database policy
+      logger.debug({ eventType: 'model_drift' }, 'Using static fallback rules');
+      
+      // NIST AI RMF - Performance Monitoring
       violations.push({
         framework: 'NIST_AI_RMF',
         controlId: 'MANAGE-4.1',
@@ -213,44 +273,69 @@ export class ComplianceMapping {
    * - HIPAA: 164.402 (breach notification)
    * - HIPAA: 164.308(a)(1)(ii)(D) (security management)
    * - State laws: California, etc.
+   * 
+   * 🔒 IP MOAT: Uses encrypted database policies when available
    */
   private async handlePHILeakage(event: ParsedEvent, aiSystem: AISystem): Promise<ComplianceViolation[]> {
     const violations: ComplianceViolation[] = [];
     
-    // HIPAA Breach Notification Rule
-    violations.push({
-      framework: 'HIPAA',
-      controlId: '164.402',
-      controlName: 'Breach Notification - Unauthorized Disclosure',
-      violationType: 'breach',
-      severity: 'critical',
-      requiresReporting: true,
-      reportingDeadline: this.calculateDeadline(60), // 60 days to notify HHS
-      description: `CRITICAL: Potential PHI breach detected in AI system ${aiSystem.name}. ${event.metrics.phiExposureCount || 'Unknown number of'} patient records may have been exposed. Immediate investigation and breach notification process required.`,
-      affectedSystem: {
-        id: aiSystem.id,
-        name: aiSystem.name,
-        department: aiSystem.department,
-      },
-      detectedAt: event.metadata.timestamp,
-    });
+    // 🔒 STEP 1: Try loading from encrypted database policy (IP MOAT)
+    const dbPolicy = await this.loadPolicyForEvent('phi_exposure', 'HIPAA');
     
-    // HIPAA Security Rule - Information System Activity Review
-    violations.push({
-      framework: 'HIPAA',
-      controlId: '164.308(a)(1)(ii)(D)',
-      controlName: 'Security Management - Information System Activity Review',
-      violationType: 'breach',
-      severity: 'critical',
-      requiresReporting: true,
-      description: `Security management process requires immediate review of AI system activity logs to determine scope of PHI exposure and implement corrective measures.`,
-      affectedSystem: {
-        id: aiSystem.id,
-        name: aiSystem.name,
-        department: aiSystem.department,
-      },
-      detectedAt: event.metadata.timestamp,
-    });
+    if (dbPolicy && dbPolicy.length > 0) {
+      // Found encrypted policy - use it and enrich with event details
+      for (const violation of dbPolicy) {
+        violations.push({
+          ...violation,
+          description: `CRITICAL: Potential PHI breach detected in AI system ${aiSystem.name}. ${event.metrics.phiExposureCount || 'Unknown number of'} patient records may have been exposed. Immediate investigation and breach notification process required.`,
+          affectedSystem: {
+            id: aiSystem.id,
+            name: aiSystem.name,
+            department: aiSystem.department,
+          },
+          detectedAt: event.metadata.timestamp,
+        });
+      }
+      logger.debug({ eventType: 'phi_exposure' }, '🔒 Using encrypted database policy (IP MOAT activated)');
+    } else {
+      // STEP 2: Fallback to static rules if no database policy
+      logger.debug({ eventType: 'phi_exposure' }, 'Using static fallback rules');
+      
+      // HIPAA Breach Notification Rule
+      violations.push({
+        framework: 'HIPAA',
+        controlId: '164.402',
+        controlName: 'Breach Notification - Unauthorized Disclosure',
+        violationType: 'breach',
+        severity: 'critical',
+        requiresReporting: true,
+        reportingDeadline: this.calculateDeadline(60), // 60 days to notify HHS
+        description: `CRITICAL: Potential PHI breach detected in AI system ${aiSystem.name}. ${event.metrics.phiExposureCount || 'Unknown number of'} patient records may have been exposed. Immediate investigation and breach notification process required.`,
+        affectedSystem: {
+          id: aiSystem.id,
+          name: aiSystem.name,
+          department: aiSystem.department,
+        },
+        detectedAt: event.metadata.timestamp,
+      });
+      
+      // HIPAA Security Rule - Information System Activity Review
+      violations.push({
+        framework: 'HIPAA',
+        controlId: '164.308(a)(1)(ii)(D)',
+        controlName: 'Security Management - Information System Activity Review',
+        violationType: 'breach',
+        severity: 'critical',
+        requiresReporting: true,
+        description: `Security management process requires immediate review of AI system activity logs to determine scope of PHI exposure and implement corrective measures.`,
+        affectedSystem: {
+          id: aiSystem.id,
+          name: aiSystem.name,
+          department: aiSystem.department,
+        },
+        detectedAt: event.metadata.timestamp,
+      });
+    }
     
     // State-specific laws (California example)
     // Check actual health system state for state-specific compliance requirements
@@ -697,12 +782,30 @@ export class ComplianceMapping {
   
   /**
    * Load compliance mapping rules
-   * In production, this would load from database/cache
+   * 
+   * 🔒 IP MOAT: Warms policy cache with encrypted database policies
    * Rules are updated quarterly as regulations evolve
    */
-  private loadMappingRules() {
+  private async loadMappingRules() {
     // Mapping rules are encoded in the handler methods above
     // This structure allows for future expansion to rule-based engine
-    logger.info("✅ Compliance mapping rules loaded");
+    
+    // Warm the policy cache with common event types
+    const criticalEventTypes = [
+      'phi_exposure',
+      'bias_detected',
+      'model_drift',
+      'unauthorized_data_access',
+      'clinical_accuracy_failure'
+    ];
+    
+    try {
+      await policyLoader.warmCache(criticalEventTypes);
+      logger.info("✅ Compliance mapping rules loaded - policy cache warmed (IP MOAT activated)");
+    } catch (error) {
+      // Non-blocking - static rules will work as fallback
+      logger.warn({ error }, "⚠️ Failed to warm policy cache - using static fallback rules");
+      logger.info("✅ Compliance mapping rules loaded (static mode)");
+    }
   }
 }
