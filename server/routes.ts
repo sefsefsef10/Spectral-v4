@@ -2099,6 +2099,136 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== Bias Testing API (Phase 3.3) =====
+
+  // Analyze bias in model predictions
+  app.post("/api/bias-testing/analyze", requireAuth, async (req, res) => {
+    try {
+      const schema = z.object({
+        predictions: z.array(z.number()),
+        groundTruth: z.array(z.number()),
+        sensitiveFeatures: z.record(z.array(z.any())),
+        threshold: z.number().min(0).max(1).optional(),
+      });
+
+      const body = schema.parse(req.body);
+      const { biasTestingService } = await import("./services/bias-testing");
+
+      const result = await biasTestingService.analyzeBias(
+        body.predictions,
+        body.groundTruth,
+        body.sensitiveFeatures,
+        { threshold: body.threshold }
+      );
+
+      await storage.createAuditLog({
+        userId: req.session.userId!,
+        action: "bias_analysis",
+        resourceType: "bias_test",
+        resourceId: null,
+        details: {
+          bias_detected: result.bias_detected,
+          violations_count: result.violations.length,
+        },
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      logger.error({ error }, "Failed to analyze bias");
+      res.status(400).json({ error: "Failed to analyze bias" });
+    }
+  });
+
+  // Calculate disparate impact
+  app.post("/api/bias-testing/disparate-impact", requireAuth, async (req, res) => {
+    try {
+      const schema = z.object({
+        predictions: z.array(z.number()),
+        sensitiveFeature: z.array(z.any()),
+        privilegedGroup: z.any(),
+      });
+
+      const body = schema.parse(req.body);
+      const { biasTestingService } = await import("./services/bias-testing");
+
+      const result = await biasTestingService.calculateDisparateImpact(
+        body.predictions,
+        body.sensitiveFeature,
+        body.privilegedGroup
+      );
+
+      await storage.createAuditLog({
+        userId: req.session.userId!,
+        action: "disparate_impact_test",
+        resourceType: "bias_test",
+        resourceId: null,
+        details: {
+          bias_detected: result.bias_detected,
+          disparate_impact_ratio: result.disparate_impact_ratio,
+        },
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      logger.error({ error }, "Failed to calculate disparate impact");
+      res.status(400).json({ error: "Failed to calculate disparate impact" });
+    }
+  });
+
+  // Test AI system for bias
+  app.post("/api/ai-systems/:aiSystemId/test-bias", requireAuth, async (req, res) => {
+    try {
+      const schema = z.object({
+        predictions: z.array(z.number()),
+        groundTruth: z.array(z.number()),
+        sensitiveFeatures: z.record(z.array(z.any())),
+        threshold: z.number().min(0).max(1).optional(),
+      });
+
+      const body = schema.parse(req.body);
+      const { aiSystemId } = req.params;
+      const { biasTestingService } = await import("./services/bias-testing");
+
+      // Verify AI system exists and user has access
+      const aiSystem = await storage.getAISystem(aiSystemId);
+      if (!aiSystem) {
+        return res.status(404).json({ error: "AI system not found" });
+      }
+
+      const user = await storage.getUser(req.session.userId!);
+      if (user?.role === "health_system" && aiSystem.healthSystemId !== user.healthSystemId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const result = await biasTestingService.testAISystemBias(
+        aiSystemId,
+        {
+          predictions: body.predictions,
+          groundTruth: body.groundTruth,
+          sensitiveFeatures: body.sensitiveFeatures,
+        },
+        { threshold: body.threshold }
+      );
+
+      await storage.createAuditLog({
+        userId: req.session.userId!,
+        action: "ai_system_bias_test",
+        resourceType: "ai_system",
+        resourceId: aiSystemId,
+        details: {
+          bias_detected: result.bias_detected,
+          violations_count: result.violations.length,
+          overall_accuracy: result.overall_metrics.accuracy,
+        },
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      logger.error({ error }, "Failed to test AI system bias");
+      res.status(400).json({ error: "Failed to test AI system bias" });
+    }
+  });
+
   // ===== PHI Detection API (Phase 3.1) =====
 
   // Detect PHI in text
@@ -2219,6 +2349,208 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       logger.error({ err: error }, "AI system PHI scan error");
       res.status(400).json({ error: "Failed to scan AI output for PHI" });
+    }
+  });
+
+  // ===== Re-Certification Automation API (Phase 3.6) =====
+
+  // Get pending recertifications
+  app.get("/api/recertification/pending", requireAuth, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      const { recertificationScheduler } = await import("./services/certification/recertification-scheduler");
+
+      const schedules = await recertificationScheduler.getPendingRecertifications(
+        user!.healthSystemId || undefined
+      );
+
+      res.json(schedules);
+    } catch (error: any) {
+      logger.error({ error }, "Failed to get pending recertifications");
+      res.status(500).json({ error: "Failed to fetch recertification schedules" });
+    }
+  });
+
+  // Execute recertification for a specific AI system
+  app.post("/api/recertification/execute/:aiSystemId", requireAuth, async (req, res) => {
+    try {
+      const { aiSystemId } = req.params;
+      const user = await storage.getUser(req.session.userId!);
+
+      // Verify access
+      const aiSystem = await storage.getAISystem(aiSystemId);
+      if (!aiSystem) {
+        return res.status(404).json({ error: "AI system not found" });
+      }
+
+      if (user?.role === "health_system" && aiSystem.healthSystemId !== user.healthSystemId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const { recertificationScheduler } = await import("./services/certification/recertification-scheduler");
+
+      const workflow = await recertificationScheduler.executeRecertification(
+        `manual-${Date.now()}`,
+        aiSystemId
+      );
+
+      await storage.createAuditLog({
+        userId: req.session.userId!,
+        action: "recertification_executed",
+        resourceType: "ai_system",
+        resourceId: aiSystemId,
+        details: {
+          overall_pass: workflow.overall_pass,
+          steps_completed: workflow.steps.length,
+          findings_count: workflow.findings.length,
+        },
+      });
+
+      res.json(workflow);
+    } catch (error: any) {
+      logger.error({ error }, "Failed to execute recertification");
+      res.status(500).json({ error: "Failed to execute recertification" });
+    }
+  });
+
+  // Bulk execute recertifications for all due systems
+  app.post("/api/recertification/bulk-execute", requireAuth, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      
+      if (!user?.healthSystemId) {
+        return res.status(400).json({ error: "Health system ID required" });
+      }
+
+      const { recertificationScheduler } = await import("./services/certification/recertification-scheduler");
+
+      const workflows = await recertificationScheduler.executeBulkRecertifications(
+        user.healthSystemId
+      );
+
+      const summary = recertificationScheduler.generateSummaryReport(workflows);
+
+      await storage.createAuditLog({
+        userId: req.session.userId!,
+        action: "bulk_recertification_executed",
+        resourceType: "health_system",
+        resourceId: user.healthSystemId,
+        details: summary,
+      });
+
+      res.json({
+        workflows,
+        summary,
+      });
+    } catch (error: any) {
+      logger.error({ error }, "Failed to execute bulk recertification");
+      res.status(500).json({ error: "Failed to execute bulk recertification" });
+    }
+  });
+
+  // ===== Compliance Report Generator API (Phase 3.5) =====
+
+  // Generate comprehensive compliance audit report (20-40 pages PDF)
+  app.post("/api/compliance/generate-report", requireAuth, async (req, res) => {
+    try {
+      const schema = z.object({
+        healthSystemId: z.string(),
+        frameworks: z.array(z.string()).optional(),
+        includeAIInventory: z.boolean().optional(),
+        includeViolations: z.boolean().optional(),
+        includeAuditEvidence: z.boolean().optional(),
+        includeThreatModel: z.boolean().optional(),
+        includeBiasAnalysis: z.boolean().optional(),
+        timePeriodDays: z.number().optional(),
+      });
+
+      const body = schema.parse(req.body);
+      const user = await storage.getUser(req.session.userId!);
+
+      // Validate access to health system
+      if (user?.role === "health_system" && user.healthSystemId !== body.healthSystemId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const { complianceReportGenerator } = await import("./services/compliance-reporting/report-generator");
+
+      const report = await complianceReportGenerator.generateReport(
+        body,
+        user!.email
+      );
+
+      await storage.createAuditLog({
+        userId: req.session.userId!,
+        action: "compliance_report_generated",
+        resourceType: "compliance_report",
+        resourceId: report.report_id,
+        details: {
+          page_count: report.page_count,
+          frameworks: report.frameworks_covered,
+        },
+      });
+
+      res.json(report);
+    } catch (error: any) {
+      logger.error({ error }, "Failed to generate compliance report");
+      res.status(500).json({ error: "Failed to generate compliance report" });
+    }
+  });
+
+  // ===== Threat Modeling API (Phase 3.4) =====
+
+  // Analyze AI system for security and privacy threats (STRIDE + LINDDUN)
+  app.post("/api/ai-systems/:aiSystemId/threat-model", requireAuth, async (req, res) => {
+    try {
+      const { aiSystemId } = req.params;
+      const schema = z.object({
+        deployment_environment: z.string(),
+        data_access: z.array(z.string()),
+        integration_points: z.array(z.string()),
+        user_roles: z.array(z.string()),
+      });
+
+      const body = schema.parse(req.body);
+
+      // Verify AI system exists and user has access
+      const aiSystem = await storage.getAISystem(aiSystemId);
+      if (!aiSystem) {
+        return res.status(404).json({ error: "AI system not found" });
+      }
+
+      const user = await storage.getUser(req.session.userId!);
+      if (user?.role === "health_system" && aiSystem.healthSystemId !== user.healthSystemId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const { threatModelingService } = await import("./services/threat-modeling/stride-linddun");
+      
+      const result = await threatModelingService.analyzeAISystem(aiSystemId, {
+        name: aiSystem.name,
+        category: aiSystem.category,
+        deployment_environment: body.deployment_environment,
+        data_access: body.data_access,
+        integration_points: body.integration_points,
+        phi_handling: aiSystem.phiExposureRisk === "high" || aiSystem.phiExposureRisk === "medium",
+        user_roles: body.user_roles,
+      });
+
+      await storage.createAuditLog({
+        userId: req.session.userId!,
+        action: "threat_modeling_analysis",
+        resourceType: "ai_system",
+        resourceId: aiSystemId,
+        details: {
+          total_threats: result.total_threats,
+          critical_count: result.critical_count,
+          risk_score: result.risk_score,
+        },
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      logger.error({ error }, "Failed to perform threat modeling");
+      res.status(400).json({ error: "Failed to perform threat modeling analysis" });
     }
   });
 

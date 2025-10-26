@@ -4,6 +4,7 @@ expertMode = true
 
 [nix]
 channel = "stable-25_05"
+packages = ["glibcLocales"]
 
 [workflows]
 runButton = "Project"
@@ -36,10 +37,6 @@ externalPort = 80
 [[ports]]
 localPort = 39071
 externalPort = 3000
-
-[[ports]]
-localPort = 39137
-externalPort = 3002
 
 [[ports]]
 localPort = 42689

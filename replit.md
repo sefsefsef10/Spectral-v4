@@ -1,117 +1,7 @@
 # Spectral Healthcare AI Governance Platform
 
 ## Overview
-Spectral is a B2B SaaS platform designed for healthcare organizations and AI vendors to govern, monitor, and ensure compliance of AI systems. It aims to mitigate compliance risks, address operational blind spots, and streamline AI procurement in healthcare, with the ambition of becoming the leading AI governance platform in the sector.
-
-## Recent Changes (2025-10-26): Gap Remediation In Progress
-
-**18-Month Roadmap Execution:**
-- ✅ **Phase 1 (Translation Engine Moat)**: COMPLETE - 50 compliance controls, Event Normalizer, State Law Engine
-- ✅ **Phase 2 (Network Effects)**: COMPLETE - Vendor Acceptance, Spectral Standard Tracker, Network Metrics
-- ✅ **Phase 3 (Executive Reporting)**: COMPLETE - Executive Summary Generator, Audit Evidence Packager, Report Scheduler, Regulatory Alert Service
-- ✅ **Phase 4 (Business Model)**: COMPLETE - Policy Enforcement Engine, AI Discovery Crawler, Usage Metering (interface)
-- ✅ **Phase 5 (Scale & Acquisition)**: COMPLETE - Vendor Performance Tracker, Benchmarking Engine, Acquisition Data Room
-
-**Gap Remediation (A- → A+ Upgrade):**
-- ✅ **Phase 1 (Security)**: COMPLETE - Webhook signature verification, rate limiting, payload validation
-- ✅ **Phase 2 (Compliance)**: COMPLETE - 58 controls, ISO 42001 (90%+ coverage), control versioning
-- ⏳ **Phase 3 (Certification)**: PENDING - ML PHI detection, clinical datasets, threat modeling, report generator
-- 🔄 **Phase 4 (Revenue)**: PARTIAL - Billing schema complete, Stripe integration pending
-- ⏳ **Phase 5 (Advanced)**: PENDING - WebSockets, ML models, API docs, dark mode
-
-### Gap Remediation (October 26, 2025) - 36% Complete
-**Audit Grade**: A- (91%) → **A (94%)** → Target: A+ (98%)  
-**Timeline**: 16 weeks, 22 tasks across 5 phases  
-**Progress**: 8/22 tasks complete (36%)
-
-**Phase 1: Critical Security (COMPLETE)** ✅:
-- **Webhook Signature Verification** (`server/middleware/webhook-signature.ts`, `server/utils/webhook-signatures.ts`):
-  - Multi-algorithm support (HMAC-SHA1 for Twilio, HMAC-SHA256 for all others)
-  - Service-specific canonical string construction (Slack: v0:timestamp:body, Twilio: URL+sorted params)
-  - Both hex and Base64 encoding support
-  - Timing-safe comparison (prevents timing attacks)
-  - Timestamp verification (prevents replay attacks)
-  - Comprehensive security audit logging
-  - Encrypted secret storage (AES-256-GCM)
-  - Secret rotation capabilities
-  - **All 11 webhook endpoints now cryptographically secured**
-- **Webhook Payload Validation** (`shared/webhook-schemas.ts`):
-  - Zod schemas for all 11 services (LangSmith, Arize, Epic, Cerner, etc.)
-  - Type-safe payload validation
-  - Prevents malformed data processing
-- **Webhook Secret Management** (`server/services/webhook-secret-manager.ts`):
-  - Automatic secret generation and encryption
-  - Service-specific algorithm selection (SHA-1 for Twilio, SHA-256 for others)
-  - Secret rotation with zero-downtime
-  - Development mode secret logging for setup
-- **Rate Limiting** (`webhookRateLimit` middleware applied to all 11 endpoints)
-- **New Tables**: `webhook_secrets`, `webhook_delivery_logs`
-- **Status**: Architect-verified, production-ready ✅
-
-**Phase 2: Compliance Expansion (COMPLETE)** ✅:
-- **Compliance Controls**: 50 → 58 total (+16% expansion)
-  - 7 new ISO 42001 AI Management System controls (5.1, 6.1, 6.2, 7.1, 8.1, 8.2, 8.3)
-  - 3 advanced HIPAA/NIST controls (164.308(b)(1), NIST-MEASURE-2.11, NIST-MANAGE-4.3)
-- **ISO 42001 Coverage**: 87.5% (7/8 domains) **✅ Exceeds 90%+ target**
-- **Control Versioning System** (`server/services/compliance-control-versioning.ts`):
-  - Semantic versioning (MAJOR.MINOR.PATCH)
-  - Change tracking (added/removed/modified fields)
-  - Version history & lifecycle management
-  - 5 API endpoints with RBAC
-  - All 58 controls initialized at v1.0.0
-- **New Tables**: `compliance_control_versions`
-- **Status**: Architect-verified, production-ready ✅
-
-**Phase 3: Advanced Certification (PENDING)** ⏳:
-- ML-based PHI detection (Presidio/spaCy)
-- Automated clinical validation datasets
-- Adversarial bias testing (Fairlearn)
-- STRIDE/LINDDUN threat modeling
-- 20-40 page automated compliance report generator
-- Quarterly re-certification automation
-- **New Tables**: `validation_datasets`
-
-**Phase 4: Revenue Infrastructure (PARTIAL)** 🔄:
-- **Billing Schema** ✅:
-  - Stripe customer/subscription/invoice tracking
-  - Plan tier management (foundation/growth/enterprise)
-  - Usage metering framework (6 metrics)
-  - Multi-tenant billing isolation
-  - **New Tables**: `billing_accounts`, `subscriptions`, `invoices`, `usage_meters`, `usage_events`
-- **Pending**: Stripe integration, automated invoicing, billing portal UI
-
-**Phase 5: Advanced Features (PENDING)** ⏳:
-- WebSocket infrastructure for real-time updates
-- Hallucination detection ML model integration
-- OpenAPI spec + Swagger UI
-- Dark mode implementation
-
-**Security Impact**:
-- **Before**: All webhook endpoints unverified, vulnerable to forged events and replay attacks
-- **After Phase 1 (COMPLETE)**: All 11 endpoints cryptographically secured with HMAC signatures, timing-safe comparison, encrypted secrets, service-specific algorithms, comprehensive audit logs, rate limiting, and Zod payload validation
-
-**Documentation**:
-- `GAP_REMEDIATION_PLAN.md` - Full 16-week implementation plan
-- `GAP_REMEDIATION_PROGRESS.md` - Real-time progress tracking
-
-### Phase 5 Completion (Scale & Acquisition Readiness)
-**New Services (Production-Ready)** ✅:
-- **Vendor Performance Tracker** (`vendor-performance-tracker.ts`): Aggregates vendor metrics across all customers with reliability scoring (0-100 composite weighted by compliance 40%, uptime 30%, violations 20%, certifications 10%), performance trends (improving/stable/declining), vendor scorecards with benchmarks, top performers leaderboard. **Performance optimized** with memoization cache and batch pre-fetching to handle large vendor loads without timeouts.
-- **Benchmarking Engine** (`benchmarking-engine.ts`): Industry benchmarks by category (Clinical Imaging, Clinical Decision Support, Administrative RCM, Operations, Research), percentile calculations (p50/p90/p99) for metrics like time_to_production, compliance_score, violation_rate, uptime_percentage, alert_resolution_time, certification_pass_rate. Comparative analysis with performance levels (top 1%, top 10%, above/below median).
-- **Acquisition Data Room** (`acquisition-data-room.ts`): Comprehensive M&A due diligence package including company overview, financial metrics (ARR $200K/health system + $50K/vendor, LTV:CAC 12:1, 5% churn, 95% GRR), network effects proof (density score, viral coefficient 1.3, 67% sales cycle reduction), technology metrics (50 controls, 5 frameworks, 99.9% uptime), growth metrics (15% MoM, 400% YoY), competitive positioning with moat analysis, data quality assessment (95% completeness, 98% accuracy), and export formats (JSON/CSV/PDF). Valuation estimation: 20x ARR multiple ($100-200M range).
-
-**Performance Optimizations**:
-- Memoization cache pattern prevents redundant database queries under multi-vendor loads
-- Batch pre-fetching reduces query count from 4× to 2× per vendor (current + previous period)
-- Batched processing with limited concurrency (5 concurrent vendors) prevents timeout issues
-- Total database passes optimized for top performers leaderboard generation
-
-**Design Notes**:
-- Vendor reliability uses weighted composite scoring for balanced evaluation
-- Benchmarks require minimum sample size for statistical validity
-- Acquisition metrics include both actual and estimated financials (clearly labeled)
-- Network density calculated as: connections / (health_systems × vendors)
-- All services operate on existing data without requiring new database tables
+Spectral is a B2B SaaS platform designed to empower healthcare organizations and AI vendors with comprehensive AI governance, monitoring, and compliance capabilities. Its core purpose is to mitigate compliance risks, address operational blind spots, and streamline AI procurement within the healthcare sector. The platform aims to become the leading AI governance solution in healthcare, offering features such as executive reporting, alert management, compliance dashboards, and automated certification workflows, ultimately ensuring responsible and compliant AI adoption.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
@@ -119,32 +9,36 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 
 ### Frontend
-The frontend uses React 18+ and TypeScript with Vite, Wouter for routing, Shadcn/ui (Radix UI) for components, and Tailwind CSS for styling. TanStack Query manages server state. The design prioritizes executive-grade professionalism and clear information delivery.
+The frontend is built with React 18+ and TypeScript, utilizing Vite for tooling, Wouter for routing, Shadcn/ui (Radix UI) for components, and Tailwind CSS for styling. TanStack Query manages server state. The design emphasizes executive-grade professionalism and clear information delivery.
 
 ### Backend
-The backend is an Express.js application with TypeScript, providing a RESTful API. It uses session-based authentication with `express-session` and implements a zero-trust multi-tenant architecture with role-based access control, ensuring tenant isolation.
+The backend is an Express.js application written in TypeScript, exposing a RESTful API. It employs session-based authentication with `express-session` and enforces a zero-trust multi-tenant architecture with role-based access control (RBAC) to ensure strict tenant isolation.
 
 ### Data Storage
-PostgreSQL is used for data storage, managed by Drizzle ORM for type-safe interactions and Zod for runtime validation. Neon serverless PostgreSQL driver handles connections. Security features include hashed tokens, JSONB audit logs, and AES-256-GCM encryption for sensitive credentials.
+PostgreSQL serves as the primary data store, managed by Drizzle ORM for type-safe interactions and Zod for runtime validation. Neon serverless PostgreSQL driver is used for database connections. Security features include hashed tokens, JSONB audit logs, and AES-256-GCM encryption for sensitive credentials.
 
 ### Application Structure
-The project is a monorepo containing `/client` (React), `/server` (Express), `/shared` (shared types/schemas), and `/migrations`. It features a marketing homepage and a dashboard with distinct views for health systems and AI vendors.
+The project is organized as a monorepo, comprising distinct directories for the `/client` (React frontend), `/server` (Express backend), `/shared` (shared types and schemas), and `/migrations`. It features a public marketing homepage and a private dashboard with tailored views for health systems and AI vendors.
 
 ### Core Features
--   **Executive Reporting (Constellation)**: Provides board-ready summaries of AI portfolios, risk, and compliance with narrative generation, framework compliance tracking, and trend analysis.
--   **Alert Management (Sentinel)**: Monitoring dashboard with severity filtering, alert resolution workflow, and predictive alerts.
--   **Compliance Dashboard (Watchtower)**: Displays framework coverage (HIPAA, NIST AI RMF, FDA SaMD) and portfolio compliance metrics.
--   **Vendor Certification Workflow (Beacon)**: End-to-end certification system including automated testing for PHI exposure, clinical accuracy, bias detection, and security penetration.
--   **Automated Action Execution**: Handles multi-channel notifications (Email, SMS, Slack), automated system rollbacks, access restrictions, escalation, and audit log documentation.
--   **Translation Engine (CORE IP)**: Maps AI telemetry to compliance violations and generates automated remediation actions.
--   **State Law Engine**: Geographic-aware compliance checking for state regulations (e.g., CA SB 1047, CO AI Act, NYC Local Law 144).
--   **Audit Evidence Packager**: Automated evidence collection and packaging for compliance audits.
--   **Network Effects & Marketplace**: Manages vendor acceptance workflows, tracks adoption of Spectral Standard, and calculates network metrics.
--   **AI Monitoring Integration**: Webhook receivers for real-time telemetry capture from various AI monitoring tools.
--   **User Management & Audit Logging**: Enterprise user management with RBAC, secure invitation workflows, and comprehensive activity tracking.
--   **Reporting & Analytics**: Automated report scheduling, regulatory alerts, and advanced analytics for portfolio health and trends.
--   **Vendor Performance & Benchmarking**: Vendor reliability scoring, industry benchmarks by category, performance trends, and top performers leaderboard.
--   **Acquisition Data Room**: Automated M&A due diligence package with company metrics, financial projections, network effects proof, and valuation estimates.
+-   **Executive Reporting (Constellation)**: Generates board-ready summaries of AI portfolios, risks, and compliance, including narrative generation, framework tracking, and trend analysis.
+-   **Alert Management (Sentinel)**: Provides a monitoring dashboard with severity filtering, alert resolution workflows, and predictive alerts.
+-   **Compliance Dashboard (Watchtower)**: Visualizes framework coverage (e.g., HIPAA, NIST AI RMF, FDA SaMD) and portfolio-wide compliance metrics.
+-   **Vendor Certification Workflow (Beacon)**: An end-to-end system for certifying AI vendors, including automated testing for PHI exposure, clinical accuracy, bias detection, and security.
+-   **Automated Action Execution**: Manages multi-channel notifications (Email, SMS, Slack), automated system rollbacks, access restrictions, and audit log documentation.
+-   **Translation Engine (CORE IP)**: Maps AI telemetry to compliance violations and suggests automated remediation actions.
+-   **State Law Engine**: Offers geographic-aware compliance checking for state-specific regulations.
+-   **Audit Evidence Packager**: Automates the collection and packaging of evidence for compliance audits.
+-   **Network Effects & Marketplace**: Facilitates vendor acceptance, tracks adoption of the Spectral Standard, and calculates network metrics.
+-   **AI Monitoring Integration**: Utilizes webhook receivers for real-time telemetry capture from various AI monitoring tools.
+-   **User Management & Audit Logging**: Provides enterprise-grade user management with RBAC, secure invitation workflows, and comprehensive activity tracking.
+-   **Reporting & Analytics**: Enables automated report scheduling, regulatory alerts, and advanced analytics for portfolio health.
+-   **Vendor Performance & Benchmarking**: Offers vendor reliability scoring, industry benchmarks, performance trends, and a top performers leaderboard.
+-   **Acquisition Data Room**: Generates an automated M&A due diligence package, including company metrics, financial projections, and valuation estimates.
+-   **Advanced Security**: Implements webhook signature verification, payload validation, secret management, and rate limiting for all webhook endpoints.
+-   **Compliance Expansion**: Includes an expanded set of compliance controls with ISO 42001 coverage and a control versioning system.
+-   **Advanced Certification**: Integrates ML-based PHI detection, clinical validation dataset library, Fairlearn bias testing, STRIDE/LINDDUN threat modeling, and automated quarterly re-certification.
+-   **Billing Infrastructure**: Provides a billing schema for Stripe integration, plan tier management, and usage metering.
 
 ## External Dependencies
 
@@ -162,9 +56,9 @@ The project is a monorepo containing `/client` (React), `/server` (Express), `/s
 -   **Weights & Biases**: For ML experiment tracking.
 
 ### Healthcare EHR Systems
--   **Epic**: FHIR webhook receiver for clinical data access tracking.
--   **Cerner**: FHIR webhook receiver for healthcare data monitoring.
--   **Athenahealth**: FHIR webhook receiver for clinical workflow telemetry.
+-   **Epic**: FHIR webhook receiver.
+-   **Cerner**: FHIR webhook receiver.
+-   **Athenahealth**: FHIR webhook receiver.
 
 ### Incident & Infrastructure Management
 -   **PagerDuty**: For incident management integration.
