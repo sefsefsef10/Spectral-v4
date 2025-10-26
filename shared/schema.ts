@@ -27,6 +27,9 @@ export const users = pgTable("users", {
   ssoProvider: text("sso_provider"), // 'workos', 'google', 'microsoft', 'okta', etc.
   ssoExternalId: text("sso_external_id"), // External user ID from SSO provider
   ssoOrganizationId: text("sso_organization_id"), // WorkOS organization ID for directory sync
+  // Stripe billing (individual user subscriptions - rare, mostly org-level)
+  stripeCustomerId: text("stripe_customer_id"), // Stripe customer ID if user has personal subscription
+  stripeSubscriptionId: text("stripe_subscription_id"), // Stripe subscription ID
   healthSystemId: varchar("health_system_id").references(() => healthSystems.id, { onDelete: "set null" }),
   vendorId: varchar("vendor_id").references(() => vendors.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -74,6 +77,15 @@ export const healthSystems = pgTable("health_systems", {
   name: text("name").notNull(),
   state: text("state"), // US state code (e.g., 'CA', 'NY', 'TX') for state-specific compliance
   settings: jsonb("settings"), // JSONB: org preferences, branding, compliance thresholds, etc.
+  // Stripe billing for health system subscriptions
+  stripeCustomerId: text("stripe_customer_id"), // Stripe customer ID
+  stripeSubscriptionId: text("stripe_subscription_id"), // Active subscription
+  subscriptionTier: text("subscription_tier"), // 'starter', 'professional', 'enterprise' ($75K/$200K/$400K)
+  subscriptionStatus: text("subscription_status"), // 'active', 'trialing', 'past_due', 'canceled', 'incomplete'
+  currentPeriodStart: timestamp("current_period_start"), // Billing cycle start
+  currentPeriodEnd: timestamp("current_period_end"), // Billing cycle end
+  trialEndsAt: timestamp("trial_ends_at"), // 30-day trial expiry
+  aiSystemLimit: integer("ai_system_limit"), // Plan limit: Starter(3), Professional(10), Enterprise(unlimited)
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -82,12 +94,19 @@ export const vendors = pgTable("vendors", {
   name: text("name").notNull(),
   description: text("description"),
   category: text("category"),
-  certificationTier: text("certification_tier"),
+  certificationTier: text("certification_tier"), // 'verified', 'certified', 'trusted'
   verified: boolean("verified").notNull().default(false),
   logoUrl: text("logo_url"),
   website: text("website"),
   trustPageUrl: text("trust_page_url"),
   settings: jsonb("settings"), // JSONB: org preferences, branding, etc.
+  // Stripe billing for vendor certification subscriptions
+  stripeCustomerId: text("stripe_customer_id"), // Stripe customer ID
+  stripeSubscriptionId: text("stripe_subscription_id"), // Active certification subscription
+  subscriptionStatus: text("subscription_status"), // 'active', 'trialing', 'past_due', 'canceled', 'incomplete'
+  currentPeriodStart: timestamp("current_period_start"), // Annual billing cycle start
+  currentPeriodEnd: timestamp("current_period_end"), // Annual billing cycle end
+  certificationExpiresAt: timestamp("certification_expires_at"), // Certification expiry (annual renewal)
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
