@@ -3,14 +3,82 @@
 ## Overview
 Spectral is a B2B SaaS platform designed for healthcare organizations and AI vendors to govern, monitor, and ensure compliance of AI systems. It aims to mitigate compliance risks, address operational blind spots, and streamline AI procurement in healthcare, with the ambition of becoming the leading AI governance platform in the sector.
 
-## Recent Changes (2025-10-26): Roadmap Progress
+## Recent Changes (2025-10-26): Gap Remediation In Progress
 
-**18-Month Roadmap Execution Progress:**
+**18-Month Roadmap Execution:**
 - ✅ **Phase 1 (Translation Engine Moat)**: COMPLETE - 50 compliance controls, Event Normalizer, State Law Engine
 - ✅ **Phase 2 (Network Effects)**: COMPLETE - Vendor Acceptance, Spectral Standard Tracker, Network Metrics
 - ✅ **Phase 3 (Executive Reporting)**: COMPLETE - Executive Summary Generator, Audit Evidence Packager, Report Scheduler, Regulatory Alert Service
 - ✅ **Phase 4 (Business Model)**: COMPLETE - Policy Enforcement Engine, AI Discovery Crawler, Usage Metering (interface)
 - ✅ **Phase 5 (Scale & Acquisition)**: COMPLETE - Vendor Performance Tracker, Benchmarking Engine, Acquisition Data Room
+
+**Gap Remediation (A- → A+ Upgrade):**
+- 🔄 **Phase 1 (Security)**: IN PROGRESS - Webhook signature verification, rate limiting, payload validation
+- ⏳ **Phase 2 (Compliance)**: PENDING - 10 additional controls, ISO 42001 expansion, control versioning
+- ⏳ **Phase 3 (Certification)**: PENDING - ML PHI detection, clinical datasets, threat modeling, report generator
+- 🔄 **Phase 4 (Revenue)**: PARTIAL - Billing schema complete, Stripe integration pending
+- ⏳ **Phase 5 (Advanced)**: PENDING - WebSockets, ML models, API docs, dark mode
+
+### Gap Remediation (October 26, 2025) - 15% Complete
+**Audit Grade**: A- (91%) → Target: A+ (98%)  
+**Timeline**: 16 weeks, 22 tasks across 5 phases  
+**Progress**: 3.3/22 tasks complete (15%)
+
+**Phase 1: Critical Security (IN PROGRESS)** 🔄:
+- **Webhook Signature Verification** (`server/middleware/webhook-signature.ts`, `server/utils/webhook-signatures.ts`):
+  - HMAC-SHA256 cryptographic signatures for all 11 webhook endpoints
+  - Timing-safe comparison (prevents timing attacks)
+  - Timestamp verification (prevents replay attacks)
+  - Comprehensive security audit logging
+  - Encrypted secret storage (AES-256-GCM)
+  - Secret rotation capabilities
+- **Webhook Payload Validation** (`shared/webhook-schemas.ts`):
+  - Zod schemas for all 11 services (LangSmith, Arize, Epic, Cerner, etc.)
+  - Type-safe payload validation
+  - Prevents malformed data processing
+- **Webhook Secret Management** (`server/services/webhook-secret-manager.ts`):
+  - Automatic secret generation and encryption
+  - Secret rotation with zero-downtime
+  - Development mode secret logging for setup
+- **New Tables**: `webhook_secrets`, `webhook_delivery_logs`
+
+**Phase 2: Compliance Expansion (PENDING)** ⏳:
+- Add 10 missing controls (50 → 60 target)
+- ISO 42001 implementation (53% → 90%+ coverage)
+- Compliance control versioning system
+- **New Tables**: `compliance_control_versions`
+
+**Phase 3: Advanced Certification (PENDING)** ⏳:
+- ML-based PHI detection (Presidio/spaCy)
+- Automated clinical validation datasets
+- Adversarial bias testing (Fairlearn)
+- STRIDE/LINDDUN threat modeling
+- 20-40 page automated compliance report generator
+- Quarterly re-certification automation
+- **New Tables**: `validation_datasets`
+
+**Phase 4: Revenue Infrastructure (PARTIAL)** 🔄:
+- **Billing Schema** ✅:
+  - Stripe customer/subscription/invoice tracking
+  - Plan tier management (foundation/growth/enterprise)
+  - Usage metering framework (6 metrics)
+  - Multi-tenant billing isolation
+  - **New Tables**: `billing_accounts`, `subscriptions`, `invoices`, `usage_meters`, `usage_events`
+- **Pending**: Stripe integration, automated invoicing, billing portal UI
+
+**Phase 5: Advanced Features (PENDING)** ⏳:
+- WebSocket infrastructure for real-time updates
+- Hallucination detection ML model integration
+- OpenAPI spec + Swagger UI
+- Dark mode implementation
+
+**Security Impact**:
+- Before: All webhook endpoints unverified, vulnerable to forged events and replay attacks
+- After Phase 1: Cryptographic verification, timing-safe comparison, encrypted secrets, comprehensive audit logs
+
+**Documentation**:
+- `GAP_REMEDIATION_PLAN.md` - Full 16-week implementation plan
+- `GAP_REMEDIATION_PROGRESS.md` - Real-time progress tracking
 
 ### Phase 5 Completion (Scale & Acquisition Readiness)
 **New Services (Production-Ready)** ✅:

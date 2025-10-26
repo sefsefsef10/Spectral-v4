@@ -956,3 +956,176 @@ export type InsertCertificationApplication = z.infer<typeof insertCertificationA
 
 export type VendorTestResult = typeof vendorTestResults.$inferSelect;
 export type InsertVendorTestResult = z.infer<typeof insertVendorTestResultSchema>;
+
+// ===== PHASE 1: WEBHOOK SECURITY =====
+
+// Webhook secrets for signature verification
+export const webhookSecrets = pgTable("webhook_secrets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  serviceName: text("service_name").notNull().unique(), // 'langsmith', 'arize', 'epic', etc.
+  secretKey: text("secret_key").notNull(), // Encrypted signing secret
+  algorithm: text("algorithm").notNull().default('hmac-sha256'), // 'hmac-sha256', 'rsa'
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  rotatedAt: timestamp("rotated_at"),
+});
+
+// Webhook delivery logs for security monitoring
+export const webhookDeliveryLogs = pgTable("webhook_delivery_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  serviceName: text("service_name").notNull(),
+  endpoint: text("endpoint").notNull(),
+  signatureValid: boolean("signature_valid"),
+  payloadValid: boolean("payload_valid"),
+  statusCode: integer("status_code"),
+  errorMessage: text("error_message"),
+  ipAddress: text("ip_address"),
+  requestHeaders: jsonb("request_headers"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  serviceIdx: sql`CREATE INDEX IF NOT EXISTS idx_webhook_logs_service ON ${table} (service_name, created_at DESC)`,
+}));
+
+export const insertWebhookSecretSchema = createInsertSchema(webhookSecrets);
+export const insertWebhookDeliveryLogSchema = createInsertSchema(webhookDeliveryLogs);
+
+// ===== PHASE 2: COMPLIANCE CONTROL VERSIONING =====
+
+// Compliance control versions for quarterly regulatory updates
+export const complianceControlVersions = pgTable("compliance_control_versions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  controlId: text("control_id").notNull(),
+  version: text("version").notNull(), // Semantic versioning (e.g., '1.0.0', '1.1.0')
+  changes: jsonb("changes"), // What changed from previous version
+  effectiveDate: timestamp("effective_date").notNull(),
+  deprecatedDate: timestamp("deprecated_date"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  controlVersionIdx: sql`CREATE INDEX IF NOT EXISTS idx_control_versions ON ${table} (control_id, version)`,
+}));
+
+export const insertComplianceControlVersionSchema = createInsertSchema(complianceControlVersions);
+
+// ===== PHASE 3: ADVANCED VENDOR CERTIFICATION =====
+
+// Validation datasets for automated clinical testing
+export const validationDatasets = pgTable("validation_datasets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  category: text("category").notNull(), // 'radiology', 'pathology', 'cardiology', 'oncology', 'general'
+  description: text("description"),
+  testCases: jsonb("test_cases").notNull(), // Array of {input, expected_output, ground_truth}
+  metadataSource: text("metadata_source"), // Where ground truth came from (FDA, peer-reviewed, etc.)
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertValidationDatasetSchema = createInsertSchema(validationDatasets);
+
+// ===== PHASE 4: BILLING & REVENUE INFRASTRUCTURE =====
+
+// Billing accounts for Stripe integration
+export const billingAccounts = pgTable("billing_accounts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  healthSystemId: varchar("health_system_id").references(() => healthSystems.id, { onDelete: "cascade" }),
+  vendorId: varchar("vendor_id").references(() => vendors.id, { onDelete: "cascade" }),
+  stripeCustomerId: text("stripe_customer_id").unique(),
+  paymentMethodId: text("payment_method_id"),
+  billingEmail: text("billing_email").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  stripeCustomerIdx: sql`CREATE INDEX IF NOT EXISTS idx_billing_stripe_customer ON ${table} (stripe_customer_id)`,
+}));
+
+// Subscriptions for plan management
+export const subscriptions = pgTable("subscriptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  billingAccountId: varchar("billing_account_id").notNull().references(() => billingAccounts.id, { onDelete: "cascade" }),
+  stripeSubscriptionId: text("stripe_subscription_id").unique(),
+  planTier: text("plan_tier").notNull(), // 'foundation', 'growth', 'enterprise'
+  status: text("status").notNull(), // 'active', 'past_due', 'canceled', 'incomplete'
+  currentPeriodStart: timestamp("current_period_start").notNull(),
+  currentPeriodEnd: timestamp("current_period_end").notNull(),
+  cancelAt: timestamp("cancel_at"),
+  canceledAt: timestamp("canceled_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  stripeSubIdx: sql`CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe ON ${table} (stripe_subscription_id)`,
+}));
+
+// Invoices for billing records
+export const invoices = pgTable("invoices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  subscriptionId: varchar("subscription_id").notNull().references(() => subscriptions.id, { onDelete: "cascade" }),
+  stripeInvoiceId: text("stripe_invoice_id").unique(),
+  amountDue: integer("amount_due").notNull(), // in cents
+  amountPaid: integer("amount_paid").notNull().default(0),
+  status: text("status").notNull(), // 'draft', 'open', 'paid', 'uncollectible', 'void'
+  dueDate: timestamp("due_date"),
+  paidAt: timestamp("paid_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  stripeInvoiceIdx: sql`CREATE INDEX IF NOT EXISTS idx_invoices_stripe ON ${table} (stripe_invoice_id)`,
+}));
+
+// Usage meters for consumption tracking
+export const usageMeters = pgTable("usage_meters", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  healthSystemId: varchar("health_system_id").references(() => healthSystems.id, { onDelete: "cascade" }),
+  vendorId: varchar("vendor_id").references(() => vendors.id, { onDelete: "cascade" }),
+  metricName: text("metric_name").notNull(), // 'ai_systems', 'alerts', 'reports', 'api_calls', 'users', 'certifications'
+  currentValue: integer("current_value").notNull().default(0),
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
+  resetFrequency: text("reset_frequency").notNull().default('monthly'), // 'monthly', 'annual'
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  meterIdx: sql`CREATE INDEX IF NOT EXISTS idx_usage_meters ON ${table} (health_system_id, vendor_id, metric_name, period_start)`,
+}));
+
+// Usage events for granular tracking
+export const usageEvents = pgTable("usage_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  healthSystemId: varchar("health_system_id").references(() => healthSystems.id, { onDelete: "cascade" }),
+  vendorId: varchar("vendor_id").references(() => vendors.id, { onDelete: "cascade" }),
+  metricName: text("metric_name").notNull(),
+  increment: integer("increment").notNull().default(1),
+  metadata: jsonb("metadata"),
+  recordedAt: timestamp("recorded_at").notNull().defaultNow(),
+}, (table) => ({
+  eventIdx: sql`CREATE INDEX IF NOT EXISTS idx_usage_events ON ${table} (health_system_id, vendor_id, recorded_at DESC)`,
+}));
+
+export const insertBillingAccountSchema = createInsertSchema(billingAccounts);
+export const insertSubscriptionSchema = createInsertSchema(subscriptions);
+export const insertInvoiceSchema = createInsertSchema(invoices);
+export const insertUsageMeterSchema = createInsertSchema(usageMeters);
+export const insertUsageEventSchema = createInsertSchema(usageEvents);
+
+// Type exports
+export type WebhookSecret = typeof webhookSecrets.$inferSelect;
+export type InsertWebhookSecret = z.infer<typeof insertWebhookSecretSchema>;
+
+export type WebhookDeliveryLog = typeof webhookDeliveryLogs.$inferSelect;
+export type InsertWebhookDeliveryLog = z.infer<typeof insertWebhookDeliveryLogSchema>;
+
+export type ComplianceControlVersion = typeof complianceControlVersions.$inferSelect;
+export type InsertComplianceControlVersion = z.infer<typeof insertComplianceControlVersionSchema>;
+
+export type ValidationDataset = typeof validationDatasets.$inferSelect;
+export type InsertValidationDataset = z.infer<typeof insertValidationDatasetSchema>;
+
+export type BillingAccount = typeof billingAccounts.$inferSelect;
+export type InsertBillingAccount = z.infer<typeof insertBillingAccountSchema>;
+
+export type Subscription = typeof subscriptions.$inferSelect;
+export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
+
+export type Invoice = typeof invoices.$inferSelect;
+export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
+
+export type UsageMeter = typeof usageMeters.$inferSelect;
+export type InsertUsageMeter = z.infer<typeof insertUsageMeterSchema>;
+
+export type UsageEvent = typeof usageEvents.$inferSelect;
+export type InsertUsageEvent = z.infer<typeof insertUsageEventSchema>;
