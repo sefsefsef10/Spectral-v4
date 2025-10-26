@@ -65,7 +65,7 @@ export const healthSystems = pgTable("health_systems", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   state: text("state"), // US state code (e.g., 'CA', 'NY', 'TX') for state-specific compliance
-  settings: text("settings"), // JSON: org preferences, branding, etc.
+  settings: jsonb("settings"), // JSONB: org preferences, branding, compliance thresholds, etc.
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -79,7 +79,7 @@ export const vendors = pgTable("vendors", {
   logoUrl: text("logo_url"),
   website: text("website"),
   trustPageUrl: text("trust_page_url"),
-  settings: text("settings"), // JSON: org preferences, branding, etc.
+  settings: jsonb("settings"), // JSONB: org preferences, branding, etc.
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

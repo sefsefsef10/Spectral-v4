@@ -11,6 +11,7 @@
 
 import { logger } from "../../logger";
 import { storage } from "../../storage";
+import { getThresholds } from "./threshold-config";
 import type {
   ParsedEvent,
   ComplianceViolation,
@@ -78,14 +79,17 @@ export class ComplianceMapping {
     const violations: ComplianceViolation[] = [];
     const accuracyDrop = event.metrics.accuracyDrop || 0;
     
+    // Get configurable thresholds for this health system
+    const thresholds = await getThresholds(aiSystem.healthSystemId);
+    
     // NIST AI RMF - Performance Monitoring
-    if (accuracyDrop > 0.05) { // >5% accuracy drop
+    if (accuracyDrop > thresholds.drift.accuracyDropMedium) {
       violations.push({
         framework: 'NIST_AI_RMF',
         controlId: 'MANAGE-4.1',
         controlName: 'AI system performance is monitored',
-        violationType: accuracyDrop > 0.15 ? 'deviation' : 'threshold_exceeded',
-        severity: accuracyDrop > 0.10 ? 'high' : 'medium',
+        violationType: accuracyDrop > thresholds.drift.accuracyDropHigh ? 'deviation' : 'threshold_exceeded',
+        severity: accuracyDrop > thresholds.drift.accuracyDropHigh ? 'high' : 'medium',
         requiresReporting: false,
         description: `AI system accuracy dropped by ${(accuracyDrop * 100).toFixed(1)}%, exceeding acceptable performance threshold. Requires investigation and potential model retraining.`,
         affectedSystem: {
@@ -122,7 +126,7 @@ export class ComplianceMapping {
                           aiSystem.department === 'Pathology' || 
                           aiSystem.name.toLowerCase().includes('diagnostic');
     
-    if (isFDARegulated && accuracyDrop > 0.10) {
+    if (isFDARegulated && accuracyDrop > thresholds.drift.accuracyDropFDA) {
       violations.push({
         framework: 'FDA_SaMD',
         controlId: 'FDA-PCCP-2',
@@ -227,14 +231,17 @@ export class ComplianceMapping {
     const violations: ComplianceViolation[] = [];
     const variance = event.metrics.demographicVariance || 0;
     
+    // Get configurable thresholds for this health system
+    const thresholds = await getThresholds(aiSystem.healthSystemId);
+    
     // NIST AI RMF - Fairness Monitoring
-    if (variance > 0.05) { // >5% demographic variance
+    if (variance > thresholds.bias.varianceMedium) {
       violations.push({
         framework: 'NIST_AI_RMF',
         controlId: 'MEASURE-2.1',
         controlName: 'AI system performance is monitored for fairness',
         violationType: 'threshold_exceeded',
-        severity: variance > 0.10 ? 'high' : 'medium',
+        severity: variance > thresholds.bias.varianceHigh ? 'high' : 'medium',
         requiresReporting: false,
         description: `AI system showing ${(variance * 100).toFixed(1)}% demographic variance in predictions, indicating potential bias. Fairness review and model retraining recommended.`,
         affectedSystem: {
@@ -251,7 +258,7 @@ export class ComplianceMapping {
                           aiSystem.department.toLowerCase().includes('employment') ||
                           aiSystem.name.toLowerCase().includes('hiring');
     
-    if (isEmploymentAI && variance > 0.04) {
+    if (isEmploymentAI && variance > thresholds.bias.varianceNYC) {
       violations.push({
         framework: 'NYC_LL144',
         controlId: 'NYC-BIAS',
@@ -281,14 +288,17 @@ export class ComplianceMapping {
     const violations: ComplianceViolation[] = [];
     const latencyIncrease = event.metrics.latencyIncreasePct || 0;
     
+    // Get configurable thresholds for this health system
+    const thresholds = await getThresholds(aiSystem.healthSystemId);
+    
     // HIPAA - Service Availability
-    if (latencyIncrease > 0.15) { // >15% latency increase
+    if (latencyIncrease > thresholds.latency.increaseMedium) {
       violations.push({
         framework: 'HIPAA',
         controlId: '164.312(b)',
         controlName: 'Audit Controls - Service Availability',
         violationType: 'deviation',
-        severity: latencyIncrease > 0.30 ? 'high' : 'medium',
+        severity: latencyIncrease > thresholds.latency.increaseHigh ? 'high' : 'medium',
         requiresReporting: false,
         description: `AI system latency increased by ${(latencyIncrease * 100).toFixed(1)}%, potentially affecting clinical workflow and patient care delivery. Performance optimization required.`,
         affectedSystem: {
@@ -313,14 +323,17 @@ export class ComplianceMapping {
     const violations: ComplianceViolation[] = [];
     const errorRate = event.metrics.errorRate || 0;
     
+    // Get configurable thresholds for this health system
+    const thresholds = await getThresholds(aiSystem.healthSystemId);
+    
     // NIST AI RMF - Continuous Risk Management
-    if (errorRate > 0.01) { // >1% error rate
+    if (errorRate > thresholds.error.rateMedium) {
       violations.push({
         framework: 'NIST_AI_RMF',
         controlId: 'MANAGE-1.1',
         controlName: 'AI risks are managed continuously',
         violationType: 'threshold_exceeded',
-        severity: errorRate > 0.05 ? 'high' : 'medium',
+        severity: errorRate > thresholds.error.rateHigh ? 'high' : 'medium',
         requiresReporting: false,
         description: `AI system error rate (${(errorRate * 100).toFixed(2)}%) exceeds acceptable threshold. Risk review and error mitigation required.`,
         affectedSystem: {
@@ -337,15 +350,15 @@ export class ComplianceMapping {
                           aiSystem.department === 'Pathology' ||
                           aiSystem.name.toLowerCase().includes('diagnostic');
     
-    if (isFDARegulated && errorRate > 0.02) {
+    if (isFDARegulated && errorRate > thresholds.error.rateFDA) {
       violations.push({
         framework: 'FDA_SaMD',
         controlId: 'FDA-PCCP-2',
         controlName: 'Post-Market Surveillance',
         violationType: 'deviation',
         severity: 'high',
-        requiresReporting: errorRate > 0.05,
-        reportingDeadline: errorRate > 0.05 ? this.calculateDeadline(30) : undefined,
+        requiresReporting: errorRate > thresholds.error.rateHigh,
+        reportingDeadline: errorRate > thresholds.error.rateHigh ? this.calculateDeadline(30) : undefined,
         description: `FDA-regulated AI medical device showing elevated error rate (${(errorRate * 100).toFixed(2)}%). Post-market surveillance and corrective action required.`,
         affectedSystem: {
           id: aiSystem.id,
