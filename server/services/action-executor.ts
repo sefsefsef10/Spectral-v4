@@ -11,6 +11,7 @@ import type { RequiredAction } from "@shared/schema";
 import { sendCriticalAlertEmail } from "./email-notification";
 import { sendCriticalAlertSMS } from "./sms-notification";
 import { sendCriticalAlertSlack, sendComplianceViolationSlack } from "./slack-notification";
+import { retryWithBackoff } from "./retry-with-backoff";
 
 export class ActionExecutor {
   /**
@@ -122,7 +123,7 @@ export class ActionExecutor {
 
       const channelResults: Record<string, { attempted: boolean; succeeded: number; skipped: boolean; failed: number; reason?: string }> = {};
 
-      // Email notifications
+      // Email notifications with retry logic
       if (notificationChannels.includes('email')) {
         if (!SENDGRID_CONFIGURED) {
           channelResults.email = { attempted: false, succeeded: 0, skipped: true, failed: 0, reason: 'SendGrid not configured' };
@@ -130,24 +131,38 @@ export class ActionExecutor {
         } else {
           channelResults.email = { attempted: true, succeeded: 0, skipped: false, failed: 0 };
           for (const admin of adminUsers) {
-            try {
-              await sendCriticalAlertEmail(
-                admin.email,
-                admin.firstName && admin.lastName 
-                  ? `${admin.firstName} ${admin.lastName}`
-                  : admin.username,
-                {
-                  aiSystemName: aiSystem.name,
-                  severity: 'critical',
-                  message: action.description,
-                  timestamp: new Date(),
-                  healthSystemName: healthSystem.name,
-                  alertId: action.id,
-                }
-              );
+            const retryResult = await retryWithBackoff(
+              async () => {
+                await sendCriticalAlertEmail(
+                  admin.email,
+                  admin.firstName && admin.lastName 
+                    ? `${admin.firstName} ${admin.lastName}`
+                    : admin.username,
+                  {
+                    aiSystemName: aiSystem.name,
+                    severity: 'critical',
+                    message: action.description,
+                    timestamp: new Date(),
+                    healthSystemName: healthSystem.name,
+                    alertId: action.id,
+                  }
+                );
+              },
+              {
+                maxRetries: 3,
+                initialDelayMs: 1000,
+                maxDelayMs: 10000,
+              }
+            );
+            
+            if (retryResult.success) {
               channelResults.email.succeeded++;
-            } catch (emailError) {
-              logger.error({ err: emailError, adminEmail: admin.email }, "Email notification runtime failure");
+            } else {
+              logger.error({ 
+                err: retryResult.error, 
+                adminEmail: admin.email,
+                attempts: retryResult.attempts
+              }, "Email notification failed after all retries");
               channelResults.email.failed++;
             }
           }
@@ -168,32 +183,46 @@ export class ActionExecutor {
         }
       }
 
-      // Slack notifications
+      // Slack notifications with retry logic
       if (notificationChannels.includes('slack')) {
         if (!SLACK_CONFIGURED) {
           channelResults.slack = { attempted: false, succeeded: 0, skipped: true, failed: 0, reason: 'Slack webhook not configured' };
           logger.info("Slack channel requested but webhook not configured - skipping");
         } else {
           channelResults.slack = { attempted: true, succeeded: 0, skipped: false, failed: 0 };
-          try {
-            const slackResult = await sendCriticalAlertSlack({
-              aiSystemName: aiSystem.name,
-              healthSystemName: healthSystem.name,
-              severity: 'critical',
-              message: action.description,
-              alertId: action.id,
-              timestamp: new Date(),
-            });
-            
-            if (slackResult) {
-              channelResults.slack.succeeded++;
-            } else {
-              channelResults.slack.failed++;
-              logger.error("Slack notification runtime failure");
+          
+          const retryResult = await retryWithBackoff(
+            async () => {
+              const slackResult = await sendCriticalAlertSlack({
+                aiSystemName: aiSystem.name,
+                healthSystemName: healthSystem.name,
+                severity: 'critical',
+                message: action.description,
+                alertId: action.id,
+                timestamp: new Date(),
+              });
+              
+              if (!slackResult) {
+                throw new Error('Slack notification returned false');
+              }
+              
+              return slackResult;
+            },
+            {
+              maxRetries: 3,
+              initialDelayMs: 1000,
+              maxDelayMs: 10000,
             }
-          } catch (slackError) {
+          );
+          
+          if (retryResult.success) {
+            channelResults.slack.succeeded++;
+          } else {
             channelResults.slack.failed++;
-            logger.error({ err: slackError }, "Slack notification runtime failure");
+            logger.error({ 
+              err: retryResult.error,
+              attempts: retryResult.attempts
+            }, "Slack notification failed after all retries");
           }
         }
       }
