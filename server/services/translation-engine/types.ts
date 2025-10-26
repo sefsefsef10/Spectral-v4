@@ -43,8 +43,8 @@ export type EventType =
 // Severity levels
 export type Severity = 'info' | 'low' | 'medium' | 'high' | 'critical';
 
-// Compliance frameworks
-export type Framework = 'HIPAA' | 'NIST_AI_RMF' | 'FDA_SaMD' | 'ISO_42001' | 'CA_SB1047' | 'NYC_LL144';
+// Compliance frameworks (includes state regulations)
+export type Framework = 'HIPAA' | 'NIST_AI_RMF' | 'FDA_SaMD' | 'ISO_42001' | 'CA_SB1047' | 'NYC_LL144' | string;
 
 // Parsed event from raw telemetry
 export interface ParsedEvent {
@@ -74,7 +74,7 @@ export interface ComplianceViolation {
   framework: Framework;
   controlId: string;
   controlName: string;
-  violationType: 'breach' | 'deviation' | 'threshold_exceeded';
+  violationType: 'breach' | 'deviation' | 'threshold_exceeded' | 'state_regulation';
   severity: Severity;
   requiresReporting: boolean; // To regulators
   reportingDeadline?: Date;

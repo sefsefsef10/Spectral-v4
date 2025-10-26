@@ -10,6 +10,7 @@
 import { ComplianceMapping } from "./compliance-mapping";
 import { ActionGenerator } from "./action-generator";
 import { eventNormalizer } from "./event-normalizer";
+import { stateLawEngine } from "./state-law-engine";
 import { calculateRiskScore } from "../risk-scoring";
 import type {
   ParsedEvent,
@@ -42,6 +43,36 @@ export class TranslationEngine {
     
     // Step 2: Map to compliance frameworks (🔒 Core IP)
     const violations = await this.complianceMapper.mapToViolations(parsed);
+    
+    // Step 2.5: Check state-specific regulations (CA, CO, NYC)
+    if (parsed.aiSystem) {
+      const stateLawViolations = await stateLawEngine.checkCompliance(parsed, {
+        id: parsed.aiSystem.id,
+        name: parsed.aiSystem.name,
+        department: parsed.aiSystem.department,
+        location: (parsed.aiSystem as any).location,
+        isHighRisk: parsed.aiSystem.riskLevel === 'Critical' || parsed.aiSystem.riskLevel === 'High',
+        isEmploymentAI: parsed.aiSystem.department === 'HR' || parsed.aiSystem.name.toLowerCase().includes('hiring'),
+      });
+      
+      // Add state law violations to the violations array (convert format)
+      for (const stateLaw of stateLawViolations) {
+        violations.push({
+          framework: stateLaw.regulationName,
+          controlId: stateLaw.controlId,
+          controlName: stateLaw.controlName,
+          violationType: 'state_regulation',
+          severity: stateLaw.severity,
+          requiresReporting: stateLaw.requiresReporting,
+          reportingDeadline: stateLaw.reportingDeadlineDays 
+            ? new Date(Date.now() + stateLaw.reportingDeadlineDays * 24 * 60 * 60 * 1000)
+            : undefined,
+          description: stateLaw.description,
+          affectedSystem: stateLaw.affectedSystem,
+          detectedAt: stateLaw.detectedAt,
+        });
+      }
+    }
     
     // Step 3: Calculate risk score
     const riskScore = this.calculateRisk(parsed, violations);

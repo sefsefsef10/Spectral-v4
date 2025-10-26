@@ -103,6 +103,14 @@ app.use(express.urlencoded({ extended: false }));
     await initializeComplianceCatalog();
   } catch (error: any) {
     logger.warn({ err: error }, "Failed to initialize compliance catalog");
+  }
+
+  // Initialize state regulations (Phase 1.4)
+  try {
+    const { stateLawEngine } = await import("./services/translation-engine/state-law-engine");
+    await stateLawEngine.seedStateRegulations();
+  } catch (error: any) {
+    logger.warn({ err: error }, "Failed to seed state regulations");
     // Don't exit - allow server to start even if catalog initialization fails
   }
   
