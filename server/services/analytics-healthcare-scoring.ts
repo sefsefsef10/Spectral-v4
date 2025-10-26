@@ -28,6 +28,12 @@ export interface HealthcarePortfolioScore {
     regulatoryCompliance: { score: number; grade: string; weight: number }; // 25%
     operationalHealth: { score: number; grade: string; weight: number }; // 15%
   };
+  frameworkBreakdown: {
+    hipaa: FrameworkScore;
+    nist: FrameworkScore;
+    fda: FrameworkScore;
+    stateLaws: FrameworkScore;
+  };
   criticalIssues: {
     phiViolations: number;
     patientSafetyIncidents: number;
@@ -48,6 +54,23 @@ export interface HealthcarePortfolioScore {
   recommendations: string[];
 }
 
+export interface FrameworkScore {
+  score: number; // 0-100
+  totalControls: number;
+  compliantControls: number;
+  violations: ViolationSummary[];
+  coveragePercentage: number; // (compliantControls / totalControls) * 100
+}
+
+export interface ViolationSummary {
+  controlId: string;
+  controlName: string;
+  severity: "critical" | "high" | "medium" | "low" | "info";
+  count: number;
+  lastDetected: Date;
+  requiresReporting: boolean;
+}
+
 // Healthcare-specific scoring weights
 const SCORING_WEIGHTS = {
   PHI_PROTECTION: 0.35,      // 35% - Defensive healthcare positioning
@@ -55,6 +78,99 @@ const SCORING_WEIGHTS = {
   REGULATORY_COMPLIANCE: 0.25, // 25% - Audit readiness
   OPERATIONAL_HEALTH: 0.15,  // 15% - Operational excellence
 };
+
+/**
+ * Calculate framework-specific breakdown (HIPAA, NIST, FDA, State Laws)
+ * Shows "HIPAA: 41/43 controls" style metrics as requested in re-grading report
+ */
+async function calculateFrameworkBreakdown(healthSystemId: string): Promise<{
+  hipaa: FrameworkScore;
+  nist: FrameworkScore;
+  fda: FrameworkScore;
+  stateLaws: FrameworkScore;
+}> {
+  try {
+    // Get all compliance violations from database
+    const allViolations = await storage.getComplianceViolations(healthSystemId);
+    
+    // Framework control totals (as per re-grading report)
+    const FRAMEWORK_CONTROLS = {
+      HIPAA: 43,
+      NIST_AI_RMF: 18,
+      FDA_SaMD: 10,
+      STATE: 5, // CA, NY, CO combined
+    };
+    
+    // State law frameworks to aggregate (CA, NY, CO, etc.)
+    const STATE_FRAMEWORKS = ['CA_SB1047', 'NY_AI_ACT', 'CO_AI_ACT'];
+    
+    return {
+      hipaa: calculateFrameworkScore(allViolations, ['HIPAA'], FRAMEWORK_CONTROLS.HIPAA),
+      nist: calculateFrameworkScore(allViolations, ['NIST_AI_RMF'], FRAMEWORK_CONTROLS.NIST_AI_RMF),
+      fda: calculateFrameworkScore(allViolations, ['FDA_SaMD'], FRAMEWORK_CONTROLS.FDA_SaMD),
+      stateLaws: calculateFrameworkScore(allViolations, STATE_FRAMEWORKS, FRAMEWORK_CONTROLS.STATE),
+    };
+  } catch (error) {
+    logger.error({ error, healthSystemId }, "Failed to calculate framework breakdown");
+    // Return empty scores on error
+    return {
+      hipaa: { score: 0, totalControls: 43, compliantControls: 0, violations: [], coveragePercentage: 0 },
+      nist: { score: 0, totalControls: 18, compliantControls: 0, violations: [], coveragePercentage: 0 },
+      fda: { score: 0, totalControls: 10, compliantControls: 0, violations: [], coveragePercentage: 0 },
+      stateLaws: { score: 0, totalControls: 5, compliantControls: 0, violations: [], coveragePercentage: 0 },
+    };
+  }
+}
+
+/**
+ * Calculate score for a specific framework (HIPAA, NIST, etc.)
+ * Supports multiple framework identifiers for aggregation (e.g., state laws: CA, NY, CO)
+ */
+function calculateFrameworkScore(
+  allViolations: any[],
+  frameworks: string[], // Support multiple frameworks for aggregation
+  totalControls: number
+): FrameworkScore {
+  // Filter violations for these frameworks (supports multi-framework aggregation)
+  const frameworkViolations = allViolations.filter(v => frameworks.includes(v.framework));
+  
+  // Group violations by control ID
+  const violationsByControl = new Map<string, any[]>();
+  frameworkViolations.forEach(v => {
+    const existing = violationsByControl.get(v.controlId) || [];
+    existing.push(v);
+    violationsByControl.set(v.controlId, existing);
+  });
+  
+  const violatedControlCount = violationsByControl.size;
+  const compliantControls = Math.max(0, totalControls - violatedControlCount);
+  const coveragePercentage = (compliantControls / totalControls) * 100;
+  const score = Math.round(coveragePercentage);
+  
+  // Create violation summaries
+  const violationSummaries: ViolationSummary[] = Array.from(violationsByControl.entries()).map(([controlId, viols]) => {
+    const latestViolation = viols.sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )[0];
+    
+    return {
+      controlId,
+      controlName: latestViolation.controlName || 'Unknown Control',
+      severity: latestViolation.severity as any,
+      count: viols.length,
+      lastDetected: new Date(latestViolation.createdAt),
+      requiresReporting: latestViolation.requiresReporting || false,
+    };
+  });
+  
+  return {
+    score,
+    totalControls,
+    compliantControls,
+    violations: violationSummaries,
+    coveragePercentage,
+  };
+}
 
 /**
  * Calculate operational health score (alerts, response times, verification)
@@ -145,12 +261,13 @@ export async function calculateHealthcarePortfolioScore(
   try {
     const systems = await storage.getAISystems(healthSystemId);
 
-    // Calculate all four components in parallel
-    const [phiRisk, clinicalSafety, complianceResult, operationalHealth] = await Promise.all([
+    // Calculate all components in parallel
+    const [phiRisk, clinicalSafety, complianceResult, operationalHealth, frameworkBreakdown] = await Promise.all([
       calculatePortfolioPHIScore(healthSystemId),
       calculatePortfolioClinicalSafety(healthSystemId),
       calculatePortfolioCompliance(healthSystemId),
       calculateOperationalHealth(healthSystemId),
+      calculateFrameworkBreakdown(healthSystemId),
     ]);
 
     // Calculate weighted overall score
@@ -258,6 +375,7 @@ export async function calculateHealthcarePortfolioScore(
           weight: SCORING_WEIGHTS.OPERATIONAL_HEALTH,
         },
       },
+      frameworkBreakdown, // ⭐ NEW: Framework-specific breakdown (HIPAA: 41/43 controls, etc.)
       criticalIssues,
       boardMetrics,
       trend,
