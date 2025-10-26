@@ -6,6 +6,7 @@ import {
   vendors,
   vendorApiKeys,
   aiSystems,
+  providerConnections,
   monitoringAlerts,
   predictiveAlerts,
   deployments,
@@ -37,6 +38,8 @@ import {
   type InsertVendorApiKey,
   type AISystem,
   type InsertAISystem,
+  type ProviderConnection,
+  type InsertProviderConnection,
   type MonitoringAlert,
   type InsertMonitoringAlert,
   type PredictiveAlert,
@@ -138,10 +141,28 @@ export interface IStorage {
   // AI System operations
   getAISystems(healthSystemId: string): Promise<AISystem[]>;
   getAISystem(id: string): Promise<AISystem | undefined>;
+  getAISystemByProviderRef(healthSystemId: string, providerType: string, providerSystemId: string): Promise<AISystem | undefined>;
   createAISystem(aiSystem: InsertAISystem): Promise<AISystem>;
   updateAISystem(id: string, aiSystem: Partial<InsertAISystem>): Promise<AISystem | undefined>;
   updateAISystemLastCheck(id: string, lastCheck: Date): Promise<void>;
   deleteAISystem(id: string): Promise<void>;
+
+  // Provider Connection operations
+  getProviderConnection(id: string): Promise<ProviderConnection | undefined>;
+  getProviderConnections(healthSystemId: string): Promise<ProviderConnection[]>;
+  getProviderConnectionByType(healthSystemId: string, providerType: string): Promise<ProviderConnection | undefined>;
+  createProviderConnection(connection: InsertProviderConnection): Promise<ProviderConnection>;
+  updateProviderConnection(id: string, updates: Partial<InsertProviderConnection>): Promise<void>;
+  updateProviderSyncStatus(id: string, status: {
+    lastSyncAt?: Date;
+    lastSyncStatus?: string;
+    lastSyncSystemsDiscovered?: number;
+    lastSyncSystemsCreated?: number;
+    lastSyncSystemsUpdated?: number;
+    lastSyncError?: string | null;
+    lastSyncDurationMs?: number;
+  }): Promise<void>;
+  deleteProviderConnection(id: string): Promise<void>;
 
   // Monitoring Alert operations
   getAlerts(aiSystemId?: string): Promise<MonitoringAlert[]>;
@@ -605,6 +626,148 @@ export class DatabaseStorage implements IStorage {
     await db.delete(aiSystems).where(eq(aiSystems.id, id));
     // Invalidate cache after delete
     await CacheService.invalidateAISystem(id);
+  }
+
+  async getAISystemByProviderRef(
+    healthSystemId: string, 
+    providerType: string, 
+    providerSystemId: string
+  ): Promise<AISystem | undefined> {
+    const [system] = await db
+      .select()
+      .from(aiSystems)
+      .where(
+        and(
+          eq(aiSystems.healthSystemId, healthSystemId),
+          eq(aiSystems.providerType, providerType),
+          eq(aiSystems.providerSystemId, providerSystemId)
+        )
+      );
+    
+    // Decrypt integration_config if present
+    if (system?.integrationConfig) {
+      system.integrationConfig = decryptFields(system.integrationConfig as Record<string, any>, ['apiKey', 'webhookSecret', 'secretKey']);
+    }
+    
+    return system;
+  }
+
+  // Provider Connection operations
+  async getProviderConnection(id: string): Promise<ProviderConnection | undefined> {
+    const [connection] = await db
+      .select()
+      .from(providerConnections)
+      .where(eq(providerConnections.id, id));
+    
+    // Decrypt credentials before returning
+    if (connection?.credentials) {
+      const decrypted = decryptFields({ credentials: connection.credentials }, ['credentials']);
+      connection.credentials = decrypted.credentials;
+    }
+    
+    return connection;
+  }
+
+  async getProviderConnections(healthSystemId: string): Promise<ProviderConnection[]> {
+    const connections = await db
+      .select()
+      .from(providerConnections)
+      .where(eq(providerConnections.healthSystemId, healthSystemId));
+    
+    // Decrypt credentials for each connection
+    return connections.map(conn => {
+      if (conn.credentials) {
+        const decrypted = decryptFields({ credentials: conn.credentials }, ['credentials']);
+        conn.credentials = decrypted.credentials;
+      }
+      return conn;
+    });
+  }
+
+  async getProviderConnectionByType(
+    healthSystemId: string, 
+    providerType: string
+  ): Promise<ProviderConnection | undefined> {
+    const [connection] = await db
+      .select()
+      .from(providerConnections)
+      .where(
+        and(
+          eq(providerConnections.healthSystemId, healthSystemId),
+          eq(providerConnections.providerType, providerType)
+        )
+      );
+    
+    // Decrypt credentials before returning
+    if (connection?.credentials) {
+      const decrypted = decryptFields({ credentials: connection.credentials }, ['credentials']);
+      connection.credentials = decrypted.credentials;
+    }
+    
+    return connection;
+  }
+
+  async createProviderConnection(
+    insertConnection: InsertProviderConnection
+  ): Promise<ProviderConnection> {
+    // Encrypt credentials before storing
+    const dataToInsert = { ...insertConnection };
+    if (dataToInsert.credentials) {
+      const encrypted = encryptFields({ credentials: dataToInsert.credentials }, ['credentials']);
+      dataToInsert.credentials = encrypted.credentials;
+    }
+    
+    const [connection] = await db
+      .insert(providerConnections)
+      .values(dataToInsert)
+      .returning();
+    
+    // Decrypt before returning
+    if (connection.credentials) {
+      const decrypted = decryptFields({ credentials: connection.credentials }, ['credentials']);
+      connection.credentials = decrypted.credentials;
+    }
+    
+    return connection;
+  }
+
+  async updateProviderConnection(
+    id: string, 
+    updates: Partial<InsertProviderConnection>
+  ): Promise<void> {
+    // Encrypt credentials if being updated
+    const dataToUpdate = { ...updates, updatedAt: new Date() };
+    if (dataToUpdate.credentials) {
+      const encrypted = encryptFields({ credentials: dataToUpdate.credentials }, ['credentials']);
+      dataToUpdate.credentials = encrypted.credentials;
+    }
+    
+    await db
+      .update(providerConnections)
+      .set(dataToUpdate)
+      .where(eq(providerConnections.id, id));
+  }
+
+  async updateProviderSyncStatus(
+    id: string,
+    status: {
+      lastSyncAt?: Date;
+      lastSyncStatus?: string;
+      lastSyncSystemsDiscovered?: number;
+      lastSyncSystemsCreated?: number;
+      lastSyncSystemsUpdated?: number;
+      lastSyncError?: string | null;
+      lastSyncDurationMs?: number;
+    }
+  ): Promise<void> {
+    await db
+      .update(providerConnections)
+      .set({ ...status, updatedAt: new Date() })
+      .where(eq(providerConnections.id, id));
+  }
+
+  async deleteProviderConnection(id: string): Promise<void> {
+    await db.delete(providerConnections).where(eq(providerConnections.id, id));
   }
 
   // Monitoring Alert operations

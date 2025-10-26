@@ -139,10 +139,47 @@ export const aiSystems = pgTable("ai_systems", {
   verificationTier: text("verification_tier"), // 'verified', 'certified', 'trusted' - aligns with Beacon pricing ($15K/$50K/$100K)
   verificationDate: timestamp("verification_date"), // When current tier was achieved
   verificationExpiry: timestamp("verification_expiry"), // Quarterly recertification required
+  // Provider sync metadata
+  providerType: text("provider_type"), // 'epic', 'cerner', 'athenahealth', 'langsmith', etc. - null if manually created
+  providerSystemId: text("provider_system_id"), // ID in provider's system (e.g., Epic Device ID)
+  lastSyncedAt: timestamp("last_synced_at"), // Last time synced from provider
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => ({
   // Index for filtering AI systems by health system (common query pattern)
   healthSystemIdx: sql`CREATE INDEX IF NOT EXISTS idx_ai_systems_health_system ON ${table} (health_system_id)`,
+  // Unique constraint for provider systems (prevent duplicate imports)
+  providerSystemUnique: sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_systems_provider_unique ON ${table} (health_system_id, provider_type, provider_system_id) WHERE provider_type IS NOT NULL AND provider_system_id IS NOT NULL`,
+}));
+
+// Provider connections for EHR/AI platform integrations
+export const providerConnections = pgTable("provider_connections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  healthSystemId: varchar("health_system_id").notNull().references(() => healthSystems.id, { onDelete: "cascade" }),
+  providerType: text("provider_type").notNull(), // 'epic', 'cerner', 'athenahealth', 'langsmith', 'langfuse', 'arize', 'wandb'
+  
+  // Connection details
+  baseUrl: text("base_url").notNull(), // FHIR endpoint or API base URL
+  credentials: text("credentials").notNull(), // AES-256-GCM encrypted JSON credentials (clientId, clientSecret, etc.)
+  
+  // Status tracking
+  status: text("status").notNull().default("inactive"), // 'active', 'inactive', 'error'
+  lastSyncAt: timestamp("last_sync_at"),
+  lastSyncStatus: text("last_sync_status"), // 'success', 'error'
+  lastSyncSystemsDiscovered: integer("last_sync_systems_discovered"),
+  lastSyncSystemsCreated: integer("last_sync_systems_created"),
+  lastSyncSystemsUpdated: integer("last_sync_systems_updated"),
+  lastSyncError: text("last_sync_error"),
+  lastSyncDurationMs: integer("last_sync_duration_ms"),
+  
+  // Configuration
+  syncEnabled: boolean("sync_enabled").notNull().default(false),
+  syncIntervalMinutes: integer("sync_interval_minutes").notNull().default(1440), // 24 hours default
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  // Unique constraint: one connection per provider per health system
+  healthSystemProviderUnique: sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_provider_connections_unique ON ${table} (health_system_id, provider_type)`,
 }));
 
 export const monitoringAlerts = pgTable("monitoring_alerts", {
@@ -520,6 +557,13 @@ export const aiSystemsRelations = relations(aiSystems, ({ one, many }) => ({
   alerts: many(monitoringAlerts),
   predictiveAlerts: many(predictiveAlerts),
   telemetryEvents: many(aiTelemetryEvents),
+}));
+
+export const providerConnectionsRelations = relations(providerConnections, ({ one }) => ({
+  healthSystem: one(healthSystems, {
+    fields: [providerConnections.healthSystemId],
+    references: [healthSystems.id],
+  }),
 }));
 
 export const monitoringAlertsRelations = relations(monitoringAlerts, ({ one }) => ({
@@ -951,6 +995,7 @@ export const insertHealthSystemSchema = createInsertSchema(healthSystems).omit({
 export const insertVendorSchema = createInsertSchema(vendors).omit({ id: true, createdAt: true });
 export const insertVendorApiKeySchema = createInsertSchema(vendorApiKeys).omit({ id: true, createdAt: true, lastUsed: true });
 export const insertAISystemSchema = createInsertSchema(aiSystems).omit({ id: true, createdAt: true });
+export const insertProviderConnectionSchema = createInsertSchema(providerConnections).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMonitoringAlertSchema = createInsertSchema(monitoringAlerts).omit({ id: true, createdAt: true });
 export const insertPredictiveAlertSchema = createInsertSchema(predictiveAlerts).omit({ id: true, createdAt: true });
 export const insertDeploymentSchema = createInsertSchema(deployments).omit({ id: true, createdAt: true });
@@ -987,6 +1032,9 @@ export type InsertVendorApiKey = z.infer<typeof insertVendorApiKeySchema>;
 
 export type AISystem = typeof aiSystems.$inferSelect;
 export type InsertAISystem = z.infer<typeof insertAISystemSchema>;
+
+export type ProviderConnection = typeof providerConnections.$inferSelect;
+export type InsertProviderConnection = z.infer<typeof insertProviderConnectionSchema>;
 
 export type MonitoringAlert = typeof monitoringAlerts.$inferSelect;
 export type InsertMonitoringAlert = z.infer<typeof insertMonitoringAlertSchema>;
