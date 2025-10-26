@@ -1,6 +1,10 @@
 import { spawn } from 'child_process';
 import { logger } from '../../logger';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export interface PHIEntity {
   type: string;

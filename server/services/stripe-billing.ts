@@ -11,11 +11,25 @@ import Stripe from 'stripe';
 import { storage } from '../storage';
 import { logger } from '../logger';
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error('STRIPE_SECRET_KEY is required for billing');
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+const stripeKey = IS_PRODUCTION
+  ? process.env.STRIPE_SECRET_KEY
+  : process.env.STRIPE_TEST_SECRET_KEY || process.env.STRIPE_SECRET_KEY;
+
+if (!stripeKey) {
+  throw new Error(`Stripe key required for ${process.env.NODE_ENV} environment`);
 }
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+export const stripe = new Stripe(stripeKey, {
+  apiVersion: '2024-11-20.acacia',
+  typescript: true,
+});
+
+logger.info({ 
+  mode: process.env.NODE_ENV,
+  testMode: !IS_PRODUCTION 
+}, 'Stripe initialized');
 
 // Pricing tiers (annual pricing in cents)
 export const HEALTH_SYSTEM_PRICING = {
