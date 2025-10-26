@@ -14,6 +14,7 @@ import {
   complianceMappings,
   complianceReports,
   aiTelemetryEvents,
+  telemetryPollingConfigs,
   complianceViolations,
   requiredActions,
   backgroundJobs,
@@ -51,6 +52,8 @@ import {
   type InsertComplianceReport,
   type AITelemetryEvent,
   type InsertAITelemetryEvent,
+  type TelemetryPollingConfig,
+  type InsertTelemetryPollingConfig,
   type ComplianceViolation,
   type InsertComplianceViolation,
   type RequiredAction,
@@ -176,6 +179,14 @@ export interface IStorage {
   // AI Telemetry operations
   createAITelemetryEvent(event: InsertAITelemetryEvent): Promise<AITelemetryEvent>;
   getAITelemetryEvents(aiSystemId: string): Promise<AITelemetryEvent[]>;
+  
+  // Telemetry Polling Configuration operations
+  createPollingConfig(config: InsertTelemetryPollingConfig): Promise<TelemetryPollingConfig>;
+  getPollingConfig(aiSystemId: string): Promise<TelemetryPollingConfig | undefined>;
+  getAllPollingConfigs(enabledOnly?: boolean): Promise<TelemetryPollingConfig[]>;
+  updatePollingConfig(aiSystemId: string, updates: Partial<InsertTelemetryPollingConfig>): Promise<void>;
+  updatePollingStatus(aiSystemId: string, status: { lastPolledAt: Date; lastPollStatus: string; lastPollEventsIngested?: number; lastPollError?: string }): Promise<void>;
+  deletePollingConfig(aiSystemId: string): Promise<void>;
   
   // 🔒 Translation Engine - Compliance Violation operations
   createComplianceViolation(violation: InsertComplianceViolation): Promise<ComplianceViolation>;
@@ -780,6 +791,53 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(aiTelemetryEvents)
       .where(eq(aiTelemetryEvents.aiSystemId, aiSystemId))
       .orderBy(desc(aiTelemetryEvents.createdAt));
+  }
+
+  // Telemetry Polling Configuration operations
+  async createPollingConfig(insertConfig: InsertTelemetryPollingConfig): Promise<TelemetryPollingConfig> {
+    const [config] = await db.insert(telemetryPollingConfigs).values(insertConfig).returning();
+    return config;
+  }
+
+  async getPollingConfig(aiSystemId: string): Promise<TelemetryPollingConfig | undefined> {
+    const results = await db.select().from(telemetryPollingConfigs)
+      .where(eq(telemetryPollingConfigs.aiSystemId, aiSystemId));
+    return results[0];
+  }
+
+  async getAllPollingConfigs(enabledOnly: boolean = false): Promise<TelemetryPollingConfig[]> {
+    if (enabledOnly) {
+      return db.select().from(telemetryPollingConfigs)
+        .where(eq(telemetryPollingConfigs.enabled, true))
+        .orderBy(telemetryPollingConfigs.createdAt);
+    }
+    return db.select().from(telemetryPollingConfigs)
+      .orderBy(telemetryPollingConfigs.createdAt);
+  }
+
+  async updatePollingConfig(aiSystemId: string, updates: Partial<InsertTelemetryPollingConfig>): Promise<void> {
+    await db.update(telemetryPollingConfigs)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(telemetryPollingConfigs.aiSystemId, aiSystemId));
+  }
+
+  async updatePollingStatus(
+    aiSystemId: string, 
+    status: { 
+      lastPolledAt: Date; 
+      lastPollStatus: string; 
+      lastPollEventsIngested?: number; 
+      lastPollError?: string 
+    }
+  ): Promise<void> {
+    await db.update(telemetryPollingConfigs)
+      .set({ ...status, updatedAt: new Date() })
+      .where(eq(telemetryPollingConfigs.aiSystemId, aiSystemId));
+  }
+
+  async deletePollingConfig(aiSystemId: string): Promise<void> {
+    await db.delete(telemetryPollingConfigs)
+      .where(eq(telemetryPollingConfigs.aiSystemId, aiSystemId));
   }
   
   // 🔒 Translation Engine - Compliance Violation operations

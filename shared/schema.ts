@@ -420,6 +420,28 @@ export const aiTelemetryEvents = pgTable("ai_telemetry_events", {
   createdAtIdx: sql`CREATE INDEX IF NOT EXISTS idx_ai_telemetry_created_at ON ${table} (created_at DESC)`,
   // Composite index for system-specific time-series queries
   aiSystemCreatedAtIdx: sql`CREATE INDEX IF NOT EXISTS idx_ai_telemetry_system_time ON ${table} (ai_system_id, created_at DESC)`,
+  // Unique index for deduplication (prevent duplicate events from webhooks + polling)
+  uniqueRunIdx: sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_telemetry_unique_run ON ${table} (ai_system_id, source, run_id) WHERE run_id IS NOT NULL`,
+}));
+
+// 📡 AI MONITORING - Telemetry Polling Configuration
+// Manages active polling for AI systems (complements webhooks)
+export const telemetryPollingConfigs = pgTable("telemetry_polling_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  aiSystemId: varchar("ai_system_id").notNull().references(() => aiSystems.id, { onDelete: "cascade" }),
+  projectName: text("project_name").notNull(), // LangSmith project/session name
+  pollIntervalMinutes: integer("poll_interval_minutes").notNull().default(15),
+  lookbackMinutes: integer("lookback_minutes").notNull().default(15),
+  enabled: boolean("enabled").notNull().default(true),
+  lastPolledAt: timestamp("last_polled_at"),
+  lastPollStatus: text("last_poll_status"), // 'success', 'failed'
+  lastPollEventsIngested: integer("last_poll_events_ingested").default(0),
+  lastPollError: text("last_poll_error"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  // Unique constraint: one polling config per AI system
+  uniqueSystemIdx: sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_polling_config_unique_system ON ${table} (ai_system_id)`,
 }));
 
 // Relations
@@ -584,6 +606,13 @@ export const complianceReportsRelations = relations(complianceReports, ({ one })
 export const aiTelemetryEventsRelations = relations(aiTelemetryEvents, ({ one }) => ({
   aiSystem: one(aiSystems, {
     fields: [aiTelemetryEvents.aiSystemId],
+    references: [aiSystems.id],
+  }),
+}));
+
+export const telemetryPollingConfigsRelations = relations(telemetryPollingConfigs, ({ one }) => ({
+  aiSystem: one(aiSystems, {
+    fields: [telemetryPollingConfigs.aiSystemId],
     references: [aiSystems.id],
   }),
 }));
@@ -985,6 +1014,9 @@ export type InsertComplianceTemplate = z.infer<typeof insertComplianceTemplateSc
 
 export type AITelemetryEvent = typeof aiTelemetryEvents.$inferSelect;
 export type InsertAITelemetryEvent = z.infer<typeof insertAITelemetryEventSchema>;
+
+export type TelemetryPollingConfig = typeof telemetryPollingConfigs.$inferSelect;
+export type InsertTelemetryPollingConfig = typeof telemetryPollingConfigs.$inferInsert;
 
 export type ComplianceViolation = typeof complianceViolations.$inferSelect;
 export type InsertComplianceViolation = z.infer<typeof insertComplianceViolationSchema>;

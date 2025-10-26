@@ -7,19 +7,14 @@
  * - Verifying webhook delivery
  * - Fallback when webhooks fail
  * - On-demand metrics retrieval
+ * 
+ * PRODUCTION-READY: Database-backed persistence with deduplication
  */
 
 import { logger } from '../logger';
 import { storage } from '../storage';
 import { LangSmithClient, createLangSmithClient } from './langsmith-client';
-
-export interface PollingConfig {
-  aiSystemId: string;
-  projectName: string; // LangSmith project/session name
-  pollIntervalMinutes: number;
-  lookbackMinutes: number;
-  enabled: boolean;
-}
+import type { TelemetryPollingConfig, InsertTelemetryPollingConfig } from '@shared/schema';
 
 export interface PollingResult {
   aiSystemId: string;
@@ -33,25 +28,35 @@ export interface PollingResult {
 
 export class TelemetryPoller {
   private langSmithClient: LangSmithClient | null;
-  private pollingConfigs: Map<string, PollingConfig> = new Map();
 
   constructor() {
     this.langSmithClient = createLangSmithClient();
   }
 
   /**
-   * Register an AI system for polling
+   * Register an AI system for polling (database-backed)
    */
-  registerAISystem(config: PollingConfig): void {
-    this.pollingConfigs.set(config.aiSystemId, config);
-    logger.info({ config }, 'Registered AI system for telemetry polling');
+  async registerAISystem(config: InsertTelemetryPollingConfig): Promise<TelemetryPollingConfig> {
+    const existing = await storage.getPollingConfig(config.aiSystemId);
+    
+    if (existing) {
+      // Update existing config
+      await storage.updatePollingConfig(config.aiSystemId, config);
+      logger.info({ config }, 'Updated AI system polling configuration');
+      return storage.getPollingConfig(config.aiSystemId) as Promise<TelemetryPollingConfig>;
+    } else {
+      // Create new config
+      const created = await storage.createPollingConfig(config);
+      logger.info({ config }, 'Registered AI system for telemetry polling');
+      return created;
+    }
   }
 
   /**
-   * Unregister an AI system from polling
+   * Unregister an AI system from polling (database-backed)
    */
-  unregisterAISystem(aiSystemId: string): void {
-    this.pollingConfigs.delete(aiSystemId);
+  async unregisterAISystem(aiSystemId: string): Promise<void> {
+    await storage.deletePollingConfig(aiSystemId);
     logger.info({ aiSystemId }, 'Unregistered AI system from polling');
   }
 
@@ -59,7 +64,7 @@ export class TelemetryPoller {
    * Poll telemetry for a specific AI system
    */
   async pollSystem(aiSystemId: string): Promise<PollingResult> {
-    const config = this.pollingConfigs.get(aiSystemId);
+    const config = await storage.getPollingConfig(aiSystemId);
     
     if (!config) {
       throw new Error(`No polling config found for AI system ${aiSystemId}`);
@@ -79,6 +84,14 @@ export class TelemetryPoller {
 
     if (!this.langSmithClient) {
       logger.warn({ aiSystemId }, 'LangSmith client not configured - skipping poll');
+      
+      await storage.updatePollingStatus(aiSystemId, {
+        lastPolledAt: new Date(),
+        lastPollStatus: 'failed',
+        lastPollEventsIngested: 0,
+        lastPollError: 'LangSmith client not configured',
+      });
+      
       return {
         aiSystemId,
         eventsIngested: 0,
@@ -102,7 +115,6 @@ export class TelemetryPoller {
       );
 
       // Convert LangSmith runs to our telemetry events
-      // Match the aiTelemetryEvents schema structure
       const events = metrics.runs.map(run => {
         const payload = {
           run_id: run.id,
@@ -126,7 +138,7 @@ export class TelemetryPoller {
           aiSystemId,
           eventType: run.run_type === 'llm' ? 'run' : 'other',
           source: 'langsmith',
-          runId: run.id,
+          runId: run.id, // Deduplicated by unique index on (aiSystemId, source, runId)
           ruleId: null,
           severity: run.error ? 'high' : null,
           metric: run.error ? 'error_count' : 'run_count',
@@ -139,15 +151,15 @@ export class TelemetryPoller {
         };
       });
 
-      // Store events in database
+      // Store events in database with deduplication
       let eventsIngested = 0;
       for (const event of events) {
         try {
           await storage.createAITelemetryEvent(event);
           eventsIngested++;
         } catch (error) {
-          // Log but continue (may be duplicate)
-          logger.debug({ err: error, runId: event.runId }, 'Failed to store telemetry event (may be duplicate)');
+          // Log but continue (likely duplicate due to unique index on runId)
+          logger.debug({ err: error, runId: event.runId }, 'Failed to store telemetry event (likely duplicate)');
         }
       }
 
@@ -161,6 +173,14 @@ export class TelemetryPoller {
         latencyMs,
       }, 'Telemetry polling complete');
 
+      // Update polling status in database
+      await storage.updatePollingStatus(aiSystemId, {
+        lastPolledAt: new Date(),
+        lastPollStatus: 'success',
+        lastPollEventsIngested: eventsIngested,
+        lastPollError: null,
+      });
+
       return {
         aiSystemId,
         eventsIngested,
@@ -171,8 +191,17 @@ export class TelemetryPoller {
       };
     } catch (error) {
       const latencyMs = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       
       logger.error({ err: error, aiSystemId }, 'Telemetry polling failed');
+      
+      // Update polling status in database
+      await storage.updatePollingStatus(aiSystemId, {
+        lastPolledAt: new Date(),
+        lastPollStatus: 'failed',
+        lastPollEventsIngested: 0,
+        lastPollError: errorMessage,
+      });
       
       return {
         aiSystemId,
@@ -181,32 +210,52 @@ export class TelemetryPoller {
         latencyMs,
         polledAt: new Date(),
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage,
       };
     }
   }
 
   /**
-   * Poll all registered AI systems
+   * Poll all enabled AI systems (database-backed)
+   * Respects configured poll intervals - only polls systems that are due
    */
   async pollAll(): Promise<PollingResult[]> {
     const results: PollingResult[] = [];
     
-    // Convert Map entries to array for iteration
-    const entries = Array.from(this.pollingConfigs.entries());
+    // Fetch all enabled polling configs from database
+    const configs = await storage.getAllPollingConfigs(true);
     
-    for (const [aiSystemId, config] of entries) {
-      if (!config.enabled) {
+    logger.info({ count: configs.length }, 'Checking polling schedule for enabled AI systems');
+    
+    const now = new Date();
+    let polledCount = 0;
+    let skippedCount = 0;
+    
+    for (const config of configs) {
+      // Check if system is due for polling based on configured interval
+      const isDue = this.isPollingDue(config, now);
+      
+      if (!isDue) {
+        skippedCount++;
+        logger.debug({ 
+          aiSystemId: config.aiSystemId,
+          pollIntervalMinutes: config.pollIntervalMinutes,
+          lastPolledAt: config.lastPolledAt,
+          nextPollDue: config.lastPolledAt 
+            ? new Date(config.lastPolledAt.getTime() + config.pollIntervalMinutes * 60 * 1000)
+            : 'never',
+        }, 'Skipping poll - not due yet');
         continue;
       }
       
       try {
-        const result = await this.pollSystem(aiSystemId);
+        const result = await this.pollSystem(config.aiSystemId);
         results.push(result);
+        polledCount++;
       } catch (error) {
-        logger.error({ err: error, aiSystemId }, 'Failed to poll AI system');
+        logger.error({ err: error, aiSystemId: config.aiSystemId }, 'Failed to poll AI system');
         results.push({
-          aiSystemId,
+          aiSystemId: config.aiSystemId,
           eventsIngested: 0,
           errorsDetected: 0,
           latencyMs: 0,
@@ -214,33 +263,48 @@ export class TelemetryPoller {
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error',
         });
+        polledCount++;
       }
     }
+    
+    logger.info({ 
+      totalConfigs: configs.length,
+      polled: polledCount,
+      skipped: skippedCount,
+    }, 'Polling cycle complete');
     
     return results;
   }
 
   /**
-   * Start continuous polling loop (for background job)
+   * Check if a system is due for polling based on configured interval
    */
-  startPolling(): void {
-    // This should be called from a cron job or Inngest workflow
-    // Not a setInterval to avoid drift and memory leaks
-    logger.info('Telemetry polling service initialized');
+  private isPollingDue(config: TelemetryPollingConfig, now: Date): boolean {
+    // Never polled before - poll now
+    if (!config.lastPolledAt) {
+      return true;
+    }
+    
+    // Calculate next poll time based on interval
+    const intervalMs = config.pollIntervalMinutes * 60 * 1000;
+    const nextPollTime = new Date(config.lastPolledAt.getTime() + intervalMs);
+    
+    // Due if current time is past next poll time
+    return now >= nextPollTime;
   }
 
   /**
-   * Get polling status for an AI system
+   * Get polling status for an AI system (database-backed)
    */
-  getPollingConfig(aiSystemId: string): PollingConfig | undefined {
-    return this.pollingConfigs.get(aiSystemId);
+  async getPollingConfig(aiSystemId: string): Promise<TelemetryPollingConfig | undefined> {
+    return storage.getPollingConfig(aiSystemId);
   }
 
   /**
-   * Get all polling configurations
+   * Get all polling configurations (database-backed)
    */
-  getAllConfigs(): PollingConfig[] {
-    return Array.from(this.pollingConfigs.values());
+  async getAllConfigs(): Promise<TelemetryPollingConfig[]> {
+    return storage.getAllPollingConfigs(false);
   }
 }
 

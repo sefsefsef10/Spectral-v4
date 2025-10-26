@@ -2403,6 +2403,227 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(204).send();
   });
 
+  // 📡 Telemetry Polling Configuration Endpoints
+  
+  /**
+   * @openapi
+   * /api/ai-systems/{id}/polling:
+   *   post:
+   *     summary: Enable polling for AI system
+   *     description: Configure active polling for LangSmith telemetry (complements webhooks)
+   *     tags: [AI Systems, Telemetry]
+   *     security:
+   *       - cookieAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [projectName]
+   *             properties:
+   *               projectName:
+   *                 type: string
+   *                 description: LangSmith project name
+   *               pollIntervalMinutes:
+   *                 type: integer
+   *                 default: 15
+   *                 description: Polling interval in minutes
+   *               lookbackMinutes:
+   *                 type: integer
+   *                 default: 15
+   *                 description: Lookback window for metrics
+   *               enabled:
+   *                 type: boolean
+   *                 default: true
+   *     responses:
+   *       200:
+   *         description: Polling configured
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Access denied
+   *       404:
+   *         description: AI system not found
+   */
+  app.post("/api/ai-systems/:id/polling", requireAuth, async (req, res) => {
+    const system = await storage.getAISystem(req.params.id);
+    if (!system) {
+      return res.status(404).json({ error: "AI system not found" });
+    }
+    
+    if (!req.session.userId) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    const user = await storage.getUser(req.session.userId);
+    if (!user || user.healthSystemId !== system.healthSystemId) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    
+    const { projectName, pollIntervalMinutes = 15, lookbackMinutes = 15, enabled = true } = req.body;
+    
+    if (!projectName) {
+      return res.status(400).json({ error: "projectName is required" });
+    }
+    
+    const { telemetryPoller } = await import("./services/telemetry-poller");
+    const config = await telemetryPoller.registerAISystem({
+      aiSystemId: req.params.id,
+      projectName,
+      pollIntervalMinutes,
+      lookbackMinutes,
+      enabled,
+    });
+    
+    await createAuditLog({
+      userId: req.session.userId,
+      action: "enable_polling",
+      resourceType: "ai_system",
+      resourceId: req.params.id,
+      details: { projectName, pollIntervalMinutes, lookbackMinutes },
+    });
+    
+    res.json(config);
+  });
+  
+  /**
+   * @openapi
+   * /api/ai-systems/{id}/polling:
+   *   get:
+   *     summary: Get polling configuration
+   *     description: Retrieve current polling configuration for AI system
+   *     tags: [AI Systems, Telemetry]
+   *     security:
+   *       - cookieAuth: []
+   *     responses:
+   *       200:
+   *         description: Polling configuration
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Access denied
+   *       404:
+   *         description: AI system or config not found
+   */
+  app.get("/api/ai-systems/:id/polling", requireAuth, async (req, res) => {
+    const system = await storage.getAISystem(req.params.id);
+    if (!system) {
+      return res.status(404).json({ error: "AI system not found" });
+    }
+    
+    if (!req.session.userId) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    const user = await storage.getUser(req.session.userId);
+    if (!user || user.healthSystemId !== system.healthSystemId) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    
+    const config = await storage.getPollingConfig(req.params.id);
+    if (!config) {
+      return res.status(404).json({ error: "No polling configuration found" });
+    }
+    
+    res.json(config);
+  });
+  
+  /**
+   * @openapi
+   * /api/ai-systems/{id}/polling:
+   *   delete:
+   *     summary: Disable polling for AI system
+   *     description: Remove polling configuration (webhooks will continue to work)
+   *     tags: [AI Systems, Telemetry]
+   *     security:
+   *       - cookieAuth: []
+   *     responses:
+   *       204:
+   *         description: Polling disabled
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Access denied
+   *       404:
+   *         description: AI system not found
+   */
+  app.delete("/api/ai-systems/:id/polling", requireAuth, async (req, res) => {
+    const system = await storage.getAISystem(req.params.id);
+    if (!system) {
+      return res.status(404).json({ error: "AI system not found" });
+    }
+    
+    if (!req.session.userId) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    const user = await storage.getUser(req.session.userId);
+    if (!user || user.healthSystemId !== system.healthSystemId) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    
+    const { telemetryPoller } = await import("./services/telemetry-poller");
+    await telemetryPoller.unregisterAISystem(req.params.id);
+    
+    await createAuditLog({
+      userId: req.session.userId,
+      action: "disable_polling",
+      resourceType: "ai_system",
+      resourceId: req.params.id,
+      details: {},
+    });
+    
+    res.status(204).send();
+  });
+  
+  /**
+   * @openapi
+   * /api/ai-systems/{id}/polling/trigger:
+   *   post:
+   *     summary: Trigger on-demand polling
+   *     description: Manually poll telemetry immediately (bypasses schedule)
+   *     tags: [AI Systems, Telemetry]
+   *     security:
+   *       - cookieAuth: []
+   *     responses:
+   *       200:
+   *         description: Polling triggered
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Access denied
+   *       404:
+   *         description: AI system not found
+   */
+  app.post("/api/ai-systems/:id/polling/trigger", requireAuth, async (req, res) => {
+    const system = await storage.getAISystem(req.params.id);
+    if (!system) {
+      return res.status(404).json({ error: "AI system not found" });
+    }
+    
+    if (!req.session.userId) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    const user = await storage.getUser(req.session.userId);
+    if (!user || user.healthSystemId !== system.healthSystemId) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    
+    const { inngest } = await import("./inngest/client");
+    await inngest.send({
+      name: "telemetry/poll.trigger",
+      data: { aiSystemId: req.params.id },
+    });
+    
+    await createAuditLog({
+      userId: req.session.userId,
+      action: "trigger_polling",
+      resourceType: "ai_system",
+      resourceId: req.params.id,
+      details: {},
+    });
+    
+    res.json({ message: "Polling triggered" });
+  });
+
   /**
    * @openapi
    * /api/alerts:

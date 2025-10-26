@@ -11,4 +11,5 @@ export default defineConfig({
   dbCredentials: {
     url: process.env.DATABASE_URL,
   },
+  strict: false, // Disable confirmation prompts for CI/CD and automated deployments
 });
