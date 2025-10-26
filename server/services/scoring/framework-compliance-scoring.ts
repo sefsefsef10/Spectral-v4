@@ -18,6 +18,7 @@ import { complianceControls, complianceMappings } from "../../../shared/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { storage } from "../../storage";
 import { logger } from "../../logger";
+import { validateTelemetry, getDataQuality, logScoringAudit } from "./telemetry-validator";
 
 export interface FrameworkComplianceScore {
   framework: 'HIPAA' | 'NIST_AI_RMF' | 'FDA' | 'ISO_42001' | 'STATE_LAWS';
@@ -165,6 +166,33 @@ export async function calculateFrameworkCompliance(
  */
 export async function calculateComplianceBreakdown(aiSystemId: string): Promise<ComplianceBreakdown> {
   try {
+    // Validate telemetry data freshness for compliance scoring
+    const allEvents = await storage.getAITelemetryEvents(aiSystemId);
+    const validation = validateTelemetry(allEvents, 'compliance');
+    const dataQuality = getDataQuality(validation);
+    
+    // Log warnings
+    if (validation.warnings.length > 0) {
+      logger.warn({ 
+        aiSystemId, 
+        warnings: validation.warnings,
+        telemetryAge: `${Math.round(validation.age)}h`,
+        eventCount: validation.eventCount
+      }, 'Compliance scoring: data quality warnings');
+    }
+    
+    // For compliance, we log errors but don't short-circuit since compliance mappings
+    // are stored in database (not derived from telemetry). However, stale telemetry
+    // indicates the system may not be actively monitored.
+    if (validation.errors.length > 0) {
+      logger.error({ 
+        aiSystemId, 
+        errors: validation.errors,
+        telemetryAge: `${Math.round(validation.age)}h`,
+        eventCount: validation.eventCount
+      }, 'Compliance scoring: telemetry validation errors - compliance data may be stale');
+    }
+    
     // Calculate scores for each framework in parallel
     const [hipaa, nist, fda, iso42001, stateLaws] = await Promise.all([
       calculateFrameworkCompliance(aiSystemId, 'HIPAA'),
@@ -225,6 +253,18 @@ export async function calculateComplianceBreakdown(aiSystemId: string): Promise<
     if (allViolations.some(v => v.controlId.includes('164.312(e)'))) {
       recommendations.push('Critical: PHI encryption controls violated - enable encryption immediately');
     }
+
+    // Log audit trail for acquisition due diligence
+    logScoringAudit({
+      timestamp: new Date(),
+      aiSystemId,
+      scoringType: 'compliance',
+      telemetryAge: validation.age,
+      eventCount: validation.eventCount,
+      score: overall,
+      dataQuality,
+      warnings: validation.warnings.concat(validation.errors),
+    });
 
     return {
       overall,

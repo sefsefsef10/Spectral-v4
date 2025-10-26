@@ -15,6 +15,7 @@
 
 import { storage } from "../../storage";
 import { logger } from "../../logger";
+import { validateTelemetry, getDataQuality, logScoringAudit } from "./telemetry-validator";
 
 export interface ClinicalSafetyScore {
   score: number; // 0-100 (100 = perfect clinical safety)
@@ -233,6 +234,62 @@ async function calculatePatientSafetyScore(aiSystemId: string): Promise<number> 
  */
 export async function calculateClinicalSafetyScore(aiSystemId: string): Promise<ClinicalSafetyScore> {
   try {
+    // Validate telemetry data freshness and completeness FIRST
+    const allEvents = await storage.getAITelemetryEvents(aiSystemId);
+    const validation = validateTelemetry(allEvents, 'clinical-safety');
+    const dataQuality = getDataQuality(validation);
+    
+    // Log warnings
+    if (validation.warnings.length > 0) {
+      logger.warn({ 
+        aiSystemId, 
+        warnings: validation.warnings,
+        telemetryAge: `${Math.round(validation.age)}h`,
+        eventCount: validation.eventCount
+      }, 'Clinical safety scoring: data quality warnings');
+    }
+    
+    // SHORT-CIRCUIT: Return degraded score when validation fails
+    if (validation.errors.length > 0) {
+      logger.error({ 
+        aiSystemId, 
+        errors: validation.errors,
+        telemetryAge: `${Math.round(validation.age)}h`,
+        eventCount: validation.eventCount
+      }, 'Clinical safety scoring: data quality errors - returning degraded score');
+      
+      logScoringAudit({
+        timestamp: new Date(),
+        aiSystemId,
+        scoringType: 'clinical-safety',
+        telemetryAge: validation.age,
+        eventCount: validation.eventCount,
+        score: 0,
+        dataQuality: 'missing',
+        warnings: validation.errors,
+      });
+      
+      // Return minimal score structure
+      return {
+        score: 0,
+        grade: "F",
+        trend: "stable",
+        components: {
+          clinicalAccuracy: { score: 0, grade: "F" },
+          biasDetection: { score: 0, grade: "F" },
+          hallucinationControl: { score: 0, grade: "F" },
+          patientSafety: { score: 0, grade: "F" },
+        },
+        riskFactors: {
+          inaccurateDiagnoses: 0,
+          biasViolations: 0,
+          hallucinationEvents: 0,
+          patientSafetyIncidents: 0,
+        },
+        recommendations: ['Missing or stale telemetry data - unable to assess clinical safety'],
+      };
+    }
+    
     // Calculate component scores in parallel
     const [clinicalAccuracy, biasDetection, hallucinationControl, patientSafety] = await Promise.all([
       calculateClinicalAccuracyScore(aiSystemId),
@@ -331,6 +388,18 @@ export async function calculateClinicalSafetyScore(aiSystemId: string): Promise<
     if (riskFactors.patientSafetyIncidents > 0) {
       recommendations.push(`${riskFactors.patientSafetyIncidents} patient safety incident(s) in last 30 days - escalate to clinical team`);
     }
+
+    // Log audit trail for acquisition due diligence
+    logScoringAudit({
+      timestamp: new Date(),
+      aiSystemId,
+      scoringType: 'clinical-safety',
+      telemetryAge: validation.age,
+      eventCount: validation.eventCount,
+      score,
+      dataQuality,
+      warnings: validation.warnings,
+    });
 
     return {
       score,
