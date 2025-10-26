@@ -2245,6 +2245,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "No health system associated with this account" });
       }
       
+      // ⚡ USAGE METERING: Enforce tier limits
+      const { stripeBillingService } = await import("./services/stripe-billing");
+      const usageCheck = await stripeBillingService.canAddAISystem(user.healthSystemId);
+      
+      if (!usageCheck.allowed) {
+        return res.status(402).json({ 
+          error: "Tier limit reached",
+          message: usageCheck.message,
+          current: usageCheck.current,
+          limit: usageCheck.limit,
+          upgradeRequired: true 
+        });
+      }
+      
       // Parse WITHOUT healthSystemId (will be added from session)
       const dataWithoutHealthSystemId = insertAISystemSchema.omit({ healthSystemId: true }).parse(req.body);
       
