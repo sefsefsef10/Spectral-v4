@@ -674,7 +674,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
    * /api/auth/mfa/disable:
    *   post:
    *     summary: Disable MFA
-   *     description: Turn off two-factor authentication for user account
+   *     description: Turn off two-factor authentication for user account (requires password confirmation)
    *     tags: [Authentication]
    *     security:
    *       - cookieAuth: []
@@ -684,16 +684,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
    *         application/json:
    *           schema:
    *             type: object
-   *             required: [token]
+   *             required: [password]
    *             properties:
-   *               token:
+   *               password:
    *                 type: string
-   *                 description: Current MFA token to confirm disable
+   *                 format: password
+   *                 description: Current account password to confirm disable
    *     responses:
    *       200:
    *         description: MFA disabled successfully
    *       401:
-   *         description: Invalid MFA token or not authenticated
+   *         description: Invalid password or not authenticated
    */
   app.post("/api/auth/mfa/disable", requireAuth, async (req, res) => {
     try {
@@ -895,7 +896,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Update user
+  /**
+   * @openapi
+   * /api/users/{id}:
+   *   patch:
+   *     summary: Update user
+   *     description: Update user permissions or status (admin only)
+   *     tags: [User Management]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: User ID
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               permissions:
+   *                 type: string
+   *                 enum: [admin, user, viewer]
+   *               status:
+   *                 type: string
+   *                 enum: [active, inactive]
+   *     responses:
+   *       200:
+   *         description: User updated successfully
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Admin access required or different organization
+   *       404:
+   *         description: User not found
+   */
   app.patch("/api/users/:id", requireAuth, async (req, res) => {
     try {
       const currentUser = await storage.getUser(req.session.userId!);
@@ -1343,7 +1382,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/current-vendor", async (req, res) => {
     res.json({ id: DEMO_VENDOR_VIZAI_ID });
   });
-  // Health System routes
+  
+  /**
+   * @openapi
+   * /api/health-systems/{id}:
+   *   get:
+   *     summary: Get health system by ID
+   *     description: Retrieve health system details
+   *     tags: [Health Systems]
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: Health system ID
+   *     responses:
+   *       200:
+   *         description: Health system details
+   *       404:
+   *         description: Health system not found
+   */
   app.get("/api/health-systems/:id", async (req, res) => {
     const healthSystem = await storage.getHealthSystem(req.params.id);
     if (!healthSystem) {
@@ -1352,6 +1411,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(healthSystem);
   });
 
+  /**
+   * @openapi
+   * /api/health-systems:
+   *   post:
+   *     summary: Create health system
+   *     description: Register new healthcare organization
+   *     tags: [Health Systems]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [name]
+   *             properties:
+   *               name:
+   *                 type: string
+   *               type:
+   *                 type: string
+   *     responses:
+   *       201:
+   *         description: Health system created
+   *       400:
+   *         description: Invalid data
+   */
   app.post("/api/health-systems", async (req, res) => {
     try {
       const data = insertHealthSystemSchema.parse(req.body);
@@ -1362,7 +1446,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Public vendor directory (no auth required)
+  /**
+   * @openapi
+   * /api/vendors/public:
+   *   get:
+   *     summary: Get public vendor directory
+   *     description: List all verified vendors in public directory (no authentication required)
+   *     tags: [Vendors]
+   *     responses:
+   *       200:
+   *         description: List of verified vendors
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: array
+   *               items:
+   *                 type: object
+   *                 properties:
+   *                   id:
+   *                     type: string
+   *                   name:
+   *                     type: string
+   *                   verified:
+   *                     type: boolean
+   */
   app.get("/api/vendors/public", async (req: Request, res: Response) => {
     try {
       const vendors = await storage.getPublicVendors();
@@ -1958,6 +2065,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(vendor);
   });
 
+  /**
+   * @openapi
+   * /api/vendors:
+   *   post:
+   *     summary: Create vendor
+   *     description: Register new AI vendor organization
+   *     tags: [Vendors]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [name]
+   *             properties:
+   *               name:
+   *                 type: string
+   *               website:
+   *                 type: string
+   *     responses:
+   *       201:
+   *         description: Vendor created
+   *       400:
+   *         description: Invalid data
+   */
   app.post("/api/vendors", async (req, res) => {
     try {
       const data = insertVendorSchema.parse(req.body);
@@ -1968,7 +2100,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Vendor analytics endpoint - vendors can only access their own data
+  /**
+   * @openapi
+   * /api/vendors/{vendorId}/analytics:
+   *   get:
+   *     summary: Get vendor analytics dashboard
+   *     description: Retrieve comprehensive analytics for vendor (certifications, AI systems, deployments, compliance)
+   *     tags: [Vendors]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: vendorId
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: Vendor ID
+   *     responses:
+   *       200:
+   *         description: Vendor analytics data
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 certificationApplications:
+   *                   type: object
+   *                   properties:
+   *                     total:
+   *                       type: integer
+   *                     pending:
+   *                       type: integer
+   *                     approved:
+   *                       type: integer
+   *                 aiSystems:
+   *                   type: object
+   *                   properties:
+   *                     total:
+   *                       type: integer
+   *                     averageComplianceRate:
+   *                       type: number
+   *                 deployments:
+   *                   type: object
+   *                   properties:
+   *                     total:
+   *                       type: integer
+   *                     active:
+   *                       type: integer
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Vendor only, own data only
+   */
   app.get("/api/vendors/:vendorId/analytics", requireAuth, requireRole("vendor"), async (req, res) => {
     try {
       if (!req.session.userId) {
@@ -2313,7 +2496,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Certification Application routes - vendor certification workflow
+  /**
+   * @openapi
+   * /api/vendors/{vendorId}/certifications/apply:
+   *   post:
+   *     summary: Apply for vendor certification
+   *     description: Submit certification application for automated testing workflow (vendor only)
+   *     tags: [Certifications]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: vendorId
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: Vendor ID
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [tierRequested]
+   *             properties:
+   *               tierRequested:
+   *                 type: string
+   *                 enum: [Silver, Gold, Platinum]
+   *               documentationUrls:
+   *                 type: array
+   *                 items:
+   *                   type: string
+   *               complianceStatements:
+   *                 type: object
+   *     responses:
+   *       201:
+   *         description: Application submitted, automated testing queued
+   *       400:
+   *         description: Invalid tier or data
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Vendor only
+   */
   app.post("/api/vendors/:vendorId/certifications/apply", requireRole("vendor"), async (req, res) => {
     try {
       if (!req.session.userId) {
@@ -2352,6 +2577,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  /**
+   * @openapi
+   * /api/vendors/{vendorId}/certifications/applications:
+   *   get:
+   *     summary: List certification applications
+   *     description: Get all certification applications for vendor (vendors see own, health systems see all)
+   *     tags: [Certifications]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: vendorId
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: Vendor ID
+   *     responses:
+   *       200:
+   *         description: List of certification applications
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: array
+   *               items:
+   *                 type: object
+   *                 properties:
+   *                   id:
+   *                     type: string
+   *                   tierRequested:
+   *                     type: string
+   *                   status:
+   *                     type: string
+   *                     enum: [pending, under_review, approved, rejected]
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Access denied
+   */
   app.get("/api/vendors/:vendorId/certifications/applications", requireAuth, async (req, res) => {
     try {
       if (!req.session.userId) {
@@ -2386,6 +2649,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  /**
+   * @openapi
+   * /api/vendors/{vendorId}/certifications/applications/{id}/review:
+   *   patch:
+   *     summary: Review certification application
+   *     description: Approve or reject vendor certification application (health system only)
+   *     tags: [Certifications]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: vendorId
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: Vendor ID
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: Application ID
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [status]
+   *             properties:
+   *               status:
+   *                 type: string
+   *                 enum: [approved, rejected]
+   *               rejectionReason:
+   *                 type: string
+   *                 description: Required if status is rejected
+   *               notes:
+   *                 type: string
+   *     responses:
+   *       200:
+   *         description: Application reviewed successfully
+   *       400:
+   *         description: Invalid status or missing rejection reason
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Health system access required
+   *       404:
+   *         description: Application not found
+   */
   app.patch("/api/vendors/:vendorId/certifications/applications/:id/review", requireRole("health_system"), async (req, res) => {
     try {
       if (!req.session.userId) {
@@ -3757,7 +4070,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== Clinical Validation Dataset API (Phase 3.2) =====
 
-  // Get all validation datasets
+  /**
+   * @openapi
+   * /api/validation-datasets:
+   *   get:
+   *     summary: List clinical validation datasets
+   *     description: Get all clinical validation datasets, optionally filtered by category
+   *     tags: [Clinical Validation]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: query
+   *         name: category
+   *         schema:
+   *           type: string
+   *           enum: [radiology, pathology, cardiology, oncology, general, emergency, pediatrics]
+   *         description: Filter by medical category
+   *     responses:
+   *       200:
+   *         description: List of validation datasets
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: array
+   *               items:
+   *                 type: object
+   *                 properties:
+   *                   id:
+   *                     type: string
+   *                   name:
+   *                     type: string
+   *                   category:
+   *                     type: string
+   *                   testCases:
+   *                     type: array
+   *       401:
+   *         description: Not authenticated
+   */
   app.get("/api/validation-datasets", requireAuth, async (req, res) => {
     try {
       const { category } = req.query;
@@ -3774,7 +4123,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get specific validation dataset
+  /**
+   * @openapi
+   * /api/validation-datasets/{datasetId}:
+   *   get:
+   *     summary: Get validation dataset by ID
+   *     description: Retrieve specific clinical validation dataset with test cases
+   *     tags: [Clinical Validation]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: datasetId
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: Dataset ID
+   *     responses:
+   *       200:
+   *         description: Validation dataset details
+   *       401:
+   *         description: Not authenticated
+   *       404:
+   *         description: Dataset not found
+   */
   app.get("/api/validation-datasets/:datasetId", requireAuth, async (req, res) => {
     try {
       const { datasetId } = req.params;
@@ -3792,7 +4164,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create new validation dataset (admin only)
+  /**
+   * @openapi
+   * /api/validation-datasets:
+   *   post:
+   *     summary: Create validation dataset
+   *     description: Create new clinical validation dataset with test cases (admin only)
+   *     tags: [Clinical Validation]
+   *     security:
+   *       - cookieAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [name, category, testCases]
+   *             properties:
+   *               name:
+   *                 type: string
+   *               category:
+   *                 type: string
+   *                 enum: [radiology, pathology, cardiology, oncology, general, emergency, pediatrics]
+   *               description:
+   *                 type: string
+   *               testCases:
+   *                 type: array
+   *                 items:
+   *                   type: object
+   *                   properties:
+   *                     input:
+   *                       type: object
+   *                     ground_truth:
+   *                       type: object
+   *               metadataSource:
+   *                 type: string
+   *     responses:
+   *       201:
+   *         description: Dataset created
+   *       400:
+   *         description: Invalid data
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Admin access required
+   */
   app.post("/api/validation-datasets", requireAuth, async (req, res) => {
     try {
       const currentUser = await storage.getUser(req.session.userId!);
@@ -3837,7 +4253,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update validation dataset (admin only)
+  /**
+   * @openapi
+   * /api/validation-datasets/{datasetId}:
+   *   patch:
+   *     summary: Update validation dataset
+   *     description: Update clinical validation dataset details or test cases (admin only)
+   *     tags: [Clinical Validation]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: datasetId
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: Dataset ID
+   *     requestBody:
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               name:
+   *                 type: string
+   *               description:
+   *                 type: string
+   *               testCases:
+   *                 type: array
+   *               active:
+   *                 type: boolean
+   *     responses:
+   *       200:
+   *         description: Dataset updated successfully
+   *       400:
+   *         description: Invalid data
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Admin access required
+   */
   app.patch("/api/validation-datasets/:datasetId", requireAuth, async (req, res) => {
     try {
       const currentUser = await storage.getUser(req.session.userId!);
@@ -3883,7 +4338,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Delete validation dataset (admin only)
+  /**
+   * @openapi
+   * /api/validation-datasets/{datasetId}:
+   *   delete:
+   *     summary: Delete validation dataset
+   *     description: Remove clinical validation dataset (admin only)
+   *     tags: [Clinical Validation]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: datasetId
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: Dataset ID
+   *     responses:
+   *       204:
+   *         description: Dataset deleted successfully
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Admin access required
+   *       404:
+   *         description: Dataset not found
+   */
   app.delete("/api/validation-datasets/:datasetId", requireAuth, async (req, res) => {
     try {
       const currentUser = await storage.getUser(req.session.userId!);
@@ -4231,7 +4711,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Arize AI webhook receiver for model monitoring (HMAC-SHA256 verified)
+  /**
+   * @openapi
+   * /api/webhooks/arize/{aiSystemId}:
+   *   post:
+   *     summary: Arize AI model monitoring webhook
+   *     description: Receive model drift, bias, and performance monitoring events (HMAC-SHA256 verified)
+   *     tags: [Webhooks]
+   *     parameters:
+   *       - in: path
+   *         name: aiSystemId
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: AI system ID
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             description: Arize monitoring payload
+   *     responses:
+   *       200:
+   *         description: Webhook processed successfully
+   *       400:
+   *         description: Invalid payload or signature
+   *       404:
+   *         description: AI system not found
+   *       429:
+   *         description: Rate limit exceeded
+   */
   app.post("/api/webhooks/arize/:aiSystemId", webhookRateLimit, verifyWebhookSignature('arize'), async (req, res) => {
     try {
       const { aiSystemId } = req.params;
@@ -4764,7 +5274,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Epic EHR FHIR webhook for clinical data events (HMAC-SHA256 verified)
+  /**
+   * @openapi
+   * /api/webhooks/epic/{aiSystemId}:
+   *   post:
+   *     summary: Epic EHR FHIR webhook
+   *     description: Receive Epic FHIR resource subscription notifications for clinical data tracking (HMAC-SHA256 verified)
+   *     tags: [Webhooks]
+   *     parameters:
+   *       - in: path
+   *         name: aiSystemId
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: AI system ID
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             description: Epic FHIR payload
+   *     responses:
+   *       200:
+   *         description: Webhook processed successfully
+   *       400:
+   *         description: Invalid payload or signature
+   *       404:
+   *         description: AI system not found
+   *       429:
+   *         description: Rate limit exceeded
+   */
   app.post("/api/webhooks/epic/:aiSystemId", webhookRateLimit, verifyWebhookSignature('epic'), async (req, res) => {
     try {
       const { aiSystemId } = req.params;
@@ -4811,7 +5351,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Cerner EHR FHIR webhook for clinical data events (HMAC-SHA256 verified)
+  /**
+   * @openapi
+   * /api/webhooks/cerner/{aiSystemId}:
+   *   post:
+   *     summary: Cerner EHR FHIR webhook
+   *     description: Receive Cerner FHIR resource subscription notifications for clinical data tracking (HMAC-SHA256 verified)
+   *     tags: [Webhooks]
+   *     parameters:
+   *       - in: path
+   *         name: aiSystemId
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: AI system ID
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             description: Cerner FHIR payload
+   *     responses:
+   *       200:
+   *         description: Webhook processed successfully
+   *       400:
+   *         description: Invalid payload or signature
+   *       404:
+   *         description: AI system not found
+   *       429:
+   *         description: Rate limit exceeded
+   */
   app.post("/api/webhooks/cerner/:aiSystemId", webhookRateLimit, verifyWebhookSignature('cerner'), async (req, res) => {
     try {
       const { aiSystemId } = req.params;
@@ -5367,7 +5937,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Cancel subscription at period end
+  /**
+   * @openapi
+   * /api/billing/subscriptions/{id}/cancel:
+   *   post:
+   *     summary: Cancel subscription
+   *     description: Cancel subscription at end of current billing period
+   *     tags: [Billing]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: Subscription ID
+   *     responses:
+   *       200:
+   *         description: Subscription cancelled successfully
+   *       401:
+   *         description: Not authenticated
+   *       404:
+   *         description: Subscription not found or access denied
+   */
   app.post("/api/billing/subscriptions/:id/cancel", requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
