@@ -112,14 +112,103 @@ async function validateVendorAccess(req: Request, res: Response, next: () => voi
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // ===== API Documentation =====
+  
+  /**
+   * @openapi
+   * /api-docs:
+   *   get:
+   *     summary: API Documentation UI
+   *     description: Interactive Swagger UI for exploring and testing API endpoints
+   *     tags: [Documentation]
+   *     responses:
+   *       200:
+   *         description: Swagger UI HTML page
+   */
+  const swaggerUi = await import('swagger-ui-express');
+  const { swaggerSpec } = await import('./swagger.config');
+  
+  // Serve Swagger UI
+  app.use('/api-docs', swaggerUi.serve);
+  app.get('/api-docs', swaggerUi.setup(swaggerSpec, {
+    customSiteTitle: 'Spectral API Documentation',
+    customCss: '.swagger-ui .topbar { display: none }',
+  }));
+  
+  // Expose raw OpenAPI spec
+  app.get('/api-docs.json', (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.json(swaggerSpec);
+  });
+  
   // ===== Security Routes =====
   
-  // Get CSRF token for authenticated requests
+  /**
+   * @openapi
+   * /api/csrf-token:
+   *   get:
+   *     summary: Get CSRF token
+   *     description: Retrieve CSRF token for state-changing requests (stored in session)
+   *     tags: [Authentication]
+   *     responses:
+   *       200:
+   *         description: CSRF token retrieved
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 csrfToken:
+   *                   type: string
+   */
   app.get("/api/csrf-token", getCsrfToken);
   
   // ===== Authentication Routes =====
   
-  // Register new user (with rate limiting)
+  /**
+   * @openapi
+   * /api/auth/register:
+   *   post:
+   *     summary: Register new user
+   *     description: Create new user account with organization (health system or AI vendor)
+   *     tags: [Authentication]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [username, password, email, role, organizationName]
+   *             properties:
+   *               username:
+   *                 type: string
+   *                 minLength: 3
+   *               password:
+   *                 type: string
+   *                 minLength: 6
+   *               email:
+   *                 type: string
+   *                 format: email
+   *               role:
+   *                 type: string
+   *                 enum: [health_system, vendor]
+   *               organizationName:
+   *                 type: string
+   *                 minLength: 2
+   *     responses:
+   *       201:
+   *         description: User created successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/User'
+   *       400:
+   *         description: Invalid registration data or user already exists
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Error'
+   */
   app.post("/api/auth/register", authRateLimit, async (req, res) => {
     try {
       const schema = z.object({
