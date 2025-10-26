@@ -63,6 +63,15 @@ Spectral is a B2B SaaS platform for healthcare organizations to govern, monitor,
 ### Executive Reporting & Automation (Phase 3) 📊
 **New Tables**: `executive_reports`, `audit_evidence_packages`, `report_schedules`, `regulatory_alerts`
 
+**Backend Services (Production)** ✅:
+- **Executive Summary Generator** (`executive-summary-generator.ts`): AI-powered board-ready reports with narrative generation, framework compliance tracking (HIPAA, NIST AI RMF, FDA SaMD), trend analysis (alert volume, risk posture, compliance), auto-generated action items
+- **Audit Evidence Packager** (`audit-evidence-packager.ts`): Automated evidence collection from certifications, alerts, audit logs, and system configs; framework-specific control mappings; completeness scoring; downloadable audit packages
+
+**Critical Fixes** ✅:
+- Fixed compliance calculation to use vendor-level certifications instead of non-existent system-level
+- Fixed evidence collection to scope to health system's vendors only (preventing cross-tenant data leakage)
+- Fixed risk trend comparison to correctly identify improving/worsening trends
+
 ### Business Model & Product Polish (Phase 4) 💰
 **New Tables**: `policy_rules`, `policy_enforcement_logs`, `ai_discovery_jobs`
 
