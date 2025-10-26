@@ -4355,5 +4355,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const { websocketServer } = await import("./services/websocket/websocket-server");
   websocketServer.initialize(httpServer);
   
+  // Initialize WebSocket broadcaster for event helpers
+  const { initializeWebSocketBroadcaster } = await import("./services/websocket/events");
+  await initializeWebSocketBroadcaster();
+  
   return httpServer;
 }
