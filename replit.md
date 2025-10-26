@@ -65,6 +65,49 @@ Production-grade ML-based certification testing infrastructure:
 
 - **Impact:** Certification now has real technical teeth instead of checkbox compliance. ML-based testing catches sophisticated PHI exposure and bias that simple regex/variance methods miss. Clinical validation provides evidence-based accuracy testing (with documented limitations). Critical for maintaining certification credibility with health systems and preventing regulatory incidents.
 
+### LangSmith API Polling Infrastructure (Oct 2025)
+Production-ready telemetry polling infrastructure that complements webhook-based ingestion:
+- **Database Persistence (PRODUCTION):**
+  - `telemetry_polling_configs` table stores polling configurations per AI system
+  - Unique index on `aiSystemId` (one config per system)
+  - Deduplication index on `ai_telemetry_events(aiSystemId, source, runId)` prevents webhook/poll collisions
+  - Configs survive server restarts (database-backed, not in-memory)
+  
+- **Telemetry Poller Service (PRODUCTION):**
+  - Fetches LangSmith metrics (runs, feedback, errors, latency) via API
+  - Converts LangSmith runs to `aiTelemetryEvents` schema with PHI encryption
+  - Respects per-system polling intervals (`pollIntervalMinutes`) - only polls systems that are due
+  - Tracks polling status: `lastPolledAt`, `lastPollStatus`, `lastPollEventsIngested`, `lastPollError`
+  - Graceful duplicate handling (unique index on runId catches conflicts)
+  - Files: `server/services/langsmith-client.ts`, `server/services/telemetry-poller.ts`
+  
+- **Management API (PRODUCTION):**
+  - `POST /api/ai-systems/:id/polling` - Enable/configure polling (projectName, pollIntervalMinutes, lookbackMinutes)
+  - `GET /api/ai-systems/:id/polling` - Get current polling configuration
+  - `DELETE /api/ai-systems/:id/polling` - Disable polling for system
+  - `POST /api/ai-systems/:id/polling/trigger` - Manual on-demand poll (sends Inngest event)
+  - Authorization: Ownership validation (health system must own AI system)
+  - Audit logging: All configuration changes tracked
+  
+- **Inngest Workflows (PRODUCTION):**
+  - Scheduled polling: Cron job every 15 minutes (`*/15 * * * *`) polls all due systems
+  - On-demand polling: Event-driven polling for specific systems (`telemetry/poll.trigger`)
+  - Durable execution with retries and observability
+  - Files: `server/inngest/functions/telemetry-polling.ts`
+  
+- **Deduplication Strategy:**
+  - Unique index on `(aiSystemId, source, runId)` prevents duplicate events from webhook + polling
+  - Catches duplicate insertions gracefully (logs debug message, continues)
+  - Ensures accurate metrics even with overlapping time windows
+  
+- **Interval Enforcement:**
+  - `isPollingDue()` checks if system is due based on `lastPolledAt + pollIntervalMinutes`
+  - Never-polled systems always due (immediate first poll)
+  - Cron runs check all enabled configs, only poll systems due at that time
+  - Operational visibility: Logs show polled vs. skipped counts per cycle
+  
+- **Impact:** Eliminates reliance on webhook reliability for critical telemetry. Enables backfilling, verification, and fallback ingestion. Production-grade with database persistence, deduplication, interval compliance, and complete management API. Ready for 100+ AI systems.
+
 ### Legal Foundation (Oct 2025)
 Complete legal template infrastructure for first customer deployment and M&A readiness:
 - **Privacy Policy:** HIPAA-compliant with PHI safeguards, CCPA/CPRA compliance, subprocessor transparency, 7-year data retention
