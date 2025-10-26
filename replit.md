@@ -50,6 +50,16 @@ Spectral is a B2B SaaS platform for healthcare organizations to govern, monitor,
 ### Network Effects & Marketplace (Phase 2) 🌐
 **New Tables**: `vendor_acceptances`, `health_system_vendor_relationships`, `spectral_standard_adoptions`, `network_metrics_daily_snapshots`
 
+**Backend Services (Production)** ✅:
+- **Vendor Acceptance Workflow** (`vendor-acceptance-workflow.ts`): Accept/reject vendor certifications, manage health system-vendor relationships, track acceptance rates
+- **Spectral Standard Tracker** (`spectral-standard-tracker.ts`): Record health system adoption of Spectral Standard (mandatory, preferred, pilot, observing), calculate adoption metrics
+- **Network Metrics Calculator** (`network-metrics-calculator.ts`): Daily snapshot of network health, network density calculation, network effects score (0-100) with 4-factor breakdown
+
+**Critical Bugs Fixed** ✅:
+- Fixed `hasAdoptedStandard` date comparison (gte → lte) to correctly identify active adoptions
+- Fixed `getLatestSnapshot` ordering (ascending → descending) to return newest data
+- Added `deactivateVendorRelationship` on rejection to prevent rejected vendors from counting as active
+
 ### Executive Reporting & Automation (Phase 3) 📊
 **New Tables**: `executive_reports`, `audit_evidence_packages`, `report_schedules`, `regulatory_alerts`
 
