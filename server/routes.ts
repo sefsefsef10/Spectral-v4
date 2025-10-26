@@ -591,7 +591,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== Enterprise SSO Routes (WorkOS) =====
   
-  // Initiate SSO login
+  /**
+   * @openapi
+   * /api/auth/sso/login:
+   *   get:
+   *     summary: Initiate Enterprise SSO login
+   *     description: Redirect user to WorkOS SSO provider (SAML/OAuth) for authentication
+   *     tags: [Authentication]
+   *     parameters:
+   *       - in: query
+   *         name: organization
+   *         schema:
+   *           type: string
+   *         description: Organization ID for direct SSO login
+   *       - in: query
+   *         name: connection
+   *         schema:
+   *           type: string
+   *         description: Specific SSO connection ID
+   *       - in: query
+   *         name: provider
+   *         schema:
+   *           type: string
+   *         description: SSO provider (default 'authkit')
+   *     responses:
+   *       302:
+   *         description: Redirect to SSO provider
+   *       503:
+   *         description: Enterprise SSO not configured
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Error'
+   */
   app.get("/api/auth/sso/login", async (req, res) => {
     try {
       const { getWorkOSClient, getWorkOSConfig, isWorkOSConfigured } = await import("./services/workos");
@@ -627,7 +659,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // SSO callback handler
+  /**
+   * @openapi
+   * /api/auth/sso/callback:
+   *   get:
+   *     summary: SSO authentication callback
+   *     description: Handle OAuth/SAML callback from WorkOS, auto-provision user if needed
+   *     tags: [Authentication]
+   *     parameters:
+   *       - in: query
+   *         name: code
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: Authorization code from SSO provider
+   *     responses:
+   *       302:
+   *         description: Redirect to dashboard after successful authentication
+   *       400:
+   *         description: Invalid callback - missing authorization code
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Error'
+   *       503:
+   *         description: SSO service unavailable
+   */
   app.get("/api/auth/sso/callback", async (req, res) => {
     try {
       const { code } = req.query;
@@ -716,7 +773,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // SSO logout
+  /**
+   * @openapi
+   * /api/auth/sso/logout:
+   *   post:
+   *     summary: SSO logout
+   *     description: Log out user from SSO session and destroy local session
+   *     tags: [Authentication]
+   *     security:
+   *       - cookieAuth: []
+   *     responses:
+   *       200:
+   *         description: Successfully logged out
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 message:
+   *                   type: string
+   *                   example: Logged out successfully
+   *       500:
+   *         description: Logout failed
+   */
   app.post("/api/auth/sso/logout", async (req, res) => {
     const userId = req.session.userId;
     
@@ -3712,7 +3791,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== Bias Testing API (Phase 3.3) =====
 
-  // Analyze bias in model predictions
+  /**
+   * @openapi
+   * /api/bias-testing/analyze:
+   *   post:
+   *     summary: Analyze model fairness using Fairlearn
+   *     description: Run comprehensive bias analysis across demographic groups using Fairlearn library
+   *     tags: [Certifications]
+   *     security:
+   *       - cookieAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [predictions, groundTruth, sensitiveFeatures]
+   *             properties:
+   *               predictions:
+   *                 type: array
+   *                 items:
+   *                   type: number
+   *                 description: Model predictions
+   *               groundTruth:
+   *                 type: array
+   *                 items:
+   *                   type: number
+   *                 description: True labels
+   *               sensitiveFeatures:
+   *                 type: object
+   *                 description: Protected demographic attributes by group
+   *               threshold:
+   *                 type: number
+   *                 description: Fairness threshold (default 0.8)
+   *     responses:
+   *       200:
+   *         description: Bias analysis results with violations
+   *       401:
+   *         description: Not authenticated
+   */
   app.post("/api/bias-testing/analyze", requireAuth, async (req, res) => {
     try {
       const schema = z.object({
@@ -3750,7 +3867,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Calculate disparate impact
+  /**
+   * @openapi
+   * /api/bias-testing/disparate-impact:
+   *   post:
+   *     summary: Calculate disparate impact ratio
+   *     description: Calculate the 80% rule (4/5ths rule) for fairness compliance
+   *     tags: [Certifications]
+   *     security:
+   *       - cookieAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [predictions, sensitiveFeature, privilegedGroup]
+   *             properties:
+   *               predictions:
+   *                 type: array
+   *                 items:
+   *                   type: number
+   *               sensitiveFeature:
+   *                 type: array
+   *               privilegedGroup:
+   *                 type: any
+   *     responses:
+   *       200:
+   *         description: Disparate impact ratio and pass/fail status
+   *       401:
+   *         description: Not authenticated
+   */
   app.post("/api/bias-testing/disparate-impact", requireAuth, async (req, res) => {
     try {
       const schema = z.object({
@@ -3904,7 +4051,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== PHI Detection API (Phase 3.1) =====
 
-  // Detect PHI in text
+  /**
+   * @openapi
+   * /api/phi-detection/scan:
+   *   post:
+   *     summary: Scan text for PHI using Presidio
+   *     description: Detect Protected Health Information (PHI) in text using Microsoft Presidio analyzer
+   *     tags: [Certifications]
+   *     security:
+   *       - cookieAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [text]
+   *             properties:
+   *               text:
+   *                 type: string
+   *                 description: Text to scan for PHI
+   *               threshold:
+   *                 type: number
+   *                 minimum: 0
+   *                 maximum: 1
+   *                 description: Detection confidence threshold
+   *     responses:
+   *       200:
+   *         description: PHI detection results
+   *       401:
+   *         description: Not authenticated
+   */
   app.post("/api/phi-detection/scan", requireAuth, async (req, res) => {
     try {
       const schema = z.object({
@@ -3939,7 +4116,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Batch PHI detection
+  /**
+   * @openapi
+   * /api/phi-detection/scan-batch:
+   *   post:
+   *     summary: Batch PHI detection
+   *     description: Scan multiple texts for PHI in a single request
+   *     tags: [Certifications]
+   *     security:
+   *       - cookieAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [texts]
+   *             properties:
+   *               texts:
+   *                 type: array
+   *                 items:
+   *                   type: string
+   *               threshold:
+   *                 type: number
+   *                 minimum: 0
+   *                 maximum: 1
+   *     responses:
+   *       200:
+   *         description: Array of PHI detection results
+   *       401:
+   *         description: Not authenticated
+   */
   app.post("/api/phi-detection/scan-batch", requireAuth, async (req, res) => {
     try {
       const schema = z.object({
@@ -5191,7 +5398,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // LangFuse webhook receiver for AI observability telemetry (HMAC-SHA256 verified)
+  /**
+   * @openapi
+   * /api/webhooks/langfuse/{aiSystemId}:
+   *   post:
+   *     summary: LangFuse AI observability webhook
+   *     description: Receive trace, generation, and evaluation events from LangFuse (HMAC-SHA256 verified)
+   *     tags: [Webhooks]
+   *     parameters:
+   *       - in: path
+   *         name: aiSystemId
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: AI system ID
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             description: LangFuse observability payload
+   *     responses:
+   *       200:
+   *         description: Webhook processed successfully
+   *       400:
+   *         description: Invalid payload or signature
+   *       404:
+   *         description: AI system not found
+   *       429:
+   *         description: Rate limit exceeded
+   */
   app.post("/api/webhooks/langfuse/:aiSystemId", webhookRateLimit, verifyWebhookSignature('langfuse'), async (req, res) => {
     try {
       const { aiSystemId } = req.params;
@@ -5311,7 +5548,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Weights & Biases webhook receiver for ML experiment tracking (HMAC-SHA256 verified)
+  /**
+   * @openapi
+   * /api/webhooks/wandb/{aiSystemId}:
+   *   post:
+   *     summary: Weights & Biases ML tracking webhook
+   *     description: Receive ML experiment and training events from W&B (HMAC-SHA256 verified)
+   *     tags: [Webhooks]
+   *     parameters:
+   *       - in: path
+   *         name: aiSystemId
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: AI system ID
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             description: W&B training/alert payload
+   *     responses:
+   *       200:
+   *         description: Webhook processed successfully
+   *       400:
+   *         description: Invalid payload or signature
+   *       404:
+   *         description: AI system not found
+   *       429:
+   *         description: Rate limit exceeded
+   */
   app.post("/api/webhooks/wandb/:aiSystemId", webhookRateLimit, verifyWebhookSignature('wandb'), async (req, res) => {
     try {
       const { aiSystemId } = req.params;
@@ -5425,7 +5692,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // PagerDuty webhook receiver for incident management (HMAC-SHA256 verified)
+  /**
+   * @openapi
+   * /api/webhooks/pagerduty:
+   *   post:
+   *     summary: PagerDuty incident management webhook
+   *     description: Receive incident alerts from PagerDuty (HMAC-SHA256 verified)
+   *     tags: [Webhooks]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             description: PagerDuty incident payload
+   *     responses:
+   *       200:
+   *         description: Webhook processed successfully
+   *       400:
+   *         description: Invalid payload or signature
+   *       429:
+   *         description: Rate limit exceeded
+   */
   app.post("/api/webhooks/pagerduty", webhookRateLimit, verifyWebhookSignature('pagerduty'), async (req, res) => {
     try {
       // Validate payload schema
@@ -5474,7 +5762,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // DataDog webhook receiver for infrastructure monitoring (HMAC-SHA256 verified)
+  /**
+   * @openapi
+   * /api/webhooks/datadog:
+   *   post:
+   *     summary: DataDog infrastructure monitoring webhook
+   *     description: Receive infrastructure alerts from DataDog (HMAC-SHA256 verified)
+   *     tags: [Webhooks]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             description: DataDog monitor alert payload
+   *     responses:
+   *       200:
+   *         description: Webhook processed successfully
+   *       400:
+   *         description: Invalid payload or signature
+   *       429:
+   *         description: Rate limit exceeded
+   */
   app.post("/api/webhooks/datadog", webhookRateLimit, verifyWebhookSignature('datadog'), async (req, res) => {
     try {
       // Validate payload schema
@@ -5527,7 +5836,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Twilio webhook receiver for SMS delivery events (HMAC-SHA256 verified)
+  /**
+   * @openapi
+   * /api/webhooks/twilio:
+   *   post:
+   *     summary: Twilio SMS delivery webhook
+   *     description: Receive SMS delivery status callbacks from Twilio (HMAC-SHA256 verified)
+   *     tags: [Webhooks]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             description: Twilio SMS status payload
+   *     responses:
+   *       200:
+   *         description: Webhook processed successfully
+   *       400:
+   *         description: Invalid payload or signature
+   *       429:
+   *         description: Rate limit exceeded
+   */
   app.post("/api/webhooks/twilio", webhookRateLimit, verifyWebhookSignature('twilio'), async (req, res) => {
     try {
       // Validate payload schema
@@ -5562,7 +5892,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Slack webhook receiver for interactive events (HMAC-SHA256 verified)
+  /**
+   * @openapi
+   * /api/webhooks/slack:
+   *   post:
+   *     summary: Slack interactive events webhook
+   *     description: Receive Slack events and interactive messages (HMAC-SHA256 verified)
+   *     tags: [Webhooks]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             description: Slack event payload
+   *     responses:
+   *       200:
+   *         description: Webhook processed successfully
+   *       400:
+   *         description: Invalid payload or signature
+   *       429:
+   *         description: Rate limit exceeded
+   */
   app.post("/api/webhooks/slack", webhookRateLimit, verifyWebhookSignature('slack'), async (req, res) => {
     try {
       // Validate payload schema
