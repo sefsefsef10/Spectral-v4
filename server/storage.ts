@@ -69,6 +69,7 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserBySSOIdentity(ssoExternalId: string, email: string): Promise<User | undefined>;
   getUserByVerificationToken(token: string): Promise<User | undefined>;
   getUserByPasswordResetToken(token: string): Promise<User | undefined>;
   getUsersByOrganization(healthSystemId?: string, vendorId?: string): Promise<User[]>;
@@ -225,6 +226,18 @@ export class DatabaseStorage implements IStorage {
 
   async getUserByEmail(email: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user || undefined;
+  }
+
+  async getUserBySSOIdentity(ssoExternalId: string, email: string): Promise<User | undefined> {
+    // Try to find by SSO external ID first
+    let [user] = await db.select().from(users).where(eq(users.ssoExternalId, ssoExternalId));
+    
+    // If not found, try by email (for existing users converting to SSO)
+    if (!user) {
+      [user] = await db.select().from(users).where(eq(users.email, email));
+    }
+    
     return user || undefined;
   }
 

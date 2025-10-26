@@ -23,6 +23,10 @@ export const users = pgTable("users", {
   mfaEnabled: boolean("mfa_enabled").notNull().default(false),
   mfaSecret: text("mfa_secret"), // Encrypted TOTP secret
   backupCodes: text("backup_codes").array(), // Array of hashed backup codes
+  // Enterprise SSO support (WorkOS)
+  ssoProvider: text("sso_provider"), // 'workos', 'google', 'microsoft', 'okta', etc.
+  ssoExternalId: text("sso_external_id"), // External user ID from SSO provider
+  ssoOrganizationId: text("sso_organization_id"), // WorkOS organization ID for directory sync
   healthSystemId: varchar("health_system_id").references(() => healthSystems.id, { onDelete: "set null" }),
   vendorId: varchar("vendor_id").references(() => vendors.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),

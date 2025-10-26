@@ -113,6 +113,34 @@ async function validateVendorAccess(req: Request, res: Response, next: () => voi
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // ===== Inngest Workflow Endpoint =====
+  
+  // Serve Inngest durable workflows
+  try {
+    const { serve } = await import("inngest/express");
+    const { inngest } = await import("./inngest/client");
+    const { certificationWorkflow } = await import("./inngest/functions/certification-workflow");
+    const { predictiveAlertsJob, predictiveAlertsOnDemand } = await import("./inngest/functions/predictive-alerts");
+    const { automatedActionExecutor } = await import("./inngest/functions/action-executor");
+    
+    app.use(
+      "/api/inngest",
+      serve({
+        client: inngest,
+        functions: [
+          certificationWorkflow,
+          predictiveAlertsJob,
+          predictiveAlertsOnDemand,
+          automatedActionExecutor,
+        ],
+      })
+    );
+    
+    logger.info("Inngest durable workflows initialized");
+  } catch (error) {
+    logger.warn({ err: error }, "Inngest not initialized - background jobs will use legacy system");
+  }
+  
   // ===== API Documentation =====
   
   /**
@@ -559,6 +587,148 @@ export async function registerRoutes(app: Express): Promise<Server> {
       logger.error({ err: error }, "Reset password error");
       res.status(500).json({ error: "Failed to reset password" });
     }
+  });
+
+  // ===== Enterprise SSO Routes (WorkOS) =====
+  
+  // Initiate SSO login
+  app.get("/api/auth/sso/login", async (req, res) => {
+    try {
+      const { getWorkOSClient, getWorkOSConfig, isWorkOSConfigured } = await import("./services/workos");
+      
+      if (!isWorkOSConfigured()) {
+        return res.status(503).json({ 
+          error: "Enterprise SSO is not configured. Please contact your administrator." 
+        });
+      }
+
+      const workos = getWorkOSClient();
+      const config = getWorkOSConfig();
+      
+      if (!workos || !config.clientId) {
+        return res.status(503).json({ error: "SSO service unavailable" });
+      }
+
+      // Get organization from query parameter (for direct SSO link)
+      const { organization, connection, provider } = req.query;
+
+      const authorizationUrl = workos.userManagement.getAuthorizationUrl({
+        provider: (provider as string) || 'authkit',
+        clientId: config.clientId,
+        redirectUri: config.redirectUri || `${req.protocol}://${req.get('host')}/api/auth/sso/callback`,
+        ...(organization && { organization: organization as string }),
+        ...(connection && { connection: connection as string }),
+      });
+
+      res.redirect(authorizationUrl);
+    } catch (error) {
+      logger.error({ err: error }, "SSO login initiation error");
+      res.status(500).json({ error: "Failed to initiate SSO login" });
+    }
+  });
+
+  // SSO callback handler
+  app.get("/api/auth/sso/callback", async (req, res) => {
+    try {
+      const { code } = req.query;
+      
+      if (!code || typeof code !== 'string') {
+        return res.status(400).json({ error: "Invalid SSO callback - missing authorization code" });
+      }
+
+      const { getWorkOSClient, getWorkOSConfig } = await import("./services/workos");
+      const workos = getWorkOSClient();
+      const config = getWorkOSConfig();
+      
+      if (!workos || !config.clientId) {
+        return res.status(503).json({ error: "SSO service unavailable" });
+      }
+
+      // Exchange authorization code for user profile
+      const { user: ssoUser } = await workos.userManagement.authenticateWithCode({
+        code,
+        clientId: config.clientId,
+      });
+
+      // Find or create user based on SSO identity
+      let user = await storage.getUserBySSOIdentity(ssoUser.id, ssoUser.email);
+      
+      if (!user) {
+        // Auto-provision user from SSO
+        const hashedDummyPassword = await hashPassword(crypto.randomBytes(32).toString('hex'));
+        
+        // Determine organization from SSO user data
+        let healthSystemId: string | null = null;
+        let vendorId: string | null = null;
+        
+        // Create or find organization based on SSO domain/organization
+        const emailDomain = ssoUser.email.split('@')[1];
+        
+        // Default to health system for now - in production, you'd have org mapping
+        const healthSystem = await storage.createHealthSystem({
+          name: emailDomain,
+        });
+        healthSystemId = healthSystem.id;
+
+        user = await storage.createUser({
+          username: ssoUser.email,
+          password: hashedDummyPassword, // Not used for SSO users
+          email: ssoUser.email,
+          emailVerified: true, // SSO users are pre-verified
+          firstName: ssoUser.firstName || undefined,
+          lastName: ssoUser.lastName || undefined,
+          ssoProvider: 'workos',
+          ssoExternalId: ssoUser.id,
+          ssoOrganizationId: ssoUser.organizationId || undefined,
+          role: 'health_system',
+          permissions: 'admin', // First SSO user is admin
+          healthSystemId,
+          vendorId,
+        });
+
+        logger.info({ userId: user.id, email: user.email }, "Auto-provisioned SSO user");
+      } else {
+        // Update last login
+        await storage.updateUserLastLogin(user.id);
+      }
+
+      // Create session
+      req.session.userId = user.id;
+      req.session.ssoAuthenticated = true;
+
+      // Log successful SSO login
+      await storage.createAuditLog({
+        userId: user.id,
+        action: 'sso_login',
+        resourceType: 'user',
+        resourceId: user.id,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        healthSystemId: user.healthSystemId || undefined,
+        vendorId: user.vendorId || undefined,
+      });
+
+      // Redirect to dashboard
+      res.redirect('/dashboard');
+    } catch (error) {
+      logger.error({ err: error }, "SSO callback error");
+      res.redirect('/login?error=sso_failed');
+    }
+  });
+
+  // SSO logout
+  app.post("/api/auth/sso/logout", async (req, res) => {
+    const userId = req.session.userId;
+    
+    req.session.destroy((err) => {
+      if (err) {
+        logger.error({ err }, "SSO logout session destruction failed");
+        return res.status(500).json({ error: "Logout failed" });
+      }
+      
+      // In production, you might redirect to WorkOS logout URL
+      res.json({ message: "Logged out successfully" });
+    });
   });
   
   /**
