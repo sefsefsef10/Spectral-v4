@@ -1,7 +1,7 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LayoutDashboard, Database, Activity, FileText, Building2, PresentationIcon, Shield, Award } from "lucide-react";
+import { LayoutDashboard, Database, Activity, FileText, Building2, PresentationIcon, Shield, Award, Heart } from "lucide-react";
 import { useState } from "react";
 import { WebSocketStatus } from "./WebSocketStatus";
 
@@ -20,6 +20,7 @@ export default function Sidebar({
 }: SidebarProps) {
   const healthSystemMenuItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { id: "healthcare-portfolio", label: "Healthcare Score", icon: Heart },
     { id: "ai-inventory", label: "AI Inventory", icon: Database },
     { id: "monitoring", label: "Monitoring", icon: Activity },
     { id: "compliance", label: "Compliance", icon: Shield },

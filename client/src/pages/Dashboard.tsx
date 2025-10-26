@@ -8,6 +8,7 @@ import ReportingView from "@/components/dashboard/views/ReportingView";
 import VendorDirectoryView from "@/components/dashboard/views/VendorDirectoryView";
 import BoardDashboardView from "@/components/dashboard/views/BoardDashboardView";
 import ComplianceView from "@/components/dashboard/views/ComplianceView";
+import { HealthcarePortfolioView } from "@/components/dashboard/views/HealthcarePortfolioView";
 import VendorDashboardView from "@/components/dashboard/views/vendor/VendorDashboardView";
 import TrustPageView from "@/components/dashboard/views/vendor/TrustPageView";
 import CustomersView from "@/components/dashboard/views/vendor/CustomersView";
@@ -50,6 +51,8 @@ export default function Dashboard() {
             onNavigateToInventory={() => setCurrentView("ai-inventory")}
           />
         );
+      case "healthcare-portfolio":
+        return <HealthcarePortfolioView />;
       case "ai-inventory":
         return <AIInventoryView onSelectSystem={setSelectedSystem} />;
       case "monitoring":
