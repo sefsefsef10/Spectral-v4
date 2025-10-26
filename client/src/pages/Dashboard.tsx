@@ -18,6 +18,7 @@ import CertificationIntakeView from "@/components/dashboard/views/vendor/Certifi
 import CertificationReviewView from "@/components/dashboard/views/CertificationReviewView";
 import NetworkEffectsView from "@/components/dashboard/views/NetworkEffectsView";
 import ProcurementLanguageGenerator from "@/components/procurement/ProcurementLanguageGenerator";
+import ProviderConnectionsView from "@/components/dashboard/views/ProviderConnectionsView";
 
 export default function Dashboard() {
   const [selectedSystem, setSelectedSystem] = useState<string | null>(null);
@@ -60,6 +61,8 @@ export default function Dashboard() {
         return <HealthcarePortfolioView />;
       case "ai-inventory":
         return <AIInventoryView onSelectSystem={setSelectedSystem} />;
+      case "provider-connections":
+        return <ProviderConnectionsView />;
       case "monitoring":
         return <MonitoringView />;
       case "compliance":

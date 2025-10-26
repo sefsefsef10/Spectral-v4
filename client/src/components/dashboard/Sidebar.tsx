@@ -1,7 +1,7 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LayoutDashboard, Database, Activity, FileText, Building2, PresentationIcon, Shield, Award, Heart, Network } from "lucide-react";
+import { LayoutDashboard, Database, Activity, FileText, Building2, PresentationIcon, Shield, Award, Heart, Network, Link2 } from "lucide-react";
 import { useState } from "react";
 import { WebSocketStatus } from "./WebSocketStatus";
 
@@ -22,6 +22,7 @@ export default function Sidebar({
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "healthcare-portfolio", label: "Healthcare Score", icon: Heart },
     { id: "ai-inventory", label: "AI Inventory", icon: Database },
+    { id: "provider-connections", label: "EHR Integrations", icon: Link2 },
     { id: "monitoring", label: "Monitoring", icon: Activity },
     { id: "compliance", label: "Compliance", icon: Shield },
     { id: "reporting", label: "Reporting", icon: FileText },
