@@ -13,7 +13,8 @@ import {
   verifyHMACSignature, 
   verifyTimestamp, 
   SIGNATURE_HEADERS, 
-  TIMESTAMP_HEADERS 
+  TIMESTAMP_HEADERS,
+  normalizeTwilioParams
 } from '../utils/webhook-signatures';
 import { decryptFields } from '../services/encryption';
 import { logger } from '../logger';
@@ -118,16 +119,32 @@ export function verifyWebhookSignature(serviceName: string) {
       }
 
       // Get raw body for signature verification
-      // NOTE: This requires express.raw() middleware for this route
-      const rawBody = (req as any).rawBody || JSON.stringify(req.body);
+      // Special handling for Twilio (form-encoded) vs others (JSON)
+      let rawBody: string;
+      let requestUrl: string | undefined;
+      
+      if (serviceName === 'twilio') {
+        // Twilio: normalize form parameters and construct full URL (including query string)
+        rawBody = normalizeTwilioParams(req.body);
+        requestUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+      } else {
+        // Other services: use raw body or stringify JSON
+        rawBody = (req as any).rawBody || JSON.stringify(req.body);
+      }
 
-      // Verify signature
-      const verificationResult = verifyHMACSignature(
-        rawBody,
+      // Extract timestamp (already extracted earlier, reuse it)
+      const timestamp = timestampHeader ? (req.headers[timestampHeader] as string) : undefined;
+
+      // Verify signature with service-specific logic
+      const verificationResult = verifyHMACSignature({
+        payload: rawBody,
         signature,
-        decryptedSecret,
-        algorithm === 'hmac-sha256' ? 'sha256' : algorithm.replace('hmac-', '')
-      );
+        secret: decryptedSecret,
+        algorithm: algorithm === 'hmac-sha256' ? 'sha256' : algorithm.replace('hmac-', ''),
+        serviceName,
+        timestamp,
+        requestUrl,
+      });
 
       if (!verificationResult.valid) {
         logger.warn({ serviceName, error: verificationResult.error }, 'Webhook signature verification failed');

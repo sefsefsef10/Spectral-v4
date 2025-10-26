@@ -125,7 +125,7 @@ export const athenahealthWebhookSchema = z.object({
   timestamp: z.string(),
 });
 
-export type AthenalhealthWebhookPayload = z.infer<typeof athenalhealthWebhookSchema>;
+export type AthenalhealthWebhookPayload = z.infer<typeof athenahealthWebhookSchema>;
 
 // ===== INCIDENT MANAGEMENT WEBHOOKS =====
 

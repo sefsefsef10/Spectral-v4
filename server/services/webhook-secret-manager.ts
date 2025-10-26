@@ -45,6 +45,18 @@ export class WebhookSecretManager {
   }
 
   /**
+   * Get the correct algorithm for a service
+   */
+  private getAlgorithmForService(serviceName: string): string {
+    // Twilio uses SHA-1, not SHA-256
+    if (serviceName === 'twilio') {
+      return 'hmac-sha1';
+    }
+    // All other services use SHA-256
+    return 'hmac-sha256';
+  }
+
+  /**
    * Ensure a secret exists for a service (create if missing)
    */
   async ensureSecretExists(serviceName: string): Promise<void> {
@@ -68,11 +80,14 @@ export class WebhookSecretManager {
       ['secretKey']
     );
 
+    // Get correct algorithm for this service
+    const algorithm = this.getAlgorithmForService(serviceName);
+
     // Store in database
     await db.insert(webhookSecrets).values({
       serviceName,
       secretKey: encrypted.secretKey,
-      algorithm: 'hmac-sha256',
+      algorithm,
       active: true,
     });
 
@@ -110,11 +125,14 @@ export class WebhookSecretManager {
       ['secretKey']
     );
 
+    // Get correct algorithm for this service
+    const algorithm = this.getAlgorithmForService(serviceName);
+
     // Create new active secret
     await db.insert(webhookSecrets).values({
       serviceName,
       secretKey: encrypted.secretKey,
-      algorithm: 'hmac-sha256',
+      algorithm,
       active: true,
     });
 

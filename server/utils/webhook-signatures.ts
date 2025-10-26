@@ -13,49 +13,80 @@ export interface SignatureVerificationResult {
   error?: string;
 }
 
+export interface VerifySignatureOptions {
+  payload: string | Buffer;
+  signature: string;
+  secret: string;
+  algorithm?: string;
+  serviceName?: string;
+  timestamp?: string;
+  requestUrl?: string;
+}
+
 /**
- * Verify HMAC-SHA256 signature from webhook request
+ * Verify HMAC-SHA256 signature from webhook request with service-specific logic
  * 
- * @param payload - Raw request body (string or Buffer)
- * @param signature - Signature from request header
- * @param secret - Webhook secret key for this service
- * @param algorithm - Signature algorithm (default: 'sha256')
+ * @param options - Verification options including service-specific parameters
  * @returns Verification result with validity and error if any
  */
 export function verifyHMACSignature(
-  payload: string | Buffer,
-  signature: string,
-  secret: string,
-  algorithm: string = 'sha256'
+  options: VerifySignatureOptions
 ): SignatureVerificationResult {
   try {
+    const { payload, signature, secret, algorithm = 'sha256', serviceName, timestamp, requestUrl } = options;
+    
     // Handle different signature formats
     // Format 1: "sha256=xxxxx" (GitHub, Stripe style)
-    // Format 2: "xxxxx" (raw hex)
+    // Format 2: "v0=xxxxx" (Slack style)
+    // Format 3: "xxxxx" (raw hex)
     let expectedSignature = signature;
+    let signaturePrefix = '';
+    
     if (signature.includes('=')) {
       const parts = signature.split('=');
       if (parts.length === 2) {
+        signaturePrefix = parts[0];
         expectedSignature = parts[1];
       }
     }
 
+    // Construct canonical string based on service
+    let canonicalString: Buffer;
+    let signatureEncoding: 'hex' | 'base64' = 'hex'; // Default to hex
+    
+    if (serviceName === 'slack' && timestamp) {
+      // Slack: v0:{timestamp}:{rawBody}
+      const baseString = `v0:${timestamp}:${Buffer.isBuffer(payload) ? payload.toString('utf-8') : payload}`;
+      canonicalString = Buffer.from(baseString, 'utf-8');
+    } else if (serviceName === 'twilio' && requestUrl) {
+      // Twilio: {URL}{param1=value1param2=value2...} (sorted params)
+      // Note: Twilio uses SHA-1 and Base64 encoding, NOT SHA-256 and hex
+      const params = Buffer.isBuffer(payload) ? payload.toString('utf-8') : payload;
+      const baseString = `${requestUrl}${params}`;
+      canonicalString = Buffer.from(baseString, 'utf-8');
+      signatureEncoding = 'base64';
+    } else {
+      // Standard: just the raw payload
+      canonicalString = Buffer.isBuffer(payload) ? payload : Buffer.from(payload, 'utf-8');
+    }
+
     // Compute expected signature
     const hmac = crypto.createHmac(algorithm, secret);
-    const payloadBuffer = Buffer.isBuffer(payload) ? payload : Buffer.from(payload, 'utf-8');
-    hmac.update(payloadBuffer);
-    const computedSignature = hmac.digest('hex');
+    hmac.update(canonicalString);
+    const computedSignature = hmac.digest(signatureEncoding);
 
     // Constant-time comparison to prevent timing attacks
     const valid = crypto.timingSafeEqual(
-      Buffer.from(computedSignature, 'hex'),
-      Buffer.from(expectedSignature, 'hex')
+      Buffer.from(computedSignature, signatureEncoding),
+      Buffer.from(expectedSignature, signatureEncoding)
     );
 
     if (!valid) {
       logger.warn({
+        service: serviceName,
         expected: computedSignature.substring(0, 10) + '...',
-        received: expectedSignature.substring(0, 10) + '...'
+        received: expectedSignature.substring(0, 10) + '...',
+        signaturePrefix
       }, 'Webhook signature mismatch');
     }
 
@@ -151,3 +182,19 @@ export const TIMESTAMP_HEADERS: Record<string, string> = {
   stripe: 'x-stripe-timestamp',
   // Add more as needed
 };
+
+/**
+ * Normalize Twilio form parameters for signature verification
+ * Twilio requires parameters to be sorted alphabetically and concatenated
+ * 
+ * @param params - Form parameters object
+ * @returns Normalized parameter string (e.g., "Param1value1Param2value2")
+ */
+export function normalizeTwilioParams(params: Record<string, any>): string {
+  const sortedKeys = Object.keys(params).sort();
+  let result = '';
+  for (const key of sortedKeys) {
+    result += key + params[key];
+  }
+  return result;
+}

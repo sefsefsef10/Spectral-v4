@@ -8,9 +8,15 @@ import { setupVite, serveStatic, log } from "./vite";
 import { ensureCsrfToken, validateCsrfToken } from "./middleware/csrf";
 import { logger } from "./logger";
 import { validateSpectralEnv } from "./utils/validate-env";
+import { webhookSecretManager } from "./services/webhook-secret-manager";
 
 // Validate environment variables on startup (dev + prod)
 validateSpectralEnv();
+
+// Initialize webhook secrets on startup
+webhookSecretManager.initializeSecrets().catch((error) => {
+  logger.error({ error }, "Failed to initialize webhook secrets");
+});
 
 const app = express();
 
