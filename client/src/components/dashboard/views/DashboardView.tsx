@@ -1,5 +1,6 @@
 import MetricCard from "../MetricCard";
 import AlertItem from "../AlertItem";
+import ROIMetricsCard from "../ROIMetricsCard";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
@@ -53,27 +54,31 @@ export default function DashboardView({ onNavigateToSystem, onNavigateToInventor
         <MetricCard value={stats?.compliant || "100%"} label="Compliant" variant="success" />
       </div>
 
-      {alerts.length > 0 && (
-        <Card className="p-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <span className="text-destructive">⚠️</span>
-            {alerts.length} {alerts.length === 1 ? "system needs" : "systems need"} attention
-          </h2>
-          <div>
-            {alerts.slice(0, 3).map((alert) => {
-              const system = systems.find(s => s.id === alert.aiSystemId);
-              return (
-                <AlertItem
-                  key={alert.id}
-                  title={system?.name || "Unknown System"}
-                  description={alert.message}
-                  onAction={() => system && onNavigateToSystem?.(system.name)}
-                />
-              );
-            })}
-          </div>
-        </Card>
-      )}
+      <div className="grid grid-cols-2 gap-6">
+        {alerts.length > 0 && (
+          <Card className="p-6">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <span className="text-destructive">⚠️</span>
+              {alerts.length} {alerts.length === 1 ? "system needs" : "systems need"} attention
+            </h2>
+            <div>
+              {alerts.slice(0, 3).map((alert) => {
+                const system = systems.find(s => s.id === alert.aiSystemId);
+                return (
+                  <AlertItem
+                    key={alert.id}
+                    title={system?.name || "Unknown System"}
+                    description={alert.message}
+                    onAction={() => system && onNavigateToSystem?.(system.name)}
+                  />
+                );
+              })}
+            </div>
+          </Card>
+        )}
+
+        <ROIMetricsCard />
+      </div>
 
       <div className="flex gap-4">
         <Button onClick={onNavigateToInventory} data-testid="button-view-all">

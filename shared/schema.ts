@@ -1200,6 +1200,29 @@ export const policyChangeLogs = pgTable("policy_change_logs", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// ROI Metrics - Track tangible business value for acquisition due diligence
+export const roiMetrics = pgTable("roi_metrics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  healthSystemId: varchar("health_system_id").references(() => healthSystems.id, { onDelete: "cascade" }),
+  vendorId: varchar("vendor_id").references(() => vendors.id, { onDelete: "cascade" }),
+  metricType: text("metric_type").notNull(), // 'deal_closed', 'time_saved', 'cost_avoided', 'risk_mitigated', 'certification_obtained'
+  metricCategory: text("metric_category").notNull(), // 'revenue', 'efficiency', 'compliance', 'risk'
+  value: integer("value").notNull(), // Numeric value (dollars, hours, percentage)
+  unit: text("unit").notNull(), // 'usd', 'hours', 'percentage', 'count'
+  description: text("description").notNull(), // Human-readable description
+  aiSystemId: varchar("ai_system_id").references(() => aiSystems.id, { onDelete: "set null" }),
+  certificationId: varchar("certification_id").references(() => complianceCertifications.id, { onDelete: "set null" }),
+  metadata: jsonb("metadata"), // Additional context for ROI calculation
+  recordedAt: timestamp("recorded_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  healthSystemIdx: sql`CREATE INDEX IF NOT EXISTS idx_roi_metrics_health_system ON ${table} (health_system_id)`,
+  vendorIdx: sql`CREATE INDEX IF NOT EXISTS idx_roi_metrics_vendor ON ${table} (vendor_id)`,
+  recordedAtIdx: sql`CREATE INDEX IF NOT EXISTS idx_roi_metrics_recorded_at ON ${table} (recorded_at DESC)`,
+}));
+
+export const insertRoiMetricSchema = createInsertSchema(roiMetrics);
+
 export const insertPolicyVersionSchema = createInsertSchema(policyVersions);
 export const insertPolicyChangeLogSchema = createInsertSchema(policyChangeLogs);
 export const insertBillingAccountSchema = createInsertSchema(billingAccounts);
@@ -1241,3 +1264,6 @@ export type InsertPolicyVersion = z.infer<typeof insertPolicyVersionSchema>;
 
 export type PolicyChangeLog = typeof policyChangeLogs.$inferSelect;
 export type InsertPolicyChangeLog = z.infer<typeof insertPolicyChangeLogSchema>;
+
+export type RoiMetric = typeof roiMetrics.$inferSelect;
+export type InsertRoiMetric = z.infer<typeof insertRoiMetricSchema>;
