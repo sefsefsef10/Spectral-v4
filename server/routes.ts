@@ -1964,6 +1964,141 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== Compliance Control Versioning API =====
+
+  // Get version history for a control
+  app.get("/api/compliance-controls/:controlId/versions", requireAuth, async (req, res) => {
+    try {
+      const { controlId } = req.params;
+      const { controlVersioningService } = await import("./services/compliance-control-versioning");
+      
+      const history = await controlVersioningService.getVersionHistory(controlId);
+      res.json(history);
+    } catch (error) {
+      logger.error({ err: error }, "Get control version history error");
+      res.status(500).json({ error: "Failed to fetch version history" });
+    }
+  });
+
+  // Get current version for a control
+  app.get("/api/compliance-controls/:controlId/current-version", requireAuth, async (req, res) => {
+    try {
+      const { controlId} = req.params;
+      const { controlVersioningService } = await import("./services/compliance-control-versioning");
+      
+      const currentVersion = await controlVersioningService.getCurrentVersion(controlId);
+      if (!currentVersion) {
+        return res.status(404).json({ error: "No version found for this control" });
+      }
+      
+      res.json({ controlId, version: currentVersion });
+    } catch (error) {
+      logger.error({ err: error }, "Get current version error");
+      res.status(500).json({ error: "Failed to fetch current version" });
+    }
+  });
+
+  // Create new version for a control (admin only)
+  app.post("/api/compliance-controls/:controlId/versions", requireAuth, async (req, res) => {
+    try {
+      const currentUser = await storage.getUser(req.session.userId!);
+      if (!currentUser || currentUser.permissions !== 'admin') {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      const { controlId } = req.params;
+      const schema = z.object({
+        versionType: z.enum(['major', 'minor', 'patch']),
+        changes: z.object({
+          added: z.array(z.string()).optional(),
+          removed: z.array(z.string()).optional(),
+          modified: z.array(z.object({
+            field: z.string(),
+            oldValue: z.any(),
+            newValue: z.any(),
+          })).optional(),
+          reason: z.string().optional(),
+        }),
+        effectiveDate: z.string().optional(),
+      });
+
+      const data = schema.parse(req.body);
+      const { controlVersioningService } = await import("./services/compliance-control-versioning");
+
+      const version = await controlVersioningService.createVersion(
+        controlId,
+        data.versionType,
+        data.changes,
+        data.effectiveDate ? new Date(data.effectiveDate) : undefined
+      );
+
+      // Create audit log
+      await storage.createAuditLog({
+        userId: currentUser.id,
+        action: 'create_control_version',
+        resourceType: 'compliance_control_version',
+        resourceId: version.id,
+        resourceName: `${controlId} v${version.version}`,
+        metadata: { versionType: data.versionType, changes: data.changes },
+        healthSystemId: currentUser.healthSystemId,
+        vendorId: currentUser.vendorId,
+      });
+
+      res.status(201).json(version);
+    } catch (error) {
+      logger.error({ err: error }, "Create control version error");
+      res.status(400).json({ error: "Failed to create version" });
+    }
+  });
+
+  // Get versioning statistics (admin only)
+  app.get("/api/compliance-controls/versions/stats", requireAuth, async (req, res) => {
+    try {
+      const currentUser = await storage.getUser(req.session.userId!);
+      if (!currentUser || currentUser.permissions !== 'admin') {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      const { controlVersioningService } = await import("./services/compliance-control-versioning");
+      const stats = await controlVersioningService.getVersionStats();
+      
+      res.json(stats);
+    } catch (error) {
+      logger.error({ err: error }, "Get version stats error");
+      res.status(500).json({ error: "Failed to fetch version statistics" });
+    }
+  });
+
+  // Initialize versions for all controls (admin only, one-time operation)
+  app.post("/api/compliance-controls/versions/initialize", requireAuth, async (req, res) => {
+    try {
+      const currentUser = await storage.getUser(req.session.userId!);
+      if (!currentUser || currentUser.permissions !== 'admin') {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      const { controlVersioningService } = await import("./services/compliance-control-versioning");
+      await controlVersioningService.initializeAllControlVersions();
+      
+      // Create audit log
+      await storage.createAuditLog({
+        userId: currentUser.id,
+        action: 'initialize_control_versions',
+        resourceType: 'compliance_control_version',
+        resourceId: 'all',
+        resourceName: 'All compliance controls',
+        metadata: {},
+        healthSystemId: currentUser.healthSystemId,
+        vendorId: currentUser.vendorId,
+      });
+
+      res.json({ message: "Control versions initialized successfully" });
+    } catch (error) {
+      logger.error({ err: error }, "Initialize control versions error");
+      res.status(500).json({ error: "Failed to initialize control versions" });
+    }
+  });
+
   // ===== AI Monitoring Webhook Routes (Public) =====
   
   // LangSmith webhook receiver for AI telemetry events (HMAC-SHA256 verified)
