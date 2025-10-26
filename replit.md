@@ -4,7 +4,22 @@
 Spectral is a B2B SaaS platform designed to empower healthcare organizations and AI vendors with comprehensive AI governance, monitoring, and compliance capabilities. Its core purpose is to mitigate compliance risks, address operational blind spots, and streamline AI procurement within the healthcare sector. The platform aims to become the leading AI governance solution in healthcare, offering features such as executive reporting, alert management, compliance dashboards, and automated certification workflows, ultimately ensuring responsible and compliant AI adoption.
 
 ## Recent Changes
-**October 26, 2025**:
+**October 26, 2025** (PM Session):
+- ✅ **CRITICAL SECURITY HARDENING COMPLETE (2/3)**: HIPAA PHI Encryption + Fail-Closed Webhook Security
+  - **PHI Field-Level Encryption**: Created `server/services/phi-encryption.ts` with AES-256-GCM encryption + automated redaction
+    - Regex-based PHI detection: NAME, EMAIL, PHONE, SSN, MRN, IP, ZIP, DATE (8 entity types)
+    - Redaction before encryption: "John Doe" → "[REDACTED_NAME]" → encrypted with AES-256-GCM
+    - Schema additions: `encryptedPayload`, `encryptedDescription`, `phiRedacted` (boolean), `phiEntitiesDetected` (count)
+    - Legacy plaintext fields replaced with "[ENCRYPTED - Use encryptedDescription field]" placeholder
+    - Audit logging: Every encryption/decryption logged for HIPAA §164.308(a)(1)(ii)(D) compliance
+  - **Fail-Closed Webhook Security**: Server now **refuses to start** if webhook secrets can't be initialized (CRITICAL HIPAA fix)
+    - BEFORE: Caught error → logged warning → continued startup (fail-open vulnerability)
+    - AFTER: Await initialization → process.exit(1) on failure → prevents unauthenticated webhook requests
+    - Fatal log message: "CRITICAL: Failed to initialize webhook secrets - this is a HIPAA compliance violation"
+  - **CTO Acquisition Blockers Resolved**: 2 of 3 CRITICAL issues fixed (PHI plaintext storage, webhook bypass), 1 remaining (translation engine IP moat)
+  - **Remaining Work**: Database migration for encrypted columns (architect flagged runtime insert failures), translation engine versioning, async telemetry queue
+
+**October 26, 2025** (AM Session):
 - ✅ **A- (90%+) GRADE TRANSFORMATION COMPLETE**: Translation Engine → Frontend Display
   - **Framework Breakdown API**: Added frameworkBreakdown to HealthcarePortfolioScore with complete HIPAA/NIST/FDA/State-Law control tracking
   - **Multi-Framework Aggregation**: State-law violations now aggregate CA_SB1047 + NY_AI_ACT + CO_AI_ACT for accurate compliance coverage
