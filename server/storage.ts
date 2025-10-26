@@ -63,6 +63,12 @@ import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
 import { CacheService } from "./cache";
 import { encryptFields, decryptFields } from "./services/encryption";
+import { 
+  encryptTelemetryPayload, 
+  decryptTelemetryPayload,
+  encryptViolationDescription,
+  decryptViolationDescription 
+} from "./services/phi-encryption";
 
 export interface IStorage {
   // User operations
@@ -742,8 +748,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   // AI Telemetry operations
+  // 🔒 CRITICAL SECURITY FIX: PHI encryption before storage
   async createAITelemetryEvent(insertEvent: InsertAITelemetryEvent): Promise<AITelemetryEvent> {
-    const [event] = await db.insert(aiTelemetryEvents).values(insertEvent).returning();
+    // Encrypt payload with PHI redaction if payload exists
+    let encryptedData = {};
+    if (insertEvent.payload) {
+      const { encryptedPayload, phiRedacted, entitiesDetected } = encryptTelemetryPayload(insertEvent.payload);
+      encryptedData = {
+        encryptedPayload,
+        phiRedacted,
+        phiEntitiesDetected: entitiesDetected,
+        payload: null, // Clear legacy plaintext field
+      };
+    }
+    
+    const [event] = await db.insert(aiTelemetryEvents).values({
+      ...insertEvent,
+      ...encryptedData,
+    }).returning();
     return event;
   }
 
@@ -754,8 +776,16 @@ export class DatabaseStorage implements IStorage {
   }
   
   // 🔒 Translation Engine - Compliance Violation operations
+  // 🔒 CRITICAL SECURITY FIX: Encrypt violation descriptions (may contain PHI)
   async createComplianceViolation(insertViolation: InsertComplianceViolation): Promise<ComplianceViolation> {
-    const [violation] = await db.insert(complianceViolations).values(insertViolation).returning();
+    // Encrypt description with PHI redaction
+    const encryptedDescription = encryptViolationDescription(insertViolation.description);
+    
+    const [violation] = await db.insert(complianceViolations).values({
+      ...insertViolation,
+      description: "[ENCRYPTED - Use encryptedDescription field]", // NEVER store plaintext PHI
+      encryptedDescription, // Encrypted + PHI-redacted description
+    }).returning();
     return violation;
   }
   

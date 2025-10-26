@@ -386,7 +386,11 @@ export const aiTelemetryEvents = pgTable("ai_telemetry_events", {
   metric: text("metric"), // 'error_count', 'latency', 'feedback_score', 'cost'
   metricValue: text("metric_value"), // Numeric value as text for flexibility
   threshold: text("threshold"), // Threshold that was crossed
-  payload: text("payload"), // Full JSON payload from webhook
+  payload: text("payload"), // DEPRECATED: Legacy unencrypted payload - DO NOT USE for new data
+  // 🔒 HIPAA-COMPLIANT PHI ENCRYPTION (CRITICAL SECURITY FIX)
+  encryptedPayload: text("encrypted_payload"), // AES-256-GCM encrypted payload with PHI redaction
+  phiRedacted: boolean("phi_redacted").notNull().default(false), // True if PHI was detected and redacted
+  phiEntitiesDetected: integer("phi_entities_detected").notNull().default(0), // Count of PHI entities found
   processedAt: timestamp("processed_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => ({
@@ -575,7 +579,9 @@ export const complianceViolations = pgTable("compliance_violations", {
   severity: text("severity").notNull(), // 'low', 'medium', 'high', 'critical'
   requiresReporting: boolean("requires_reporting").notNull().default(false),
   reportingDeadline: timestamp("reporting_deadline"),
-  description: text("description").notNull(),
+  description: text("description").notNull(), // DEPRECATED: Legacy unencrypted description
+  // 🔒 HIPAA-COMPLIANT PHI ENCRYPTION (CRITICAL SECURITY FIX)
+  encryptedDescription: text("encrypted_description"), // AES-256-GCM encrypted description with PHI redaction
   resolved: boolean("resolved").notNull().default(false),
   resolvedAt: timestamp("resolved_at"),
   resolvedBy: varchar("resolved_by").references(() => users.id, { onDelete: "set null" }),

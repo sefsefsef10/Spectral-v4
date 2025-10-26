@@ -13,11 +13,6 @@ import { webhookSecretManager } from "./services/webhook-secret-manager";
 // Validate environment variables on startup (dev + prod)
 validateSpectralEnv();
 
-// Initialize webhook secrets on startup
-webhookSecretManager.initializeSecrets().catch((error) => {
-  logger.error({ error }, "Failed to initialize webhook secrets");
-});
-
 const app = express();
 
 declare module 'http' {
@@ -95,6 +90,17 @@ app.use(express.json({
 app.use(express.urlencoded({ extended: false }));
 
 (async () => {
+  // 🔒 CRITICAL SECURITY FIX: Fail-closed webhook security
+  // Initialize webhook secrets BEFORE accepting any requests
+  try {
+    await webhookSecretManager.initializeSecrets();
+    logger.info("Webhook secrets initialized successfully");
+  } catch (error: any) {
+    logger.fatal({ err: error }, "CRITICAL: Failed to initialize webhook secrets - refusing to start server");
+    logger.fatal("Webhook endpoints would be unauthenticated - this is a HIPAA compliance violation");
+    process.exit(1); // Exit immediately - DO NOT start server without webhook security
+  }
+
   // Initialize database indexes (production-critical)
   try {
     const { initializeDatabaseIndexes } = await import("./init-db-indexes");
