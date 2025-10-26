@@ -103,3 +103,9 @@ export function useAuth() {
   }
   return context;
 }
+
+// Convenience hook for components that only need user data
+export function useUser() {
+  const { user, isLoading } = useAuth();
+  return { user, isLoading };
+}
