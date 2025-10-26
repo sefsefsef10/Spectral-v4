@@ -40,25 +40,83 @@ export class ComplianceMapping {
       throw new Error(`AI system ${event.aiSystemId} not found`);
     }
     
-    // Map events to framework-specific violations
+    // Map events to framework-specific violations (20 event types)
     switch (event.eventType) {
-      case 'drift':
+      // PRIVACY EVENTS (2)
+      case 'phi_exposure':
+      case 'phi_leakage': // Legacy
+        violations.push(...await this.handlePHILeakage(event, aiSystem));
+        break;
+      
+      case 'unauthorized_data_access':
+        violations.push(...await this.handleUnauthorizedAccess(event, aiSystem));
+        break;
+      
+      // SECURITY EVENTS (5)
+      case 'prompt_injection_attempt':
+        violations.push(...await this.handlePromptInjection(event, aiSystem));
+        break;
+      
+      case 'authentication_failure':
+        violations.push(...await this.handleAuthFailure(event, aiSystem));
+        break;
+      
+      case 'rate_limit_exceeded':
+        violations.push(...await this.handleRateLimitExceeded(event, aiSystem));
+        break;
+      
+      case 'input_validation_failure':
+        violations.push(...await this.handleInputValidationFailure(event, aiSystem));
+        break;
+      
+      case 'model_version_mismatch':
+        violations.push(...await this.handleVersionMismatch(event, aiSystem));
+        break;
+      
+      // PERFORMANCE EVENTS (3)
+      case 'model_drift':
+      case 'drift': // Legacy
       case 'performance_degradation':
         violations.push(...await this.handleDrift(event, aiSystem));
         break;
       
-      case 'phi_leakage':
-        violations.push(...await this.handlePHILeakage(event, aiSystem));
-        break;
-      
-      case 'bias':
-        violations.push(...await this.handleBias(event, aiSystem));
-        break;
-      
-      case 'latency':
+      case 'high_latency':
+      case 'latency': // Legacy
         violations.push(...await this.handleLatency(event, aiSystem));
         break;
       
+      // SAFETY EVENTS (4)
+      case 'clinical_accuracy_failure':
+        violations.push(...await this.handleClinicalAccuracy(event, aiSystem));
+        break;
+      
+      case 'false_negative_alert':
+      case 'false_positive_alert':
+        violations.push(...await this.handleFalseAlerts(event, aiSystem));
+        break;
+      
+      case 'harmful_output':
+        violations.push(...await this.handleHarmfulOutput(event, aiSystem));
+        break;
+      
+      // FAIRNESS EVENTS (3)
+      case 'bias_detected':
+      case 'bias': // Legacy
+      case 'disparate_impact':
+      case 'fairness_threshold_violation':
+        violations.push(...await this.handleBias(event, aiSystem));
+        break;
+      
+      // QUALITY EVENTS (3)
+      case 'data_quality_degradation':
+        violations.push(...await this.handleDataQuality(event, aiSystem));
+        break;
+      
+      case 'explainability_failure':
+        violations.push(...await this.handleExplainabilityFailure(event, aiSystem));
+        break;
+      
+      // LEGACY
       case 'error':
         violations.push(...await this.handleError(event, aiSystem));
         break;
@@ -372,6 +430,262 @@ export class ComplianceMapping {
     return violations;
   }
   
+  /**
+   * UNAUTHORIZED DATA ACCESS
+   * - HIPAA: 164.308(a)(4) Access Control
+   * - ISO 27001: Access Control violations
+   */
+  private async handleUnauthorizedAccess(event: ParsedEvent, aiSystem: AISystem): Promise<ComplianceViolation[]> {
+    return [{
+      framework: 'HIPAA',
+      controlId: '164.308(a)(4)',
+      controlName: 'Access Control - Unauthorized Access Prevention',
+      violationType: 'breach',
+      severity: 'critical',
+      requiresReporting: true,
+      reportingDeadline: this.calculateDeadline(60),
+      description: `Unauthorized access attempt detected on ${aiSystem.name}. HIPAA requires immediate investigation and potential breach notification.`,
+      affectedSystem: {
+        id: aiSystem.id,
+        name: aiSystem.name,
+        department: aiSystem.department,
+      },
+      detectedAt: event.metadata.timestamp,
+    }];
+  }
+
+  /**
+   * PROMPT INJECTION ATTEMPT
+   * - NIST AI RMF: GOVERN-5.1 (AI system security)
+   * - ISO 27001: Information Security Incident Management
+   */
+  private async handlePromptInjection(event: ParsedEvent, aiSystem: AISystem): Promise<ComplianceViolation[]> {
+    return [{
+      framework: 'NIST_AI_RMF',
+      controlId: 'GOVERN-5.1',
+      controlName: 'AI system security and resilience practices',
+      violationType: 'breach',
+      severity: 'high',
+      requiresReporting: false,
+      description: `Prompt injection attack detected on ${aiSystem.name}. Security incident response required.`,
+      affectedSystem: {
+        id: aiSystem.id,
+        name: aiSystem.name,
+        department: aiSystem.department,
+      },
+      detectedAt: event.metadata.timestamp,
+    }];
+  }
+
+  /**
+   * AUTHENTICATION FAILURE
+   * - HIPAA: 164.312(d) Person/Entity Authentication
+   */
+  private async handleAuthFailure(event: ParsedEvent, aiSystem: AISystem): Promise<ComplianceViolation[]> {
+    return [{
+      framework: 'HIPAA',
+      controlId: '164.312(d)',
+      controlName: 'Person or Entity Authentication',
+      violationType: 'deviation',
+      severity: 'medium',
+      requiresReporting: false,
+      description: `Authentication failure on ${aiSystem.name}. Review access controls and authentication mechanisms.`,
+      affectedSystem: {
+        id: aiSystem.id,
+        name: aiSystem.name,
+        department: aiSystem.department,
+      },
+      detectedAt: event.metadata.timestamp,
+    }];
+  }
+
+  /**
+   * RATE LIMIT EXCEEDED
+   * - HIPAA: 164.312(b) Service Availability
+   */
+  private async handleRateLimitExceeded(event: ParsedEvent, aiSystem: AISystem): Promise<ComplianceViolation[]> {
+    return [{
+      framework: 'HIPAA',
+      controlId: '164.312(b)',
+      controlName: 'Audit Controls - Service Availability',
+      violationType: 'threshold_exceeded',
+      severity: 'medium',
+      requiresReporting: false,
+      description: `Rate limit exceeded on ${aiSystem.name}. Potential denial of service or capacity planning issue.`,
+      affectedSystem: {
+        id: aiSystem.id,
+        name: aiSystem.name,
+        department: aiSystem.department,
+      },
+      detectedAt: event.metadata.timestamp,
+    }];
+  }
+
+  /**
+   * INPUT VALIDATION FAILURE
+   * - NIST AI RMF: MANAGE-4.2 (Data quality monitoring)
+   */
+  private async handleInputValidationFailure(event: ParsedEvent, aiSystem: AISystem): Promise<ComplianceViolation[]> {
+    return [{
+      framework: 'NIST_AI_RMF',
+      controlId: 'MANAGE-4.2',
+      controlName: 'Mechanisms for tracking AI system inputs',
+      violationType: 'deviation',
+      severity: 'low',
+      requiresReporting: false,
+      description: `Input validation failure detected on ${aiSystem.name}. Review input quality controls.`,
+      affectedSystem: {
+        id: aiSystem.id,
+        name: aiSystem.name,
+        department: aiSystem.department,
+      },
+      detectedAt: event.metadata.timestamp,
+    }];
+  }
+
+  /**
+   * MODEL VERSION MISMATCH
+   * - FDA: Predetermined Change Control Plan (PCCP)
+   */
+  private async handleVersionMismatch(event: ParsedEvent, aiSystem: AISystem): Promise<ComplianceViolation[]> {
+    return [{
+      framework: 'FDA_SaMD',
+      controlId: 'FDA-PCCP-1',
+      controlName: 'Predetermined Change Control Plan',
+      violationType: 'deviation',
+      severity: 'medium',
+      requiresReporting: false,
+      description: `Model version mismatch detected on ${aiSystem.name}. Verify change control procedures.`,
+      affectedSystem: {
+        id: aiSystem.id,
+        name: aiSystem.name,
+        department: aiSystem.department,
+      },
+      detectedAt: event.metadata.timestamp,
+    }];
+  }
+
+  /**
+   * CLINICAL ACCURACY FAILURE
+   * - FDA: Clinical Validation Requirements
+   * - NIST AI RMF: MANAGE-4.1 (Performance monitoring)
+   */
+  private async handleClinicalAccuracy(event: ParsedEvent, aiSystem: AISystem): Promise<ComplianceViolation[]> {
+    return [{
+      framework: 'FDA_SaMD',
+      controlId: 'FDA-CV-1',
+      controlName: 'Clinical Validation',
+      violationType: 'breach',
+      severity: 'critical',
+      requiresReporting: true,
+      reportingDeadline: this.calculateDeadline(30),
+      description: `Clinical accuracy failure detected on ${aiSystem.name}. FDA requires immediate investigation and potential device recall.`,
+      affectedSystem: {
+        id: aiSystem.id,
+        name: aiSystem.name,
+        department: aiSystem.department,
+      },
+      detectedAt: event.metadata.timestamp,
+    }];
+  }
+
+  /**
+   * FALSE ALERTS (Positive/Negative)
+   * - FDA: Analytical/Clinical Validation
+   */
+  private async handleFalseAlerts(event: ParsedEvent, aiSystem: AISystem): Promise<ComplianceViolation[]> {
+    const isFalseNegative = event.eventType === 'false_negative_alert';
+    
+    return [{
+      framework: 'FDA_SaMD',
+      controlId: 'FDA-AV-1',
+      controlName: 'Analytical Validation',
+      violationType: 'deviation',
+      severity: isFalseNegative ? 'high' : 'medium',
+      requiresReporting: isFalseNegative,
+      reportingDeadline: isFalseNegative ? this.calculateDeadline(30) : undefined,
+      description: `${isFalseNegative ? 'False negative' : 'False positive'} alert rate exceeds threshold on ${aiSystem.name}. Analytical validation required.`,
+      affectedSystem: {
+        id: aiSystem.id,
+        name: aiSystem.name,
+        department: aiSystem.department,
+      },
+      detectedAt: event.metadata.timestamp,
+    }];
+  }
+
+  /**
+   * HARMFUL OUTPUT
+   * - NIST AI RMF: MEASURE-2.7 (Safety testing)
+   * - CA SB 1047: Safety requirements
+   */
+  private async handleHarmfulOutput(event: ParsedEvent, aiSystem: AISystem): Promise<ComplianceViolation[]> {
+    return [{
+      framework: 'CA_SB1047',
+      controlId: 'CA-SB1047-2',
+      controlName: 'Covered Model Safety Testing',
+      violationType: 'breach',
+      severity: 'critical',
+      requiresReporting: true,
+      reportingDeadline: this.calculateDeadline(10),
+      description: `Harmful or unsafe output detected on ${aiSystem.name}. CA SB 1047 requires immediate safety incident reporting.`,
+      affectedSystem: {
+        id: aiSystem.id,
+        name: aiSystem.name,
+        department: aiSystem.department,
+      },
+      detectedAt: event.metadata.timestamp,
+    }];
+  }
+
+  /**
+   * DATA QUALITY DEGRADATION
+   * - NIST AI RMF: MANAGE-4.2 (Data quality)
+   */
+  private async handleDataQuality(event: ParsedEvent, aiSystem: AISystem): Promise<ComplianceViolation[]> {
+    return [{
+      framework: 'NIST_AI_RMF',
+      controlId: 'MANAGE-4.2',
+      controlName: 'Mechanisms for tracking AI system inputs',
+      violationType: 'threshold_exceeded',
+      severity: 'medium',
+      requiresReporting: false,
+      description: `Data quality degradation detected on ${aiSystem.name}. Input data monitoring required.`,
+      affectedSystem: {
+        id: aiSystem.id,
+        name: aiSystem.name,
+        department: aiSystem.department,
+      },
+      detectedAt: event.metadata.timestamp,
+    }];
+  }
+
+  /**
+   * EXPLAINABILITY FAILURE
+   * - NIST AI RMF: MEASURE-2.3 (Transparency)
+   * - NYC Local Law 144: Explainability requirements
+   */
+  private async handleExplainabilityFailure(event: ParsedEvent, aiSystem: AISystem): Promise<ComplianceViolation[]> {
+    const isEmploymentAI = aiSystem.department === 'HR' || aiSystem.name.toLowerCase().includes('hiring');
+    
+    return [{
+      framework: isEmploymentAI ? 'NYC_LL144' : 'NIST_AI_RMF',
+      controlId: isEmploymentAI ? 'NYC-LL144-1' : 'MEASURE-2.3',
+      controlName: isEmploymentAI ? 'Bias Audit Requirement' : 'AI system transparency',
+      violationType: 'deviation',
+      severity: isEmploymentAI ? 'high' : 'low',
+      requiresReporting: isEmploymentAI,
+      reportingDeadline: isEmploymentAI ? this.calculateDeadline(90) : undefined,
+      description: `Explainability failure on ${aiSystem.name}. ${isEmploymentAI ? 'NYC Local Law 144 requires bias audit documentation.' : 'Transparency controls required.'}`,
+      affectedSystem: {
+        id: aiSystem.id,
+        name: aiSystem.name,
+        department: aiSystem.department,
+      },
+      detectedAt: event.metadata.timestamp,
+    }];
+  }
+
   /**
    * Helper: Calculate regulatory reporting deadline
    */

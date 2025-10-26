@@ -9,6 +9,7 @@
 
 import { ComplianceMapping } from "./compliance-mapping";
 import { ActionGenerator } from "./action-generator";
+import { eventNormalizer } from "./event-normalizer";
 import { calculateRiskScore } from "../risk-scoring";
 import type {
   ParsedEvent,
@@ -68,112 +69,38 @@ export class TranslationEngine {
   }
   
   /**
-   * Parse telemetry event into standardized format
+   * Parse telemetry event into standardized format using Event Normalizer
    */
   private async parseEvent(event: AITelemetryEvent): Promise<ParsedEvent> {
     // Get AI system for context
     const aiSystem = await storage.getAISystem(event.aiSystemId);
     
-    // Map event type from telemetry source
-    const eventType = this.mapEventType(event.eventType, event.metric);
-    
     // Extract metrics from payload
     const payload = event.payload ? JSON.parse(event.payload) : {};
-    const metrics = this.extractMetrics(event, payload);
+    
+    // Normalize event using Phase 1 Event Normalizer (20 event types)
+    const normalization = eventNormalizer.normalize(event, payload);
     
     return {
-      eventType,
-      severity: (event.severity as Severity) || 'medium',
-      metrics,
+      eventType: normalization.eventType,
+      severity: normalization.severity,
+      metrics: {
+        ...normalization.metrics,
+        // Add metricValue from event if not already set
+        metricValue: normalization.metrics.metricValue ?? (event.metricValue ? parseFloat(event.metricValue) : undefined),
+      },
       metadata: {
         source: event.source,
         runId: event.runId || undefined,
         ruleId: event.ruleId || undefined,
         timestamp: event.createdAt,
         originalPayload: payload,
+        normalizationConfidence: normalization.confidence,
       },
       aiSystemId: event.aiSystemId,
       aiSystem: aiSystem || undefined,
     };
   }
-  
-  /**
-   * Map telemetry event types to our standardized event types
-   */
-  private mapEventType(eventType: string, metric?: string | null): EventType {
-    // LangSmith/monitoring platform → Standardized event type
-    const lowercaseType = eventType.toLowerCase();
-    const lowercaseMetric = metric?.toLowerCase() || '';
-    
-    // PHI leakage detection
-    if (lowercaseMetric.includes('phi') || 
-        lowercaseMetric.includes('pii') ||
-        lowercaseType.includes('leakage') ||
-        lowercaseType.includes('privacy')) {
-      return 'phi_leakage';
-    }
-    
-    // Model drift
-    if (lowercaseMetric.includes('drift') || 
-        lowercaseMetric.includes('accuracy') ||
-        lowercaseType.includes('drift') ||
-        lowercaseType.includes('performance')) {
-      return 'drift';
-    }
-    
-    // Bias/fairness
-    if (lowercaseMetric.includes('bias') ||
-        lowercaseMetric.includes('fairness') ||
-        lowercaseMetric.includes('demographic')) {
-      return 'bias';
-    }
-    
-    // Latency
-    if (lowercaseMetric.includes('latency') ||
-        lowercaseMetric.includes('response_time') ||
-        lowercaseMetric.includes('duration')) {
-      return 'latency';
-    }
-    
-    // Default to error
-    return 'error';
-  }
-  
-  /**
-   * Extract metrics from telemetry payload
-   */
-  private extractMetrics(event: AITelemetryEvent, payload: any): ParsedEvent['metrics'] {
-    const metrics: ParsedEvent['metrics'] = {};
-    
-    // Try to extract common metrics
-    if (payload.accuracy_drop !== undefined) {
-      metrics.accuracyDrop = parseFloat(payload.accuracy_drop);
-    }
-    
-    if (payload.error_rate !== undefined) {
-      metrics.errorRate = parseFloat(payload.error_rate);
-    }
-    
-    if (payload.latency_increase !== undefined) {
-      metrics.latencyIncreasePct = parseFloat(payload.latency_increase);
-    }
-    
-    if (payload.demographic_variance !== undefined) {
-      metrics.demographicVariance = parseFloat(payload.demographic_variance);
-    }
-    
-    if (payload.phi_exposure_count !== undefined) {
-      metrics.phiExposureCount = parseInt(payload.phi_exposure_count);
-    }
-    
-    // Store metric value from event
-    if (event.metricValue) {
-      metrics.metricValue = parseFloat(event.metricValue);
-    }
-    
-    return metrics;
-  }
-  
   /**
    * Calculate overall risk score
    */
