@@ -7484,6 +7484,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 🔒 Policy Administration Routes (IP Moat)
+  const { registerPolicyAdminRoutes } = await import("./routes/policy-admin");
+  registerPolicyAdminRoutes(app);
+
   const httpServer = createServer(app);
   
   // Initialize WebSocket server for real-time updates
