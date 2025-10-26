@@ -122,6 +122,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const { certificationWorkflow } = await import("./inngest/functions/certification-workflow");
     const { predictiveAlertsJob, predictiveAlertsOnDemand } = await import("./inngest/functions/predictive-alerts");
     const { automatedActionExecutor } = await import("./inngest/functions/action-executor");
+    const { telemetryPollingJob, telemetryPollingOnDemand } = await import("./inngest/functions/telemetry-polling");
     
     app.use(
       "/api/inngest",
@@ -132,6 +133,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           predictiveAlertsJob,
           predictiveAlertsOnDemand,
           automatedActionExecutor,
+          telemetryPollingJob,
+          telemetryPollingOnDemand,
         ],
       })
     );

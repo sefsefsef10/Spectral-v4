@@ -37,6 +37,11 @@ type Events = {
       severity: string;
     };
   };
+  "telemetry/poll.trigger": {
+    data: {
+      aiSystemId: string;
+    };
+  };
 };
 
 /**
