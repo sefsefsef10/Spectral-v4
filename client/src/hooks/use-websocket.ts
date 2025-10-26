@@ -2,11 +2,33 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 
-export interface WebSocketEvent {
-  type: 'alert_created' | 'alert_resolved' | 'compliance_updated' | 'vendor_status_changed' | 'system_status_changed' | 'connection_established' | 'pong';
-  payload: any;
-  timestamp: Date;
+interface AlertPayload {
+  id: string;
+  aiSystemId: string;
+  type: string;
+  severity: string;
+  message: string;
 }
+
+interface CompliancePayload {
+  aiSystemId: string;
+  controlId: string;
+  status: string;
+}
+
+interface StatusPayload {
+  id: string;
+  status: string;
+}
+
+export type WebSocketEvent =
+  | { type: 'alert_created'; payload: AlertPayload; timestamp: Date }
+  | { type: 'alert_resolved'; payload: { id: string }; timestamp: Date }
+  | { type: 'compliance_updated'; payload: CompliancePayload; timestamp: Date }
+  | { type: 'vendor_status_changed'; payload: StatusPayload; timestamp: Date }
+  | { type: 'system_status_changed'; payload: StatusPayload; timestamp: Date }
+  | { type: 'connection_established'; payload: Record<string, never>; timestamp: Date }
+  | { type: 'pong'; payload: Record<string, never>; timestamp: Date };
 
 export interface UseWebSocketOptions {
   onMessage?: (event: WebSocketEvent) => void;
