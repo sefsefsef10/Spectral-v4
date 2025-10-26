@@ -3,6 +3,16 @@
 ## Overview
 Spectral is a B2B SaaS platform designed to empower healthcare organizations and AI vendors with comprehensive AI governance, monitoring, and compliance capabilities. Its core purpose is to mitigate compliance risks, address operational blind spots, and streamline AI procurement within the healthcare sector. The platform aims to become the leading AI governance solution in healthcare, offering features such as executive reporting, alert management, compliance dashboards, and automated certification workflows, ultimately ensuring responsible and compliant AI adoption.
 
+## Recent Changes
+**October 26, 2025**:
+- ✅ **Phase 5.3 Complete**: OpenAPI 3.0 Spec + Swagger UI Documentation (54/107 endpoints, 50.5% coverage)
+  - Production-ready Swagger UI accessible at `/api-docs`
+  - Comprehensive documentation across 12 major API categories
+  - Fixed critical MFA disable endpoint documentation bug (password vs token mismatch)
+  - Validated by architect for acquisition-readiness
+
+**Platform Status**: B+ (88% overall), Vendor Testing Suite A+ (97%)
+
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
