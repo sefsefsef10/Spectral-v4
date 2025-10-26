@@ -33,7 +33,10 @@ export const users = pgTable("users", {
   healthSystemId: varchar("health_system_id").references(() => healthSystems.id, { onDelete: "set null" }),
   vendorId: varchar("vendor_id").references(() => vendors.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  // Index for email lookups during authentication
+  emailIdx: sql`CREATE INDEX IF NOT EXISTS idx_users_email ON ${table} (email)`,
+}));
 
 // User invitations for enterprise user management
 export const userInvitations = pgTable("user_invitations", {

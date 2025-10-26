@@ -201,12 +201,24 @@ app.use(express.urlencoded({ extended: false }));
 
   const server = await registerRoutes(app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+    
+    logger.error({ 
+      err, 
+      method: req.method, 
+      url: req.url,
+      userId: (req as any).session?.userId 
+    }, 'Unhandled error');
+    
+    const message = process.env.NODE_ENV === 'production'
+      ? (status < 500 ? err.message : 'Internal server error')
+      : err.message || "Internal Server Error";
 
-    res.status(status).json({ message });
-    throw err;
+    res.status(status).json({ 
+      error: message,
+      ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+    });
   });
 
   // importantly only setup vite in development and after
