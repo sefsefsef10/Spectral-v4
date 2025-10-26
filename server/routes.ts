@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { logger } from "./logger";
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
@@ -253,21 +254,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         vendorId = vendor.id;
       }
       
+      // Generate email verification token (32 bytes = 64 hex chars)
+      const verificationToken = crypto.randomBytes(32).toString('hex');
+      const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+      
+      // Hash the verification token before storing (security best practice)
+      const verificationTokenHash = crypto.createHash('sha256').update(verificationToken).digest('hex');
+      
       // Create user with org association - first user is admin
       const user = await storage.createUser({
         username: data.username,
         password: hashedPassword,
         email: data.email,
+        emailVerified: false,
+        emailVerificationToken: verificationTokenHash,
+        emailVerificationTokenExpiry: tokenExpiry,
         role: data.role,
         permissions: 'admin', // First user for organization is always admin
         healthSystemId,
         vendorId,
       });
       
-      // Set session
-      req.session.userId = user.id;
+      // Send verification email
+      const verificationUrl = `${req.protocol}://${req.get('host')}/api/auth/verify-email?token=${verificationToken}`;
+      const { sendEmailVerificationEmail } = await import("./services/email-notification");
+      await sendEmailVerificationEmail(user.email, user.username, verificationUrl);
       
-      res.status(201).json(sanitizeUser(user));
+      // Do NOT set session until email is verified
+      // req.session.userId = user.id;
+      
+      res.status(201).json({ 
+        message: "Registration successful! Please check your email to verify your account.",
+        email: user.email,
+        emailSent: true
+      });
     } catch (error) {
       res.status(400).json({ error: "Invalid registration data" });
     }
@@ -338,6 +358,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Invalid credentials" });
       }
       
+      // Check if email is verified
+      if (!user.emailVerified) {
+        return res.status(403).json({ 
+          error: "Email not verified. Please check your email for verification link.",
+          emailVerified: false
+        });
+      }
+      
       // Check if MFA is enabled
       if (user.mfaEnabled && user.mfaSecret) {
         if (!mfaToken) {
@@ -400,6 +428,137 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.json({ message: "Logged out successfully" });
     });
+  });
+  
+  // Email verification endpoint
+  app.get("/api/auth/verify-email", async (req, res) => {
+    try {
+      const { token } = req.query;
+      if (!token || typeof token !== 'string') {
+        return res.status(400).json({ error: "Invalid verification token" });
+      }
+      
+      // Find user by verification token
+      const user = await storage.getUserByVerificationToken(token);
+      if (!user) {
+        return res.status(400).json({ error: "Invalid or expired verification token" });
+      }
+      
+      // Check if token is expired
+      if (user.emailVerificationTokenExpiry && new Date() > user.emailVerificationTokenExpiry) {
+        return res.status(400).json({ error: "Verification token has expired. Please request a new one." });
+      }
+      
+      // Mark email as verified and clear token
+      await storage.verifyUserEmail(user.id);
+      
+      // Automatically log in the user
+      req.session.userId = user.id;
+      
+      res.json({ message: "Email verified successfully! You can now log in.", emailVerified: true });
+    } catch (error) {
+      logger.error({ err: error }, "Email verification error");
+      res.status(500).json({ error: "Failed to verify email" });
+    }
+  });
+  
+  // Resend verification email
+  app.post("/api/auth/resend-verification", authRateLimit, async (req, res) => {
+    try {
+      const { email } = z.object({ email: z.string().email() }).parse(req.body);
+      
+      // Find user by email
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        // Don't reveal if user exists for security
+        return res.json({ message: "If your email is registered, you will receive a verification link." });
+      }
+      
+      // Check if already verified
+      if (user.emailVerified) {
+        return res.status(400).json({ error: "Email is already verified" });
+      }
+      
+      // Generate new verification token
+      const verificationToken = crypto.randomBytes(32).toString('hex');
+      const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+      
+      // Update user with new token
+      await storage.updateUserVerificationToken(user.id, verificationToken, tokenExpiry);
+      
+      // Send verification email
+      const verificationUrl = `${req.protocol}://${req.get('host')}/api/auth/verify-email?token=${verificationToken}`;
+      const { sendEmailVerificationEmail } = await import("./services/email-notification");
+      await sendEmailVerificationEmail(user.email, user.username, verificationUrl);
+      
+      res.json({ message: "Verification email sent. Please check your inbox." });
+    } catch (error) {
+      logger.error({ err: error }, "Resend verification error");
+      res.status(500).json({ error: "Failed to resend verification email" });
+    }
+  });
+  
+  // Forgot password - send reset email
+  app.post("/api/auth/forgot-password", authRateLimit, async (req, res) => {
+    try {
+      const { email } = z.object({ email: z.string().email() }).parse(req.body);
+      
+      // Find user by email
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        // Don't reveal if user exists for security
+        return res.json({ message: "If your email is registered, you will receive a password reset link." });
+      }
+      
+      // Generate password reset token
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      const tokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+      
+      // Update user with reset token
+      await storage.updateUserPasswordResetToken(user.id, resetToken, tokenExpiry);
+      
+      // Send password reset email
+      const resetUrl = `${req.protocol}://${req.get('host')}/reset-password?token=${resetToken}`;
+      const { sendPasswordResetEmail } = await import("./services/email-notification");
+      await sendPasswordResetEmail(user.email, user.username, resetUrl);
+      
+      res.json({ message: "Password reset link sent. Please check your email." });
+    } catch (error) {
+      logger.error({ err: error }, "Forgot password error");
+      res.status(500).json({ error: "Failed to send password reset email" });
+    }
+  });
+  
+  // Reset password with token
+  app.post("/api/auth/reset-password", authRateLimit, async (req, res) => {
+    try {
+      const { token, newPassword } = z.object({
+        token: z.string(),
+        newPassword: z.string().min(6)
+      }).parse(req.body);
+      
+      // Find user by reset token
+      const user = await storage.getUserByPasswordResetToken(token);
+      if (!user) {
+        return res.status(400).json({ error: "Invalid or expired reset token" });
+      }
+      
+      // Check if token is expired
+      if (user.passwordResetTokenExpiry && new Date() > user.passwordResetTokenExpiry) {
+        return res.status(400).json({ error: "Reset token has expired. Please request a new one." });
+      }
+      
+      // Hash new password
+      const hashedPassword = await hashPassword(newPassword);
+      
+      // Update password and clear reset token
+      await storage.resetUserPassword(user.id, hashedPassword);
+      
+      res.json({ message: "Password reset successfully. You can now log in with your new password." });
+    } catch (error) {
+      logger.error({ err: error }, "Reset password error");
+      res.status(500).json({ error: "Failed to reset password" });
+    }
   });
   
   /**

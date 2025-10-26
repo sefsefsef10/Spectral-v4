@@ -69,10 +69,16 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByVerificationToken(token: string): Promise<User | undefined>;
+  getUserByPasswordResetToken(token: string): Promise<User | undefined>;
   getUsersByOrganization(healthSystemId?: string, vendorId?: string): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<InsertUser>): Promise<User | undefined>;
   updateUserLastLogin(id: string): Promise<void>;
+  verifyUserEmail(id: string): Promise<void>;
+  updateUserVerificationToken(id: string, token: string, expiry: Date): Promise<void>;
+  updateUserPasswordResetToken(id: string, token: string, expiry: Date): Promise<void>;
+  resetUserPassword(id: string, hashedPassword: string): Promise<void>;
 
   // User Invitation operations
   createUserInvitation(invitation: InsertUserInvitation): Promise<UserInvitation>;
@@ -238,6 +244,54 @@ export class DatabaseStorage implements IStorage {
 
   async updateUserLastLogin(id: string): Promise<void> {
     await db.update(users).set({ lastLogin: new Date() }).where(eq(users.id, id));
+  }
+
+  async getUserByVerificationToken(token: string): Promise<User | undefined> {
+    const crypto = await import('crypto');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const [user] = await db.select().from(users).where(eq(users.emailVerificationToken, tokenHash));
+    return user || undefined;
+  }
+
+  async getUserByPasswordResetToken(token: string): Promise<User | undefined> {
+    const crypto = await import('crypto');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const [user] = await db.select().from(users).where(eq(users.passwordResetToken, tokenHash));
+    return user || undefined;
+  }
+
+  async verifyUserEmail(id: string): Promise<void> {
+    await db.update(users).set({
+      emailVerified: true,
+      emailVerificationToken: null,
+      emailVerificationTokenExpiry: null
+    }).where(eq(users.id, id));
+  }
+
+  async updateUserVerificationToken(id: string, token: string, expiry: Date): Promise<void> {
+    const crypto = await import('crypto');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    await db.update(users).set({
+      emailVerificationToken: tokenHash,
+      emailVerificationTokenExpiry: expiry
+    }).where(eq(users.id, id));
+  }
+
+  async updateUserPasswordResetToken(id: string, token: string, expiry: Date): Promise<void> {
+    const crypto = await import('crypto');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    await db.update(users).set({
+      passwordResetToken: tokenHash,
+      passwordResetTokenExpiry: expiry
+    }).where(eq(users.id, id));
+  }
+
+  async resetUserPassword(id: string, hashedPassword: string): Promise<void> {
+    await db.update(users).set({
+      password: hashedPassword,
+      passwordResetToken: null,
+      passwordResetTokenExpiry: null
+    }).where(eq(users.id, id));
   }
 
   // User Invitation operations
