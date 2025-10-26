@@ -126,7 +126,7 @@ export async function calculatePHIRiskScore(aiSystemId: string): Promise<number>
     
     // Filter for recent events (last 24 hours) for scoring
     const recentEvents = allEvents.filter((e: any) => {
-      const eventTime = new Date(e.timestamp).getTime();
+      const eventTime = new Date(e.createdAt).getTime();
       const dayAgo = Date.now() - (24 * 60 * 60 * 1000);
       return eventTime > dayAgo;
     });
@@ -215,7 +215,7 @@ export async function calculateComprehensivePHIRisk(aiSystemId: string): Promise
     // Get recent PHI events for breakdown
     const events = await storage.getAITelemetryEvents(aiSystemId);
     const recentEvents = events.filter((e: any) => {
-      const eventTime = new Date(e.timestamp).getTime();
+      const eventTime = new Date(e.createdAt).getTime();
       const dayAgo = Date.now() - (24 * 60 * 60 * 1000);
       return eventTime > dayAgo;
     });
@@ -284,7 +284,7 @@ export async function calculateComprehensivePHIRisk(aiSystemId: string): Promise
 
     // Calculate trend (compare last 24h vs previous 24h)
     const previousEvents = events.filter((e: any) => {
-      const eventTime = new Date(e.timestamp).getTime();
+      const eventTime = new Date(e.createdAt).getTime();
       const twoDaysAgo = Date.now() - (48 * 60 * 60 * 1000);
       const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
       return eventTime > twoDaysAgo && eventTime <= oneDayAgo;

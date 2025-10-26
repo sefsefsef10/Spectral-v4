@@ -3746,6 +3746,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get scoring pipeline health monitoring (M&A acquisition readiness)
+  app.get("/api/health-systems/:id/analytics/scoring-health", requireRole("health_system"), async (req, res) => {
+    try {
+      const { id: healthSystemId } = req.params;
+      
+      // Verify ownership
+      if (!req.session.userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const user = await storage.getUser(req.session.userId);
+      if (!user || user.healthSystemId !== healthSystemId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const { checkPortfolioScoringHealth } = await import("./services/monitoring/scoring-health");
+      const health = await checkPortfolioScoringHealth(healthSystemId);
+      
+      res.json(health);
+    } catch (error) {
+      logger.error({ err: error }, "Scoring health monitoring error");
+      res.status(500).json({ error: "Failed to check scoring pipeline health" });
+    }
+  });
+
   // Get PHI risk score breakdown for individual AI system
   app.get("/api/ai-systems/:id/scoring/phi-risk", requireAuth, async (req, res) => {
     try {

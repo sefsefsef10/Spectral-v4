@@ -82,7 +82,7 @@ async function calculateClinicalAccuracyScore(aiSystemId: string): Promise<numbe
     
     // Get recent clinical accuracy events (last 7 days for clinical metrics)
     const recentEvents = events.filter((e: any) => {
-      const eventTime = new Date(e.timestamp).getTime();
+      const eventTime = new Date(e.createdAt).getTime();
       const weekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
       return eventTime > weekAgo && CLINICAL_ACCURACY_EVENTS.includes(e.eventType);
     });
@@ -132,7 +132,7 @@ async function calculateBiasScore(aiSystemId: string): Promise<number> {
     
     // Get recent bias events (last 30 days)
     const recentEvents = events.filter((e: any) => {
-      const eventTime = new Date(e.timestamp).getTime();
+      const eventTime = new Date(e.createdAt).getTime();
       const monthAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
       return eventTime > monthAgo && BIAS_EVENTS.includes(e.eventType);
     });
@@ -178,7 +178,7 @@ async function calculateHallucinationScore(aiSystemId: string): Promise<number> 
     
     // Get recent hallucination events (last 7 days)
     const recentEvents = events.filter((e: any) => {
-      const eventTime = new Date(e.timestamp).getTime();
+      const eventTime = new Date(e.createdAt).getTime();
       const weekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
       return eventTime > weekAgo && HALLUCINATION_EVENTS.includes(e.eventType);
     });
@@ -208,7 +208,7 @@ async function calculatePatientSafetyScore(aiSystemId: string): Promise<number> 
     
     // Get patient safety events (last 30 days)
     const recentEvents = events.filter((e: any) => {
-      const eventTime = new Date(e.timestamp).getTime();
+      const eventTime = new Date(e.createdAt).getTime();
       const monthAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
       return eventTime > monthAgo && PATIENT_SAFETY_EVENTS.includes(e.eventType);
     });
@@ -334,7 +334,7 @@ export async function calculateClinicalSafetyScore(aiSystemId: string): Promise<
     // Get event counts for risk factors
     const events = await storage.getAITelemetryEvents(aiSystemId);
     const monthAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-    const recentEvents = events.filter((e: any) => new Date(e.timestamp).getTime() > monthAgo);
+    const recentEvents = events.filter((e: any) => new Date(e.createdAt).getTime() > monthAgo);
 
     const riskFactors = {
       inaccurateDiagnoses: recentEvents.filter((e: any) => 
@@ -353,7 +353,7 @@ export async function calculateClinicalSafetyScore(aiSystemId: string): Promise<
 
     // Calculate trend (compare last 30 days vs previous 30 days)
     const previousEvents = events.filter((e: any) => {
-      const eventTime = new Date(e.timestamp).getTime();
+      const eventTime = new Date(e.createdAt).getTime();
       const twoMonthsAgo = Date.now() - (60 * 24 * 60 * 60 * 1000);
       return eventTime > twoMonthsAgo && eventTime <= monthAgo;
     });

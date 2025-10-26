@@ -73,14 +73,14 @@ export function validateTelemetry(
     };
   }
 
-  // Find most recent event
+  // Find most recent event (using createdAt field from schema)
   const mostRecentEvent = events.reduce((latest: any, event: any) => {
-    const eventTime = new Date(event.timestamp).getTime();
-    const latestTime = latest ? new Date(latest.timestamp).getTime() : 0;
+    const eventTime = new Date(event.createdAt).getTime();
+    const latestTime = latest ? new Date(latest.createdAt).getTime() : 0;
     return eventTime > latestTime ? event : latest;
   }, null);
 
-  const mostRecentTime = mostRecentEvent ? new Date(mostRecentEvent.timestamp).getTime() : 0;
+  const mostRecentTime = mostRecentEvent ? new Date(mostRecentEvent.createdAt).getTime() : 0;
   const age = (Date.now() - mostRecentTime) / (60 * 60 * 1000); // in hours
   const ageInDays = Math.round(age / 24);
 
