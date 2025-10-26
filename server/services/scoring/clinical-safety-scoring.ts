@@ -97,15 +97,19 @@ async function calculateClinicalAccuracyScore(aiSystemId: string): Promise<numbe
       return sum + 5;
     }, 0);
 
-    // Look for clinical validation test results in vendor test results
-    const testResults = await storage.getVendorTestResultsByVendor(aiSystemId);
-    const clinicalTests = testResults.filter((t: any) => t.testType === 'clinical_accuracy');
-    
-    if (clinicalTests.length > 0) {
-      // Use latest test score if available
-      const latestTest = clinicalTests[clinicalTests.length - 1];
-      if (latestTest.score !== null) {
-        return latestTest.score;
+    // Get AI system to find vendor ID
+    const aiSystem = await storage.getAISystem(aiSystemId);
+    if (aiSystem && aiSystem.vendorId) {
+      // Look for clinical validation test results in vendor test results
+      const testResults = await storage.getVendorTestResultsByVendor(aiSystem.vendorId);
+      const clinicalTests = testResults.filter((t: any) => t.testType === 'clinical_accuracy');
+      
+      if (clinicalTests.length > 0) {
+        // Use latest test score if available
+        const latestTest = clinicalTests[clinicalTests.length - 1];
+        if (latestTest.score !== null) {
+          return latestTest.score;
+        }
       }
     }
 
@@ -140,14 +144,18 @@ async function calculateBiasScore(aiSystemId: string): Promise<number> {
       return sum + 5;
     }, 0);
 
-    // Check for bias test results
-    const testResults = await storage.getVendorTestResultsByVendor(aiSystemId);
-    const biasTests = testResults.filter((t: any) => t.testType === 'bias_detection');
-    
-    if (biasTests.length > 0) {
-      const latestTest = biasTests[biasTests.length - 1];
-      if (latestTest.score !== null) {
-        return latestTest.score;
+    // Get AI system to find vendor ID
+    const aiSystem = await storage.getAISystem(aiSystemId);
+    if (aiSystem && aiSystem.vendorId) {
+      // Check for bias test results
+      const testResults = await storage.getVendorTestResultsByVendor(aiSystem.vendorId);
+      const biasTests = testResults.filter((t: any) => t.testType === 'bias_detection');
+      
+      if (biasTests.length > 0) {
+        const latestTest = biasTests[biasTests.length - 1];
+        if (latestTest.score !== null) {
+          return latestTest.score;
+        }
       }
     }
 

@@ -3696,6 +3696,143 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== Healthcare-Specific Scoring Routes (A- Grade Transformation) =====
+
+  // Get comprehensive healthcare portfolio score (PHI + Clinical + Regulatory + Operational)
+  app.get("/api/health-systems/:id/analytics/healthcare-score", requireRole("health_system"), async (req, res) => {
+    try {
+      const { id: healthSystemId } = req.params;
+      
+      // Verify ownership
+      if (!req.session.userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const user = await storage.getUser(req.session.userId);
+      if (!user || user.healthSystemId !== healthSystemId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const { calculateHealthcarePortfolioScore } = await import("./services/analytics-healthcare-scoring");
+      const score = await calculateHealthcarePortfolioScore(healthSystemId);
+      
+      res.json(score);
+    } catch (error) {
+      logger.error({ err: error }, "Healthcare score error");
+      res.status(500).json({ error: "Failed to calculate healthcare portfolio score" });
+    }
+  });
+
+  // Get response time metrics (for "2-minute rollback" claims)
+  app.get("/api/health-systems/:id/analytics/response-times", requireRole("health_system"), async (req, res) => {
+    try {
+      const { id: healthSystemId } = req.params;
+      
+      // Verify ownership
+      if (!req.session.userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const user = await storage.getUser(req.session.userId);
+      if (!user || user.healthSystemId !== healthSystemId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const { getResponseTimeMetrics } = await import("./services/analytics-healthcare-scoring");
+      const metrics = await getResponseTimeMetrics(healthSystemId);
+      
+      res.json(metrics);
+    } catch (error) {
+      logger.error({ err: error }, "Response time metrics error");
+      res.status(500).json({ error: "Failed to calculate response time metrics" });
+    }
+  });
+
+  // Get PHI risk score breakdown for individual AI system
+  app.get("/api/ai-systems/:id/scoring/phi-risk", requireAuth, async (req, res) => {
+    try {
+      const { id: aiSystemId } = req.params;
+      
+      // Verify access
+      const system = await storage.getAISystem(aiSystemId);
+      if (!system) {
+        return res.status(404).json({ error: "AI system not found" });
+      }
+      
+      if (!req.session.userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const user = await storage.getUser(req.session.userId);
+      if (!user || user.healthSystemId !== system.healthSystemId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const { calculateComprehensivePHIRisk } = await import("./services/scoring/phi-risk-scoring");
+      const phiRisk = await calculateComprehensivePHIRisk(aiSystemId);
+      
+      res.json(phiRisk);
+    } catch (error) {
+      logger.error({ err: error }, "PHI risk scoring error");
+      res.status(500).json({ error: "Failed to calculate PHI risk score" });
+    }
+  });
+
+  // Get clinical safety score breakdown for individual AI system
+  app.get("/api/ai-systems/:id/scoring/clinical-safety", requireAuth, async (req, res) => {
+    try {
+      const { id: aiSystemId } = req.params;
+      
+      // Verify access
+      const system = await storage.getAISystem(aiSystemId);
+      if (!system) {
+        return res.status(404).json({ error: "AI system not found" });
+      }
+      
+      if (!req.session.userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const user = await storage.getUser(req.session.userId);
+      if (!user || user.healthSystemId !== system.healthSystemId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const { calculateClinicalSafetyScore } = await import("./services/scoring/clinical-safety-scoring");
+      const clinicalSafety = await calculateClinicalSafetyScore(aiSystemId);
+      
+      res.json(clinicalSafety);
+    } catch (error) {
+      logger.error({ err: error }, "Clinical safety scoring error");
+      res.status(500).json({ error: "Failed to calculate clinical safety score" });
+    }
+  });
+
+  // Get framework-specific compliance breakdown for individual AI system
+  app.get("/api/ai-systems/:id/scoring/compliance-breakdown", requireAuth, async (req, res) => {
+    try {
+      const { id: aiSystemId } = req.params;
+      
+      // Verify access
+      const system = await storage.getAISystem(aiSystemId);
+      if (!system) {
+        return res.status(404).json({ error: "AI system not found" });
+      }
+      
+      if (!req.session.userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const user = await storage.getUser(req.session.userId);
+      if (!user || user.healthSystemId !== system.healthSystemId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const { calculateComplianceBreakdown } = await import("./services/scoring/framework-compliance-scoring");
+      const compliance = await calculateComplianceBreakdown(aiSystemId);
+      
+      res.json(compliance);
+    } catch (error) {
+      logger.error({ err: error }, "Compliance breakdown error");
+      res.status(500).json({ error: "Failed to calculate compliance breakdown" });
+    }
+  });
+
   // ===== Compliance Template Library =====
   
   // List all compliance templates with optional filtering
