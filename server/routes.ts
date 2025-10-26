@@ -123,6 +123,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const { predictiveAlertsJob, predictiveAlertsOnDemand } = await import("./inngest/functions/predictive-alerts");
     const { automatedActionExecutor } = await import("./inngest/functions/action-executor");
     const { telemetryPollingJob, telemetryPollingOnDemand } = await import("./inngest/functions/telemetry-polling");
+    const { scheduledProviderSync, onDemandProviderSync } = await import("./inngest/functions/provider-sync");
     
     app.use(
       "/api/inngest",
@@ -135,6 +136,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           automatedActionExecutor,
           telemetryPollingJob,
           telemetryPollingOnDemand,
+          scheduledProviderSync,
+          onDemandProviderSync,
         ],
       })
     );
@@ -7922,6 +7925,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   const { registerBillingRoutes } = await import("./routes/billing");
   registerBillingRoutes(app);
+
+  // Provider Connections API (Epic, Cerner, LangSmith integrations)
+  const providerConnectionsRouter = (await import("./routes/provider-connections")).default;
+  app.use("/api/provider-connections", requireAuth, providerConnectionsRouter);
 
   const httpServer = createServer(app);
   

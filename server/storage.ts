@@ -121,6 +121,7 @@ export interface IStorage {
 
   // Health System operations
   getHealthSystem(id: string): Promise<HealthSystem | undefined>;
+  getAllHealthSystems(): Promise<HealthSystem[]>;
   createHealthSystem(healthSystem: InsertHealthSystem): Promise<HealthSystem>;
   updateHealthSystem(id: string, data: Partial<InsertHealthSystem>): Promise<void>;
 
@@ -449,6 +450,10 @@ export class DatabaseStorage implements IStorage {
   async createHealthSystem(insertHealthSystem: InsertHealthSystem): Promise<HealthSystem> {
     const [healthSystem] = await db.insert(healthSystems).values(insertHealthSystem).returning();
     return healthSystem;
+  }
+
+  async getAllHealthSystems(): Promise<HealthSystem[]> {
+    return db.select().from(healthSystems);
   }
 
   async updateHealthSystem(id: string, data: Partial<InsertHealthSystem>): Promise<void> {

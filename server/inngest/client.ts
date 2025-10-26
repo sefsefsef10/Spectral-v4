@@ -42,6 +42,12 @@ type Events = {
       aiSystemId: string;
     };
   };
+  "provider/sync.trigger": {
+    data: {
+      connectionId: string;
+      triggeredBy?: string;
+    };
+  };
 };
 
 /**
