@@ -491,6 +491,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Resend verification email
+  /**
+   * @openapi
+   * /api/auth/resend-verification:
+   *   post:
+   *     summary: Resend email verification
+   *     description: Resend verification email for unverified account
+   *     tags: [Authentication]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [email]
+   *             properties:
+   *               email:
+   *                 type: string
+   *                 format: email
+   *     responses:
+   *       200:
+   *         description: Verification email sent
+   *       400:
+   *         description: Email already verified or user not found
+   */
   app.post("/api/auth/resend-verification", authRateLimit, async (req, res) => {
     try {
       const { email } = z.object({ email: z.string().email() }).parse(req.body);
@@ -527,6 +551,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Forgot password - send reset email
+  /**
+   * @openapi
+   * /api/auth/forgot-password:
+   *   post:
+   *     summary: Request password reset
+   *     description: Send password reset email with secure token
+   *     tags: [Authentication]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [email]
+   *             properties:
+   *               email:
+   *                 type: string
+   *                 format: email
+   *     responses:
+   *       200:
+   *         description: Reset email sent if account exists
+   */
   app.post("/api/auth/forgot-password", authRateLimit, async (req, res) => {
     try {
       const { email } = z.object({ email: z.string().email() }).parse(req.body);
@@ -558,6 +604,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Reset password with token
+  /**
+   * @openapi
+   * /api/auth/reset-password:
+   *   post:
+   *     summary: Reset password with token
+   *     description: Complete password reset using token from email
+   *     tags: [Authentication]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [token, newPassword]
+   *             properties:
+   *               token:
+   *                 type: string
+   *               newPassword:
+   *                 type: string
+   *                 minLength: 6
+   *     responses:
+   *       200:
+   *         description: Password reset successfully
+   *       400:
+   *         description: Invalid or expired token
+   */
   app.post("/api/auth/reset-password", authRateLimit, async (req, res) => {
     try {
       const { token, newPassword } = z.object({
@@ -1397,6 +1469,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get pending invitations
+  /**
+   * @openapi
+   * /api/users/invitations:
+   *   get:
+   *     summary: Get user invitations
+   *     description: List all pending user invitations for organization
+   *     tags: [Users]
+   *     security:
+   *       - cookieAuth: []
+   *     responses:
+   *       200:
+   *         description: List of invitations
+   *       401:
+   *         description: Not authenticated
+   */
   app.get("/api/users/invitations", requireAuth, async (req, res) => {
     try {
       const currentUser = await storage.getUser(req.session.userId!);
@@ -1422,6 +1509,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Accept invitation (public - requires token)
+  /**
+   * @openapi
+   * /api/users/invitations/accept:
+   *   post:
+   *     summary: Accept user invitation
+   *     description: Accept invitation using token from email and complete registration
+   *     tags: [Users]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [token, password]
+   *             properties:
+   *               token:
+   *                 type: string
+   *               password:
+   *                 type: string
+   *     responses:
+   *       200:
+   *         description: Invitation accepted and user registered
+   *       400:
+   *         description: Invalid or expired token
+   */
   app.post("/api/users/invitations/accept", async (req, res) => {
     try {
       const schema = z.object({
@@ -1512,6 +1624,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get organization settings
+  /**
+   * @openapi
+   * /api/organization:
+   *   get:
+   *     summary: Get organization details
+   *     description: Retrieve details of user's organization (health system or vendor)
+   *     tags: [Users]
+   *     security:
+   *       - cookieAuth: []
+   *     responses:
+   *       200:
+   *         description: Organization details
+   *       401:
+   *         description: Not authenticated
+   */
   app.get("/api/organization", requireAuth, async (req, res) => {
     try {
       const currentUser = await storage.getUser(req.session.userId!);
@@ -1541,6 +1668,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Update organization settings (admin only)
+  /**
+   * @openapi
+   * /api/organization:
+   *   patch:
+   *     summary: Update organization
+   *     description: Update organization details (name, location, etc)
+   *     tags: [Users]
+   *     security:
+   *       - cookieAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *     responses:
+   *       200:
+   *         description: Organization updated
+   *       401:
+   *         description: Not authenticated
+   */
   app.patch("/api/organization", requireAuth, async (req, res) => {
     try {
       const currentUser = await storage.getUser(req.session.userId!);
@@ -1603,6 +1751,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get system health metrics (admin only)
+  /**
+   * @openapi
+   * /api/system-health:
+   *   get:
+   *     summary: Get system health status
+   *     description: Platform health metrics and status indicators
+   *     tags: [System]
+   *     security:
+   *       - cookieAuth: []
+   *     responses:
+   *       200:
+   *         description: System health status
+   *       401:
+   *         description: Not authenticated
+   */
   app.get("/api/system-health", requireAuth, async (req, res) => {
     try {
       const currentUser = await storage.getUser(req.session.userId!);
@@ -1710,6 +1873,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
    *       403:
    *         description: Admin access required
    */
+  /**
+   * @openapi
+   * /api/audit-logs:
+   *   get:
+   *     summary: Get audit logs
+   *     description: Retrieve comprehensive activity audit trail
+   *     tags: [Audit Logs]
+   *     security:
+   *       - cookieAuth: []
+   *     responses:
+   *       200:
+   *         description: Audit logs list
+   *       401:
+   *         description: Not authenticated
+   */
   app.get("/api/audit-logs", requireAuth, async (req, res) => {
     try {
       const currentUser = await storage.getUser(req.session.userId!);
@@ -1736,6 +1914,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Cancel invitation
+  /**
+   * @openapi
+   * /api/users/invitations/{id}:
+   *   delete:
+   *     summary: Cancel user invitation
+   *     description: Delete a pending invitation
+   *     tags: [Users]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *     responses:
+   *       200:
+   *         description: Invitation cancelled
+   *       401:
+   *         description: Not authenticated
+   */
   app.delete("/api/users/invitations/:id", requireAuth, async (req, res) => {
     try {
       const currentUser = await storage.getUser(req.session.userId!);
@@ -1782,11 +1981,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== Demo Routes (temporary - for testing without auth) =====
   
   // Get current health system ID (for demo purposes)
+  /**
+   * @openapi
+   * /api/current-health-system:
+   *   get:
+   *     summary: Get current health system context
+   *     description: Retrieve health system info for current user session
+   *     tags: [Health Systems]
+   *     responses:
+   *       200:
+   *         description: Health system details
+   */
   app.get("/api/current-health-system", async (req, res) => {
     res.json({ id: DEMO_HEALTH_SYSTEM_ID });
   });
 
   // Get current vendor ID (for demo purposes)
+  /**
+   * @openapi
+   * /api/current-vendor:
+   *   get:
+   *     summary: Get current vendor context
+   *     description: Retrieve vendor info for current user session
+   *     tags: [Vendors]
+   *     responses:
+   *       200:
+   *         description: Vendor details
+   */
   app.get("/api/current-vendor", async (req, res) => {
     res.json({ id: DEMO_VENDOR_VIZAI_ID });
   });
@@ -2331,6 +2552,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // 🔮 Predictive Alert routes
+  /**
+   * @openapi
+   * /api/health-systems/{healthSystemId}/predictive-alerts:
+   *   get:
+   *     summary: Get predictive alerts
+   *     description: List ML-generated predictive alerts for health system
+   *     tags: [Alerts]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: healthSystemId
+   *         required: true
+   *         schema:
+   *           type: string
+   *     responses:
+   *       200:
+   *         description: List of predictive alerts
+   *       401:
+   *         description: Not authenticated
+   */
   app.get("/api/health-systems/:healthSystemId/predictive-alerts", requireRole("health_system"), async (req, res) => {
     if (!req.session.userId) {
       return res.status(401).json({ error: "Not authenticated" });
@@ -2349,6 +2591,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(alerts);
   });
 
+  /**
+   * @openapi
+   * /api/health-systems/{healthSystemId}/predictive-alerts/generate:
+   *   post:
+   *     summary: Generate predictive alerts
+   *     description: Trigger ML-based predictive alert generation for AI systems
+   *     tags: [Alerts]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: healthSystemId
+   *         required: true
+   *         schema:
+   *           type: string
+   *     responses:
+   *       200:
+   *         description: Alerts generated
+   *       401:
+   *         description: Not authenticated
+   */
   app.post("/api/health-systems/:healthSystemId/predictive-alerts/generate", requireRole("health_system"), async (req, res) => {
     if (!req.session.userId) {
       return res.status(401).json({ error: "Not authenticated" });
@@ -2378,6 +2641,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  /**
+   * @openapi
+   * /api/predictive-alerts/{alertId}/dismiss:
+   *   patch:
+   *     summary: Dismiss predictive alert
+   *     description: Mark predictive alert as dismissed with reason
+   *     tags: [Alerts]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: alertId
+   *         required: true
+   *         schema:
+   *           type: string
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               reason:
+   *                 type: string
+   *     responses:
+   *       200:
+   *         description: Alert dismissed
+   *       401:
+   *         description: Not authenticated
+   */
   app.patch("/api/predictive-alerts/:alertId/dismiss", requireRole("health_system"), async (req, res) => {
     if (!req.session.userId) {
       return res.status(401).json({ error: "Not authenticated" });
@@ -2559,6 +2852,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
    *         description: Not authenticated
    *       403:
    *         description: Vendor only, own data only
+   */
+  /**
+   * @openapi
+   * /api/vendors/{vendorId}/analytics:
+   *   get:
+   *     summary: Get vendor analytics
+   *     description: Comprehensive analytics dashboard for AI vendor (customer insights, marketplace metrics, performance trends)
+   *     tags: [Vendors]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: vendorId
+   *         required: true
+   *         schema:
+   *           type: string
+   *     responses:
+   *       200:
+   *         description: Vendor analytics data
+   *       401:
+   *         description: Not authenticated
    */
   app.get("/api/vendors/:vendorId/analytics", requireAuth, requireRole("vendor"), async (req, res) => {
     try {
@@ -4288,7 +4602,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== Re-Certification Automation API (Phase 3.6) =====
 
-  // Get pending recertifications
+  /**
+   * @openapi
+   * /api/recertification/pending:
+   *   get:
+   *     summary: Get pending recertifications
+   *     description: List AI systems due for quarterly re-certification
+   *     tags: [Certifications]
+   *     security:
+   *       - cookieAuth: []
+   *     responses:
+   *       200:
+   *         description: List of pending recertification schedules
+   *       401:
+   *         description: Not authenticated
+   */
   app.get("/api/recertification/pending", requireAuth, async (req, res) => {
     try {
       const user = await storage.getUser(req.session.userId!);
@@ -4305,7 +4633,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Execute recertification for a specific AI system
+  /**
+   * @openapi
+   * /api/recertification/execute/{aiSystemId}:
+   *   post:
+   *     summary: Execute re-certification for AI system
+   *     description: Run complete certification workflow (PHI detection, bias testing, threat modeling) for quarterly re-certification
+   *     tags: [Certifications]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: aiSystemId
+   *         required: true
+   *         schema:
+   *           type: string
+   *     responses:
+   *       200:
+   *         description: Re-certification results
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Access denied
+   *       404:
+   *         description: AI system not found
+   */
   app.post("/api/recertification/execute/:aiSystemId", requireAuth, async (req, res) => {
     try {
       const { aiSystemId } = req.params;
@@ -4347,7 +4699,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Bulk execute recertifications for all due systems
+  /**
+   * @openapi
+   * /api/recertification/bulk-execute:
+   *   post:
+   *     summary: Bulk execute re-certifications
+   *     description: Execute re-certification for all AI systems due for health system
+   *     tags: [Certifications]
+   *     security:
+   *       - cookieAuth: []
+   *     responses:
+   *       200:
+   *         description: Bulk execution results
+   *       400:
+   *         description: Health system ID required
+   *       401:
+   *         description: Not authenticated
+   */
   app.post("/api/recertification/bulk-execute", requireAuth, async (req, res) => {
     try {
       const user = await storage.getUser(req.session.userId!);
