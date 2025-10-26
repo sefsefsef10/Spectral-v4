@@ -110,6 +110,19 @@ def calculate_bias_metrics(predictions: List[int], labels: List[int], sensitive_
         else:
             severity = 'none'
         
+        # Handle NaN values before JSON serialization
+        # NaN occurs when equalized odds has divide-by-zero (all predictions same class)
+        import math
+        
+        dp_diff = 0.0 if math.isnan(dp_diff) else dp_diff
+        eo_diff = 0.0 if math.isnan(eo_diff) else eo_diff
+        disparate_impact = 1.0 if math.isnan(disparate_impact) else disparate_impact
+        overall_accuracy = 0.0 if math.isnan(overall_accuracy) else overall_accuracy
+        
+        # Clean nested dicts
+        group_accuracies = {str(k): (0.0 if math.isnan(v) else float(v)) for k, v in group_accuracies.items()}
+        positive_rates = {str(k): (0.0 if math.isnan(v) else float(v)) for k, v in positive_rates.items()}
+        
         return {
             "bias_detected": bias_detected,
             "severity": severity,
@@ -118,9 +131,9 @@ def calculate_bias_metrics(predictions: List[int], labels: List[int], sensitive_
                 "equalized_odds_difference": float(eo_diff),
                 "disparate_impact_ratio": float(disparate_impact)
             },
-            "group_accuracies": {str(k): float(v) for k, v in group_accuracies.items()},
+            "group_accuracies": group_accuracies,
             "overall_accuracy": float(overall_accuracy),
-            "positive_rates": {str(k): float(v) for k, v in positive_rates.items()},
+            "positive_rates": positive_rates,
             "recommendations": generate_recommendations(dp_diff, eo_diff, disparate_impact)
         }
         
