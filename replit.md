@@ -37,6 +37,14 @@ Spectral is a B2B SaaS platform for healthcare organizations to govern, monitor,
 - Safety: `handleClinicalAccuracy` (FDA-CV-1), `handleFalseAlerts` (FDA-AV-1), `handleHarmfulOutput` (CA SB 1047)
 - Quality: `handleDataQuality` (NIST MANAGE-4.2), `handleExplainabilityFailure` (NYC LL144)
 
+**State Law Engine (Production)** ✅: Geographic-aware compliance checking for state regulations
+- **CA SB 1047**: Safety testing + incident reporting (10-30 day deadlines) for high-risk AI in California
+- **Colorado AI Act**: Impact assessments + consumer notice (60 day deadline) for high-impact AI in Colorado
+- **NYC Local Law 144**: Bias audits + candidate notice (90 day deadline) for employment AI in New York
+- Geographic gating with location normalization (case-insensitive, state abbreviation support)
+- Integrated with Translation Engine - runs after federal compliance checks
+- Auto-seeded on server startup with 6 state regulations
+
 **New Tables**: `control_versions`, `event_types`, `state_regulations`, `adaptive_threshold_models`, `regulatory_updates`
 
 ### Network Effects & Marketplace (Phase 2) 🌐
