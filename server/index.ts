@@ -28,7 +28,7 @@ declare module 'http' {
 
 // PostgreSQL session store configuration
 const PgSession = connectPgSimple(session);
-const sessionStore = new PgSession({
+export const sessionStore = new PgSession({
   conString: process.env.DATABASE_URL,
   tableName: 'session',
   createTableIfMissing: true,

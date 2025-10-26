@@ -19,6 +19,9 @@ export function sanitizeUser(user: User): Omit<User, "password" | "mfaSecret" | 
 declare module "express-session" {
   interface SessionData {
     userId: string;
+    role?: 'health_system' | 'vendor' | 'admin';
+    healthSystemId?: string;
+    vendorId?: string;
     csrfToken?: string;
     pendingMfaSecret?: string;
     pendingBackupCodes?: string[];

@@ -4350,5 +4350,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
+  
+  // Initialize WebSocket server for real-time updates
+  const { websocketServer } = await import("./services/websocket/websocket-server");
+  websocketServer.initialize(httpServer);
+  
   return httpServer;
 }

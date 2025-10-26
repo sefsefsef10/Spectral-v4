@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LayoutDashboard, Database, Activity, FileText, Building2, PresentationIcon, Shield, Award } from "lucide-react";
 import { useState } from "react";
+import { WebSocketStatus } from "./WebSocketStatus";
 
 interface SidebarProps {
   currentView?: string;
@@ -45,7 +46,8 @@ export default function Sidebar({
           <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center">
             <span className="text-primary-foreground font-bold text-lg">🪐</span>
           </div>
-          <span className="font-bold text-lg">Spectral</span>
+          <span className="font-bold text-lg flex-1">Spectral</span>
+          <WebSocketStatus />
         </div>
 
         <div className="flex items-center gap-3 mb-3">
