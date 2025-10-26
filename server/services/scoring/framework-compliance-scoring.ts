@@ -265,7 +265,7 @@ export async function calculatePortfolioCompliance(healthSystemId: string): Prom
   auditReady: boolean;
 }> {
   try {
-    const systems = await storage.getAISystemsByHealthSystem(healthSystemId);
+    const systems = await storage.getAISystems(healthSystemId);
 
     if (systems.length === 0) {
       return {
@@ -292,15 +292,15 @@ export async function calculatePortfolioCompliance(healthSystemId: string): Prom
 
     // Average scores across all systems for each framework
     const frameworkScores = {
-      hipaa: Math.round(breakdowns.reduce((sum: number, b) => sum + b.frameworks.hipaa.score, 0) / breakdowns.length),
-      nist: Math.round(breakdowns.reduce((sum: number, b) => sum + b.frameworks.nist.score, 0) / breakdowns.length),
-      fda: Math.round(breakdowns.reduce((sum: number, b) => sum + b.frameworks.fda.score, 0) / breakdowns.length),
-      iso42001: Math.round(breakdowns.reduce((sum: number, b) => sum + b.frameworks.iso42001.score, 0) / breakdowns.length),
-      stateLaws: Math.round(breakdowns.reduce((sum: number, b) => sum + b.frameworks.stateLaws.score, 0) / breakdowns.length),
+      hipaa: Math.round(breakdowns.reduce((sum: number, b: any) => sum + b.frameworks.hipaa.score, 0) / breakdowns.length),
+      nist: Math.round(breakdowns.reduce((sum: number, b: any) => sum + b.frameworks.nist.score, 0) / breakdowns.length),
+      fda: Math.round(breakdowns.reduce((sum: number, b: any) => sum + b.frameworks.fda.score, 0) / breakdowns.length),
+      iso42001: Math.round(breakdowns.reduce((sum: number, b: any) => sum + b.frameworks.iso42001.score, 0) / breakdowns.length),
+      stateLaws: Math.round(breakdowns.reduce((sum: number, b: any) => sum + b.frameworks.stateLaws.score, 0) / breakdowns.length),
     };
 
     // Overall portfolio compliance (weighted average)
-    const overall = Math.round(breakdowns.reduce((sum: number, b) => sum + b.overall, 0) / breakdowns.length);
+    const overall = Math.round(breakdowns.reduce((sum: number, b: any) => sum + b.overall, 0) / breakdowns.length);
 
     // Grade
     let grade: "A" | "B" | "C" | "D" | "F";
@@ -311,13 +311,13 @@ export async function calculatePortfolioCompliance(healthSystemId: string): Prom
     else grade = "F";
 
     // Count systems with >80% compliance
-    const compliantSystems = breakdowns.filter(b => b.overall >= 80).length;
+    const compliantSystems = breakdowns.filter((b: any) => b.overall >= 80).length;
 
     // Count total critical violations
-    const criticalViolations = breakdowns.reduce((sum: number, b) => sum + b.criticalViolations, 0);
+    const criticalViolations = breakdowns.reduce((sum: number, b: any) => sum + b.criticalViolations, 0);
 
     // Portfolio is audit-ready if all systems are audit-ready
-    const auditReady = breakdowns.every(b => b.auditReadiness.ready);
+    const auditReady = breakdowns.every((b: any) => b.auditReadiness.ready);
 
     return {
       overall,

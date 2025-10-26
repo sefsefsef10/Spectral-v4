@@ -100,7 +100,7 @@ export async function calculatePHIRiskScore(aiSystemId: string): Promise<number>
     }, 0);
 
     // Get predictive alerts for PHI exposure
-    const predictiveAlerts = await storage.getPredictiveAlertsForAISystem(aiSystemId);
+    const predictiveAlerts = await storage.getPredictiveAlerts(aiSystemId);
     const phiPredictiveAlerts = predictiveAlerts.filter((a: any) => 
       a.predictionType === 'phi_exposure' && !a.dismissed
     );
@@ -269,7 +269,7 @@ export async function calculatePortfolioPHIScore(healthSystemId: string): Promis
   totalViolatedControls: string[];
 }> {
   try {
-    const systems = await storage.getAISystemsByHealthSystem(healthSystemId);
+    const systems = await storage.getAISystems(healthSystemId);
     
     if (systems.length === 0) {
       return {
@@ -291,7 +291,7 @@ export async function calculatePortfolioPHIScore(healthSystemId: string): Promis
     );
 
     // Portfolio score is average of system scores
-    const avgScore = systemScores.reduce((sum: number, s) => sum + s.score, 0) / systemScores.length;
+    const avgScore = systemScores.reduce((sum: number, s: any) => sum + s.score, 0) / systemScores.length;
     
     // Get comprehensive assessments to count critical issues
     const assessments = await Promise.all(
@@ -299,13 +299,13 @@ export async function calculatePortfolioPHIScore(healthSystemId: string): Promis
     );
 
     const criticalPHIIssues = assessments.reduce(
-      (sum: number, a) => sum + a.phiEvents.critical, 
+      (sum: number, a: any) => sum + a.phiEvents.critical, 
       0
     );
 
     // Collect all unique violated controls
     const allViolatedControls = new Set<string>();
-    assessments.forEach((a) => {
+    assessments.forEach((a: any) => {
       a.hipaaImpact.violatedControls.forEach((c: string) => allViolatedControls.add(c));
     });
 
