@@ -4001,6 +4001,262 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==========================================
+  // SUBSCRIPTION MANAGEMENT
+  // ==========================================
+
+  // Get current user's subscription
+  app.get("/api/billing/subscription", requireAuth, async (req, res) => {
+    try {
+      if (!req.session.userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const user = await storage.getUser(req.session.userId);
+      if (!user) {
+        return res.status(401).json({ error: "User not found" });
+      }
+
+      const tenantId = user.role === "health_system" ? user.healthSystemId : user.vendorId;
+      if (!tenantId) {
+        return res.status(403).json({ error: "No organization associated with this account" });
+      }
+
+      const subscription = await storage.getActiveSubscriptionByTenant(tenantId);
+      if (!subscription) {
+        return res.status(404).json({ error: "No active subscription found" });
+      }
+
+      res.json(subscription);
+    } catch (error) {
+      logger.error({ err: error }, "Error fetching subscription");
+      res.status(500).json({ error: "Failed to fetch subscription" });
+    }
+  });
+
+  // Cancel subscription at period end
+  app.post("/api/billing/subscriptions/:id/cancel", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      if (!req.session.userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const user = await storage.getUser(req.session.userId);
+      if (!user) {
+        return res.status(401).json({ error: "User not found" });
+      }
+
+      // Verify subscription ownership
+      const subscription = await db.query.subscriptions.findFirst({
+        where: eq(subscriptions.id, id),
+        with: {
+          billingAccount: true,
+        },
+      });
+
+      if (!subscription) {
+        return res.status(404).json({ error: "Subscription not found" });
+      }
+
+      const tenantId = user.role === "health_system" ? user.healthSystemId : user.vendorId;
+      const accountTenantId = subscription.billingAccount.healthSystemId || subscription.billingAccount.vendorId;
+
+      if (tenantId !== accountTenantId) {
+        logger.warn({ userId: user.id, subscriptionId: id, tenantId, accountTenantId }, "Unauthorized subscription access attempt");
+        return res.status(404).json({ error: "Subscription not found" });
+      }
+      
+      const [updated] = await db
+        .update(subscriptions)
+        .set({ cancelAtPeriodEnd: true })
+        .where(eq(subscriptions.id, id))
+        .returning();
+
+      logger.info({ subscriptionId: id }, "Subscription cancelled at period end");
+      res.json(updated);
+    } catch (error) {
+      logger.error({ err: error }, "Error cancelling subscription");
+      res.status(500).json({ error: "Failed to cancel subscription" });
+    }
+  });
+
+  // Reactivate cancelled subscription
+  app.post("/api/billing/subscriptions/:id/reactivate", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      if (!req.session.userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const user = await storage.getUser(req.session.userId);
+      if (!user) {
+        return res.status(401).json({ error: "User not found" });
+      }
+
+      // Verify subscription ownership
+      const subscription = await db.query.subscriptions.findFirst({
+        where: eq(subscriptions.id, id),
+        with: {
+          billingAccount: true,
+        },
+      });
+
+      if (!subscription) {
+        return res.status(404).json({ error: "Subscription not found" });
+      }
+
+      const tenantId = user.role === "health_system" ? user.healthSystemId : user.vendorId;
+      const accountTenantId = subscription.billingAccount.healthSystemId || subscription.billingAccount.vendorId;
+
+      if (tenantId !== accountTenantId) {
+        logger.warn({ userId: user.id, subscriptionId: id, tenantId, accountTenantId }, "Unauthorized subscription access attempt");
+        return res.status(404).json({ error: "Subscription not found" });
+      }
+      
+      const [updated] = await db
+        .update(subscriptions)
+        .set({ cancelAtPeriodEnd: false })
+        .where(eq(subscriptions.id, id))
+        .returning();
+
+      logger.info({ subscriptionId: id }, "Subscription reactivated");
+      res.json(updated);
+    } catch (error) {
+      logger.error({ err: error }, "Error reactivating subscription");
+      res.status(500).json({ error: "Failed to reactivate subscription" });
+    }
+  });
+
+  // ==========================================
+  // USAGE METERING
+  // ==========================================
+
+  // Get usage meters for subscription
+  app.get("/api/billing/usage-meters", requireAuth, async (req, res) => {
+    try {
+      const { subscriptionId } = req.query;
+      
+      if (!subscriptionId || typeof subscriptionId !== 'string') {
+        return res.status(400).json({ error: "subscriptionId is required" });
+      }
+
+      if (!req.session.userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const user = await storage.getUser(req.session.userId);
+      if (!user) {
+        return res.status(401).json({ error: "User not found" });
+      }
+
+      // Verify subscription ownership before accessing usage meters
+      const subscription = await db.query.subscriptions.findFirst({
+        where: eq(subscriptions.id, subscriptionId),
+        with: {
+          billingAccount: true,
+        },
+      });
+
+      if (!subscription) {
+        return res.status(404).json({ error: "Subscription not found" });
+      }
+
+      const tenantId = user.role === "health_system" ? user.healthSystemId : user.vendorId;
+      const accountTenantId = subscription.billingAccount.healthSystemId || subscription.billingAccount.vendorId;
+
+      if (tenantId !== accountTenantId) {
+        logger.warn({ userId: user.id, subscriptionId, tenantId, accountTenantId }, "Unauthorized usage meter access attempt");
+        return res.status(403).json({ error: "Access denied: subscription belongs to different organization" });
+      }
+
+      const meters = await db
+        .select()
+        .from(usageMeters)
+        .where(eq(usageMeters.subscriptionId, subscriptionId));
+
+      res.json(meters);
+    } catch (error) {
+      logger.error({ err: error }, "Error fetching usage meters");
+      res.status(500).json({ error: "Failed to fetch usage meters" });
+    }
+  });
+
+  // Get usage events with aggregation
+  app.get("/api/billing/usage-events", requireAuth, async (req, res) => {
+    try {
+      const { subscriptionId } = req.query;
+      
+      if (!subscriptionId || typeof subscriptionId !== 'string') {
+        return res.status(400).json({ error: "subscriptionId is required" });
+      }
+
+      if (!req.session.userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const user = await storage.getUser(req.session.userId);
+      if (!user) {
+        return res.status(401).json({ error: "User not found" });
+      }
+
+      // Verify subscription ownership before accessing usage events
+      const subscription = await db.query.subscriptions.findFirst({
+        where: eq(subscriptions.id, subscriptionId),
+        with: {
+          billingAccount: true,
+        },
+      });
+
+      if (!subscription) {
+        return res.status(404).json({ error: "Subscription not found" });
+      }
+
+      const tenantId = user.role === "health_system" ? user.healthSystemId : user.vendorId;
+      const accountTenantId = subscription.billingAccount.healthSystemId || subscription.billingAccount.vendorId;
+
+      if (tenantId !== accountTenantId) {
+        logger.warn({ userId: user.id, subscriptionId, tenantId, accountTenantId }, "Unauthorized usage events access attempt");
+        return res.status(403).json({ error: "Access denied: subscription belongs to different organization" });
+      }
+
+      const meters = await db
+        .select()
+        .from(usageMeters)
+        .where(eq(usageMeters.subscriptionId, subscriptionId));
+
+      const aggregations = await Promise.all(
+        meters.map(async (meter) => {
+          const events = await db
+            .select()
+            .from(usageEvents)
+            .where(eq(usageEvents.meterId, meter.id))
+            .orderBy(desc(usageEvents.timestamp));
+
+          const totalUnits = events.reduce((sum, e) => sum + e.quantity, 0);
+          const unitPrice = parseFloat(meter.unitPrice);
+          const totalCost = totalUnits * unitPrice;
+
+          return {
+            meterId: meter.id,
+            meterType: meter.meterType,
+            totalUnits,
+            unitPrice,
+            totalCost,
+            events,
+          };
+        })
+      );
+
+      res.json(aggregations);
+    } catch (error) {
+      logger.error({ err: error }, "Error fetching usage events");
+      res.status(500).json({ error: "Failed to fetch usage events" });
+    }
+  });
+
+  // ==========================================
   // PUBLIC VENDOR TRUST PAGE API (no auth)
   // ==========================================
   

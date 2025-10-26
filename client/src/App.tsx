@@ -21,6 +21,7 @@ import WatchtowerPage from "@/pages/products/Watchtower";
 import BeaconPage from "@/pages/products/Beacon";
 import VendorDirectoryPage from "@/pages/VendorDirectory";
 import VendorTrustPage from "@/pages/vendor-trust-page";
+import BillingDashboard from "@/pages/BillingDashboard";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
 
@@ -78,6 +79,9 @@ function Router() {
       </Route>
       <Route path="/system-health">
         {() => <ProtectedRoute component={SystemHealth} />}
+      </Route>
+      <Route path="/billing">
+        {() => <ProtectedRoute component={BillingDashboard} />}
       </Route>
       <Route component={NotFound} />
     </Switch>
