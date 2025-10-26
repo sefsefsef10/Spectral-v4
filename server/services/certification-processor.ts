@@ -53,7 +53,7 @@ export async function processCertificationApplication(applicationId: string): Pr
   const checks = {
     documentationComplete: checkDocumentationComplete(application),
     complianceStatementsValid: checkComplianceStatements(application),
-    deploymentHistoryValid: await checkDeploymentHistory(application.vendorId),
+    deploymentHistoryValid: await checkDeploymentHistory(application.vendorId, application.tierRequested),
     phiExposureTest: false,
     clinicalAccuracyTest: false,
     biasDetectionTest: false,
@@ -235,16 +235,52 @@ function checkComplianceStatements(application: any): boolean {
 
 /**
  * Check deployment history meets tier requirements
+ * 
+ * PRODUCTION VERSION - Validates tier-specific deployment requirements:
+ * - Silver: 0 required (welcoming new vendors)
+ * - Gold: 1+ active deployments required
+ * - Platinum: 3+ active deployments required
  */
-async function checkDeploymentHistory(vendorId: string): Promise<boolean> {
-  const deployments = await storage.getDeploymentsByVendor(vendorId);
-  const activeDeployments = deployments.filter(d => d.status === "active");
-  
-  // For now, any active deployment history is sufficient
-  // In production, we'd check tier-specific requirements:
-  // - Silver: 0 required (new vendors welcome)
-  // - Gold: 1+ active deployments
-  // - Platinum: 3+ active deployments
-  
-  return true; // Simplified for MVP
+async function checkDeploymentHistory(vendorId: string, tierRequested: string): Promise<boolean> {
+  try {
+    const deployments = await storage.getDeploymentsByVendor(vendorId);
+    const activeDeployments = deployments.filter(d => d.status === "active");
+    const activeCount = activeDeployments.length;
+    
+    logger.info({ 
+      vendorId, 
+      tierRequested, 
+      activeCount 
+    }, "Checking deployment history for certification tier");
+    
+    // Tier-specific deployment requirements
+    switch (tierRequested) {
+      case "Silver":
+        // Silver tier: No deployment history required (welcome new vendors)
+        return true;
+        
+      case "Gold":
+        // Gold tier: At least 1 active deployment required
+        if (activeCount < 1) {
+          logger.warn({ vendorId, activeCount }, "Gold tier requires 1+ active deployments");
+          return false;
+        }
+        return true;
+        
+      case "Platinum":
+        // Platinum tier: At least 3 active deployments required (proven track record)
+        if (activeCount < 3) {
+          logger.warn({ vendorId, activeCount }, "Platinum tier requires 3+ active deployments");
+          return false;
+        }
+        return true;
+        
+      default:
+        logger.error({ tierRequested }, "Unknown certification tier requested");
+        return false;
+    }
+  } catch (error) {
+    logger.error({ err: error, vendorId }, "Failed to check deployment history");
+    return false; // Fail closed for safety
+  }
 }

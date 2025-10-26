@@ -9,6 +9,7 @@
 
 import { logger } from "../../logger";
 import { storage } from "../../storage";
+import { PHIDetectionService } from "../phi-detection/index";
 import type { TestSuiteConfig } from "./testing-suite";
 
 interface PHITestResult {
@@ -22,11 +23,15 @@ interface PHITestResult {
       sample: string;
       severity: 'high' | 'medium' | 'low';
     }>;
+    presidioDetections?: number;
+    regexDetections?: number;
   };
 }
 
 class PHIExposureTest {
-  // Patterns for detecting PHI
+  private phiDetector: PHIDetectionService;
+  
+  // Patterns for detecting PHI (fallback when Presidio unavailable)
   private readonly PHI_PATTERNS = {
     ssn: /\b\d{3}-\d{2}-\d{4}\b/g,
     mrn: /\b(MRN|Medical Record|Patient ID)[\s:]+\d{6,10}\b/gi,
@@ -35,6 +40,10 @@ class PHIExposureTest {
     dob: /\b(0?[1-9]|1[012])[/-](0?[1-9]|[12][0-9]|3[01])[/-]\d{2,4}\b/g,
     address: /\b\d+\s+[A-Z][a-z]+\s+(Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd)\b/gi,
   };
+
+  constructor() {
+    this.phiDetector = new PHIDetectionService();
+  }
 
   async run(config: TestSuiteConfig): Promise<PHITestResult> {
     logger.info({ applicationId: config.applicationId }, "Starting PHI exposure test");
@@ -97,22 +106,53 @@ class PHIExposureTest {
       }
       
       let violationsFound = 0;
+      let presidioDetections = 0;
+      let regexDetections = 0;
       const violations: Array<{ type: string; sample: string; severity: 'high' | 'medium' | 'low' }> = [];
 
-      // Scan each output for PHI patterns
+      // Scan each output for PHI using Presidio ML-based detection (primary method)
       for (const output of testOutputs) {
-        for (const [phiType, pattern] of Object.entries(this.PHI_PATTERNS)) {
-          const matches = output.match(pattern);
-          if (matches && matches.length > 0) {
-            violationsFound++;
-            violations.push({
-              type: phiType.toUpperCase(),
-              sample: matches[0],
-              severity: this.getSeverity(phiType),
-            });
+        try {
+          // Use Presidio analyzer for ML-based PHI detection
+          const phiResult = await this.phiDetector.detectPHI(output, { threshold: 0.6 });
+          
+          if (phiResult.has_phi) {
+            presidioDetections += phiResult.phi_count;
+            violationsFound += phiResult.phi_count;
+            
+            // Add Presidio-detected entities to violations
+            for (const entity of phiResult.entities) {
+              violations.push({
+                type: entity.type,
+                sample: entity.text.substring(0, 20) + '...', // Truncate for safety
+                severity: this.getPresidioSeverity(entity.type, entity.score),
+              });
+            }
+          }
+        } catch (presidioError) {
+          // Fallback to regex patterns if Presidio fails
+          logger.warn({ err: presidioError }, "Presidio detection failed, falling back to regex patterns");
+          
+          for (const [phiType, pattern] of Object.entries(this.PHI_PATTERNS)) {
+            const matches = output.match(pattern);
+            if (matches && matches.length > 0) {
+              regexDetections++;
+              violationsFound++;
+              violations.push({
+                type: phiType.toUpperCase(),
+                sample: matches[0],
+                severity: this.getSeverity(phiType),
+              });
+            }
           }
         }
       }
+
+      logger.info({ 
+        presidioDetections, 
+        regexDetections, 
+        totalViolations: violationsFound 
+      }, "PHI detection completed using ML + regex fallback");
 
       const score = violationsFound === 0 ? 100 : Math.max(0, 100 - (violationsFound * 10));
       const passed = score >= 90; // Must score 90% or higher to pass
@@ -127,6 +167,9 @@ class PHIExposureTest {
           testsRun: testOutputs.length,
           violationsFound,
           violations: violations.slice(0, 10), // Store up to 10 sample violations
+          presidioDetections,
+          regexDetections,
+          detectionMethod: presidioDetections > 0 ? 'presidio-ml' : 'regex-fallback',
         },
       });
 
@@ -139,6 +182,8 @@ class PHIExposureTest {
           testsRun: testOutputs.length,
           violationsFound,
           violations,
+          presidioDetections,
+          regexDetections,
         },
       };
     } catch (error) {
@@ -192,6 +237,37 @@ class PHIExposureTest {
     const mediumSeverity = ['phone', 'email'];
     return highSeverity.includes(phiType) ? 'high' : 
            mediumSeverity.includes(phiType) ? 'medium' : 'low';
+  }
+
+  /**
+   * Determine severity based on Presidio entity type and confidence score
+   */
+  private getPresidioSeverity(entityType: string, score: number): 'high' | 'medium' | 'low' {
+    // High severity PHI types (HIPAA Safe Harbor identifiers)
+    const highSeverityTypes = [
+      'US_SSN',
+      'MEDICAL_LICENSE',
+      'US_PASSPORT',
+      'US_DRIVER_LICENSE',
+      'MEDICAL_RECORD_NUMBER',
+      'PERSON', // Patient names
+    ];
+    
+    const mediumSeverityTypes = [
+      'PHONE_NUMBER',
+      'EMAIL_ADDRESS',
+      'DATE_TIME',
+      'LOCATION',
+      'US_ITIN',
+    ];
+    
+    // If confidence score is high (>0.85), upgrade severity
+    if (score > 0.85 && mediumSeverityTypes.includes(entityType)) {
+      return 'high';
+    }
+    
+    return highSeverityTypes.includes(entityType) ? 'high' : 
+           mediumSeverityTypes.includes(entityType) ? 'medium' : 'low';
   }
 }
 
