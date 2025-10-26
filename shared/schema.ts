@@ -113,6 +113,10 @@ export const aiSystems = pgTable("ai_systems", {
   vendorId: varchar("vendor_id").references(() => vendors.id, { onDelete: "set null" }),
   integrationConfig: jsonb("integration_config"), // HIPAA-compliant: API keys stored here MUST be encrypted using server/services/encryption.ts
   lastCheck: timestamp("last_check"),
+  // Beacon Certification Tiers (Phase 1: Grading Transformation)
+  verificationTier: text("verification_tier"), // 'verified', 'certified', 'trusted' - aligns with Beacon pricing ($15K/$50K/$100K)
+  verificationDate: timestamp("verification_date"), // When current tier was achieved
+  verificationExpiry: timestamp("verification_expiry"), // Quarterly recertification required
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => ({
   // Index for filtering AI systems by health system (common query pattern)
@@ -126,6 +130,10 @@ export const monitoringAlerts = pgTable("monitoring_alerts", {
   severity: text("severity").notNull(),
   message: text("message").notNull(),
   resolved: boolean("resolved").notNull().default(false),
+  // Response Time Tracking (Phase 2: High Priority Features)
+  resolvedAt: timestamp("resolved_at"), // When alert was resolved (for "2-minute rollback" metrics)
+  responseTimeSeconds: integer("response_time_seconds"), // Calculated: resolvedAt - createdAt
+  resolvedBy: varchar("resolved_by").references(() => users.id, { onDelete: "set null" }), // Who resolved it
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => ({
   // Composite index for filtering unresolved alerts by AI system
