@@ -24,6 +24,37 @@ All critical gaps fixed for first customer deployment:
 - **API Utilities:** Pagination helpers created for list endpoints
 - **Production Readiness Score:** 9.5/10 (A+ grade)
 
+### Vendor Testing Automation (Oct 2025)
+Production-grade ML-based certification testing infrastructure:
+- **PHI Exposure Detection (PRODUCTION):**
+  - Primary: Presidio ML-based analyzer with 0.6 confidence threshold (Microsoft Research)
+  - Fallback: Regex patterns when Presidio unavailable for resilience
+  - Entity-aware severity scoring (SSN=critical, names=high, dates=medium)
+  - Detection method tracking in database (presidio-ml vs regex-fallback)
+  - Files: `server/services/phi-detection/index.ts`, `server/services/phi-detection/presidio-analyzer.py`
+  
+- **Deployment History Validation (PRODUCTION):**
+  - Tier-based requirements: Silver=0 deployments, Gold=1+, Platinum=3+
+  - Prevents certification tier fraud and maintains trust system credibility
+  - Fail-closed behavior on errors (denies certification if validation fails)
+  - Files: `server/services/certification-processor.ts`
+  
+- **Bias Detection (PRODUCTION - ML):**
+  - Microsoft Fairlearn integration for algorithmic fairness testing
+  - Three industry-standard metrics:
+    - Demographic Parity Difference (< 0.1 threshold)
+    - Equalized Odds Difference (< 0.1 threshold)
+    - Disparate Impact Ratio (0.8-1.25 = 80% rule)
+  - NaN-safe JSON serialization for edge cases (all-positive/all-negative predictions)
+  - Clinically-justified ground truth labels (age-based treatment recommendations)
+  - Per-group accuracy tracking across race, gender, age demographics
+  - Automatic severity classification (none/low/medium/high) with actionable recommendations
+  - Graceful fallback to variance-based detection if Fairlearn fails
+  - Detection method tracking (fairlearn-ml vs variance-fallback)
+  - Files: `server/services/bias-detection/index.ts`, `server/services/bias-detection/fairlearn-service.py`, `server/services/vendor-testing/bias-detection-test.ts`
+  
+- **Impact:** Certification now has real technical teeth instead of checkbox compliance. ML-based testing catches sophisticated PHI exposure and bias that simple regex/variance methods miss. Critical for maintaining certification credibility with health systems and preventing regulatory incidents.
+
 ### Legal Foundation (Oct 2025)
 Complete legal template infrastructure for first customer deployment and M&A readiness:
 - **Privacy Policy:** HIPAA-compliant with PHI safeguards, CCPA/CPRA compliance, subprocessor transparency, 7-year data retention
