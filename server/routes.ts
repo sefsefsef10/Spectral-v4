@@ -7621,6 +7621,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 📄 Legal Documents API
+  app.get("/legal/privacy-policy", async (req: Request, res: Response) => {
+    try {
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const filePath = path.join(process.cwd(), 'legal', 'templates', 'privacy-policy.md');
+      const content = await fs.readFile(filePath, 'utf-8');
+      res.set('Content-Type', 'text/markdown');
+      res.send(content);
+    } catch (error) {
+      logger.error({ err: error }, "Failed to load privacy policy");
+      res.status(500).json({ error: "Failed to load privacy policy" });
+    }
+  });
+
+  app.get("/legal/terms", async (req: Request, res: Response) => {
+    try {
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const filePath = path.join(process.cwd(), 'legal', 'templates', 'terms-of-service.md');
+      const content = await fs.readFile(filePath, 'utf-8');
+      res.set('Content-Type', 'text/markdown');
+      res.send(content);
+    } catch (error) {
+      logger.error({ err: error }, "Failed to load terms of service");
+      res.status(500).json({ error: "Failed to load terms of service" });
+    }
+  });
+
+  app.get("/legal/baa", async (req: Request, res: Response) => {
+    try {
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const filePath = path.join(process.cwd(), 'legal', 'templates', 'business-associate-agreement.md');
+      const content = await fs.readFile(filePath, 'utf-8');
+      res.set('Content-Type', 'text/markdown');
+      res.send(content);
+    } catch (error) {
+      logger.error({ err: error }, "Failed to load BAA");
+      res.status(500).json({ error: "Failed to load BAA template" });
+    }
+  });
+
+  app.get("/legal/msa", async (req: Request, res: Response) => {
+    try {
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const filePath = path.join(process.cwd(), 'legal', 'templates', 'master-services-agreement.md');
+      const content = await fs.readFile(filePath, 'utf-8');
+      res.set('Content-Type', 'text/markdown');
+      res.send(content);
+    } catch (error) {
+      logger.error({ err: error }, "Failed to load MSA");
+      res.status(500).json({ error: "Failed to load MSA template" });
+    }
+  });
+
+  app.get("/legal/subprocessors", async (req: Request, res: Response) => {
+    try {
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const filePath = path.join(process.cwd(), 'legal', 'subprocessor-documentation.md');
+      const content = await fs.readFile(filePath, 'utf-8');
+      res.set('Content-Type', 'text/markdown');
+      res.send(content);
+    } catch (error) {
+      logger.error({ err: error }, "Failed to load subprocessor documentation");
+      res.status(500).json({ error: "Failed to load subprocessor documentation" });
+    }
+  });
+
   // 🔒 Policy Administration Routes (IP Moat)
   const { registerPolicyAdminRoutes } = await import("./routes/policy-admin");
   registerPolicyAdminRoutes(app);

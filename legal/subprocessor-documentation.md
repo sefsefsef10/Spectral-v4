@@ -17,9 +17,10 @@ These subprocessors have access to PHI and require Business Associate Agreements
 **Data Processed:** All customer data, AI system metadata, compliance records, audit logs, PHI metadata  
 **Data Location:** United States (AWS infrastructure)  
 **Certification:** SOC 2 Type II  
-**BAA Status:** ✅ **BAA in place**  
-**BAA Effective Date:** [DATE]  
-**Purpose:** Primary database for all application data storage
+**BAA Status:** ⚠️ **REQUIRED - Execution pending before first customer deployment**  
+**BAA Effective Date:** Pending execution  
+**Purpose:** Primary database for all application data storage  
+**Action Required:** Execute BAA with Neon before onboarding first HIPAA customer
 
 **Security Measures:**
 - TLS 1.3 encryption in transit
@@ -46,9 +47,10 @@ Support: support@neon.tech
 **Data Processed:** Generated compliance reports, certification artifacts, audit evidence packages  
 **Data Location:** United States (us-east-1 region)  
 **Certification:** HIPAA eligible, SOC 2 Type II, ISO 27001, FedRAMP  
-**BAA Status:** ✅ **BAA in place**  
-**BAA Effective Date:** [DATE]  
-**Purpose:** Long-term storage of compliance documentation and audit evidence
+**BAA Status:** ⚠️ **REQUIRED - Execution pending before first customer deployment**  
+**BAA Effective Date:** Pending execution  
+**Purpose:** Long-term storage of compliance documentation and audit evidence  
+**Action Required:** Execute AWS BAA through AWS Artifact before storing PHI-related documents
 
 **Security Measures:**
 - Server-side encryption (SSE-S3) with AES-256
@@ -242,21 +244,22 @@ Support: slack.com/help
 
 | Subprocessor | PHI Access | BAA Required | BAA Status | Priority |
 |--------------|-----------|--------------|------------|----------|
-| Neon | Yes | Yes | ✅ In Place | Critical |
-| AWS S3 | Yes | Yes | ✅ In Place | Critical |
-| SendGrid | Limited | Yes | ✅ Available | High |
+| Neon | Yes | Yes | ⚠️ **Pending - Required before first customer** | Critical |
+| AWS S3 | Yes | Yes | ⚠️ **Pending - Required before first customer** | Critical |
+| SendGrid | Limited | Yes | ✅ Available (not yet executed) | High |
 | Stripe | No | No | ❌ N/A | N/A |
-| Upstash | No (planned yes) | Yes | ⚠️ Required before PHI | Medium |
-| Twilio | No (planned limited) | Yes | ⚠️ Before launch | Low |
+| Upstash | No (planned yes) | Yes | ⚠️ Required before PHI caching | Medium |
+| Twilio | No (planned limited) | Yes | ⚠️ Before SMS feature launch | Low |
 | Slack | No | Customer BAA | Customer responsibility | Low |
 
 ## Action Items for Production Readiness
 
-### Immediate (Before First Customer)
-- [x] Execute BAA with Neon
-- [x] Execute BAA with AWS
-- [ ] Execute BAA with SendGrid (if using email notifications)
-- [ ] Confirm all BAAs are signed and filed
+### Immediate (Before First Customer) - CRITICAL BLOCKERS
+- [ ] **Execute BAA with Neon** (database stores all customer data including PHI metadata)
+- [ ] **Execute BAA with AWS S3** (compliance reports may contain PHI references)
+- [ ] Execute BAA with SendGrid if using email notifications for PHI-related alerts
+- [ ] Confirm all executed BAAs are signed, filed, and documented
+- [ ] Update this documentation with actual execution dates
 
 ### Short Term (Next 90 Days)
 - [ ] Execute BAA with Upstash if cache layer enabled
