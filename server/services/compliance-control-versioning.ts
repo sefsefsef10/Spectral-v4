@@ -52,7 +52,11 @@ export class ComplianceControlVersioningService {
 
     // Get current version
     const currentVersion = await this.getCurrentVersion(controlId);
-    const newVersion = this.bumpVersion(currentVersion || '1.0.0', versionType);
+    
+    // For first initialization, start at 1.0.0 without bumping
+    const newVersion = currentVersion 
+      ? this.bumpVersion(currentVersion, versionType)
+      : '1.0.0';
 
     // Deprecate previous version if exists
     if (currentVersion) {
