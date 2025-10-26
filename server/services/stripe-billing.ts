@@ -13,12 +13,18 @@ import { logger } from '../logger';
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
-const stripeKey = IS_PRODUCTION
-  ? process.env.STRIPE_SECRET_KEY
-  : process.env.STRIPE_TEST_SECRET_KEY || process.env.STRIPE_SECRET_KEY;
+let stripeKey: string;
 
-if (!stripeKey) {
-  throw new Error(`Stripe key required for ${process.env.NODE_ENV} environment`);
+if (IS_PRODUCTION) {
+  if (!process.env.STRIPE_SECRET_KEY) {
+    throw new Error('STRIPE_SECRET_KEY required in production');
+  }
+  stripeKey = process.env.STRIPE_SECRET_KEY;
+} else {
+  if (!process.env.STRIPE_TEST_SECRET_KEY) {
+    throw new Error('STRIPE_TEST_SECRET_KEY required in development/test. Never use STRIPE_SECRET_KEY in non-production.');
+  }
+  stripeKey = process.env.STRIPE_TEST_SECRET_KEY;
 }
 
 export const stripe = new Stripe(stripeKey, {
