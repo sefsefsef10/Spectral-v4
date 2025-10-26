@@ -113,7 +113,7 @@ export class StripeBillingService {
           recurring: {
             interval: 'year',
           },
-        },
+        } as Stripe.SubscriptionCreateParams.Item.PriceData,
       }],
       payment_behavior: 'default_incomplete',
       payment_settings: {
@@ -130,14 +130,18 @@ export class StripeBillingService {
     const invoice = subscription.latest_invoice as Stripe.Invoice;
     const paymentIntent = invoice.payment_intent as Stripe.PaymentIntent;
     
-    // Update database
+    // Update database with subscription details
+    const periodStart = (subscription as any).current_period_start;
+    const periodEnd = (subscription as any).current_period_end;
+    const trialEnd = (subscription as any).trial_end;
+    
     await storage.updateHealthSystemSubscription(healthSystemId, {
       stripeSubscriptionId: subscription.id,
       subscriptionTier: tier,
       subscriptionStatus: subscription.status,
-      currentPeriodStart: new Date(subscription.current_period_start * 1000),
-      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-      trialEndsAt: subscription.trial_end ? new Date(subscription.trial_end * 1000) : null,
+      currentPeriodStart: periodStart ? new Date(periodStart * 1000) : new Date(),
+      currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000) : new Date(),
+      trialEndsAt: trialEnd ? new Date(trialEnd * 1000) : null,
       aiSystemLimit: pricing.aiSystemLimit,
     });
     
@@ -172,7 +176,7 @@ export class StripeBillingService {
           recurring: {
             interval: 'year',
           },
-        },
+        } as Stripe.SubscriptionCreateParams.Item.PriceData,
       }],
       payment_behavior: 'default_incomplete',
       payment_settings: {
@@ -192,12 +196,15 @@ export class StripeBillingService {
     const certificationExpiresAt = new Date();
     certificationExpiresAt.setFullYear(certificationExpiresAt.getFullYear() + 1);
     
+    const periodStart = (subscription as any).current_period_start;
+    const periodEnd = (subscription as any).current_period_end;
+    
     await storage.updateVendorSubscription(vendorId, {
       stripeSubscriptionId: subscription.id,
       certificationTier,
       subscriptionStatus: subscription.status,
-      currentPeriodStart: new Date(subscription.current_period_start * 1000),
-      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+      currentPeriodStart: periodStart ? new Date(periodStart * 1000) : new Date(),
+      currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000) : new Date(),
       certificationExpiresAt,
     });
     
@@ -283,13 +290,15 @@ export class StripeBillingService {
    */
   async handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     const metadata = subscription.metadata;
+    const periodStart = (subscription as any).current_period_start;
+    const periodEnd = (subscription as any).current_period_end;
     
     if (metadata.healthSystemId) {
       // Update health system subscription
       await storage.updateHealthSystemSubscription(metadata.healthSystemId, {
         subscriptionStatus: subscription.status,
-        currentPeriodStart: new Date(subscription.current_period_start * 1000),
-        currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+        currentPeriodStart: periodStart ? new Date(periodStart * 1000) : new Date(),
+        currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000) : new Date(),
       });
       
       logger.info({ healthSystemId: metadata.healthSystemId, status: subscription.status }, 'Health system subscription updated');
@@ -297,8 +306,8 @@ export class StripeBillingService {
       // Update vendor subscription
       await storage.updateVendorSubscription(metadata.vendorId, {
         subscriptionStatus: subscription.status,
-        currentPeriodStart: new Date(subscription.current_period_start * 1000),
-        currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+        currentPeriodStart: periodStart ? new Date(periodStart * 1000) : new Date(),
+        currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000) : new Date(),
       });
       
       logger.info({ vendorId: metadata.vendorId, status: subscription.status }, 'Vendor subscription updated');

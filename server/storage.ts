@@ -19,6 +19,8 @@ import {
   backgroundJobs,
   certificationApplications,
   vendorTestResults,
+  billingAccounts,
+  subscriptions,
   type User, 
   type InsertUser,
   type UserInvitation,
@@ -58,9 +60,11 @@ import {
   type InsertCertificationApplication,
   type VendorTestResult,
   type InsertVendorTestResult,
+  type BillingAccount,
+  type Subscription,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, or } from "drizzle-orm";
 import { CacheService } from "./cache";
 import { encryptFields, decryptFields } from "./services/encryption";
 import { 
@@ -1026,6 +1030,56 @@ export class DatabaseStorage implements IStorage {
         eq(subscriptions.status, 'active')
       ),
     });
+  }
+
+  // Stripe-specific operations for simplified billing
+  async updateHealthSystemStripeCustomer(healthSystemId: string, stripeCustomerId: string): Promise<void> {
+    await db.update(healthSystems)
+      .set({ stripeCustomerId })
+      .where(eq(healthSystems.id, healthSystemId));
+  }
+
+  async updateVendorStripeCustomer(vendorId: string, stripeCustomerId: string): Promise<void> {
+    await db.update(vendors)
+      .set({ stripeCustomerId })
+      .where(eq(vendors.id, vendorId));
+  }
+
+  async updateHealthSystemSubscription(
+    healthSystemId: string,
+    updates: {
+      stripeSubscriptionId?: string;
+      subscriptionTier?: string;
+      subscriptionStatus?: string;
+      currentPeriodStart?: Date;
+      currentPeriodEnd?: Date;
+      trialEndsAt?: Date | null;
+      aiSystemLimit?: number;
+    }
+  ): Promise<void> {
+    await db.update(healthSystems)
+      .set(updates)
+      .where(eq(healthSystems.id, healthSystemId));
+  }
+
+  async updateVendorSubscription(
+    vendorId: string,
+    updates: {
+      stripeSubscriptionId?: string;
+      certificationTier?: string;
+      subscriptionStatus?: string;
+      currentPeriodStart?: Date;
+      currentPeriodEnd?: Date;
+      certificationExpiresAt?: Date;
+    }
+  ): Promise<void> {
+    await db.update(vendors)
+      .set(updates)
+      .where(eq(vendors.id, vendorId));
+  }
+
+  async getAISystemsByHealthSystem(healthSystemId: string): Promise<AISystem[]> {
+    return this.getAISystems(healthSystemId);
   }
 }
 
