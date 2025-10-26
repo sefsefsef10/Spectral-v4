@@ -37,7 +37,6 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       const ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
-        console.log('WebSocket connected');
         setIsConnected(true);
         options.onConnect?.();
 
@@ -79,14 +78,13 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
               break;
 
             case 'connection_established':
-              console.log('WebSocket connection established:', data.payload);
               break;
 
             case 'pong':
               break;
 
             default:
-              console.log('Unknown WebSocket event type:', data.type);
+              break;
           }
         } catch (error) {
           console.error('Error parsing WebSocket message:', error);
@@ -98,7 +96,6 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       };
 
       ws.onclose = () => {
-        console.log('WebSocket disconnected');
         setIsConnected(false);
         options.onDisconnect?.();
 
@@ -108,7 +105,6 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
         if (options.autoReconnect !== false) {
           reconnectTimeoutRef.current = setTimeout(() => {
-            console.log('Attempting to reconnect...');
             connect();
           }, 5000);
         }

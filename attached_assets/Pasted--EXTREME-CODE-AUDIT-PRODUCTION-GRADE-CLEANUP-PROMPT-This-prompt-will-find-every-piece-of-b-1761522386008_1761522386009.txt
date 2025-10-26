@@ -1,0 +1,2492 @@
+**🔧 EXTREME CODE AUDIT: PRODUCTION-GRADE CLEANUP PROMPT**
+
+This prompt will find every piece of bad code, technical debt, and maintainability issue. Paste this into Replit for comprehensive cleanup.
+
+---
+
+```markdown
+# COMPREHENSIVE CODE AUDIT & CLEANUP
+## Production-Grade Quality Assessment
+
+## CONTEXT
+
+I'm building **Spectral** - a healthcare AI governance platform targeting $300M+ strategic acquisition.
+
+**Current State:**
+- 53,654 lines of code
+- A- grade (91%) overall
+- Translation engine: 100% complete
+- Ready for first enterprise customer
+
+**Mission:** Clean up the codebase to enterprise production standards before customer deployment.
+
+This is NOT academic code review. This is **"would Epic's engineering team approve this in acquisition due diligence?"** audit.
+
+---
+
+## EVALUATION SCOPE
+
+Audit the ENTIRE codebase across 10 critical dimensions:
+
+### 1. DEAD CODE & BLOAT (Remove Waste)
+### 2. SECURITY VULNERABILITIES (Fix Before Breach)
+### 3. PERFORMANCE PROBLEMS (Scale to 50 Customers)
+### 4. CODE DUPLICATION (DRY Violations)
+### 5. TYPE SAFETY (TypeScript Strictness)
+### 6. ERROR HANDLING (Production Resilience)
+### 7. MAINTAINABILITY (Team Can Understand)
+### 8. TESTING GAPS (Critical Path Coverage)
+### 9. ARCHITECTURAL INCONSISTENCIES (Pattern Violations)
+### 10. HEALTHCARE COMPLIANCE (HIPAA Requirements)
+
+For each dimension, find SPECIFIC problems with SPECIFIC fixes.
+
+---
+
+## DIMENSION 1: DEAD CODE & BLOAT 🗑️
+
+**Goal:** Remove every line of code that doesn't ship to production.
+
+### A. Unused Exports
+```
+Scan all files for exports that are never imported:
+
+□ Find all export statements
+□ Track all import statements
+□ Identify exports with 0 imports
+□ Calculate dead code %
+
+Tools to use:
+- ts-prune (if available)
+- Manual scan via grep/find
+
+Report format:
+File: src/lib/utils/old-helper.ts
+Export: export function unusedFunction()
+Imported by: NONE
+Action: DELETE
+
+List ALL unused exports (target: <5% should be unused)
+If >10% unused → significant bloat
+```
+
+### B. Commented-Out Code
+```
+Find all commented code blocks:
+
+Search for:
+□ // [function/component/logic] (multi-line comments)
+□ /* ... */ (block comments with code)
+□ {/* ... */} (JSX comments with code)
+
+Report format:
+File: src/components/Dashboard.tsx
+Lines: 147-163 (17 lines commented)
+Reason: "Old implementation before refactor"
+Action: DELETE (if not needed) or UNCOMMENT (if needed)
+
+List ALL instances
+Rule: If it's been commented >2 weeks → DELETE
+```
+
+### C. Unused Dependencies
+```
+Check package.json for unused packages:
+
+□ Scan package.json dependencies
+□ Search codebase for import/require of each package
+□ Identify packages with 0 references
+
+Report format:
+Package: "old-library": "^1.2.3"
+Used in: NONE
+Action: npm uninstall old-library
+
+List ALL unused packages
+Bundle size matters for performance
+```
+
+### D. Duplicate Files
+```
+Find files that are near-identical:
+
+□ .backup files
+□ .old files  
+□ .temp files
+□ Copy of X files
+□ X (1).tsx files
+
+Report format:
+Files: 
+  - src/components/Table.tsx (active)
+  - src/components/Table.backup.tsx (unused)
+  - src/components/Table.old.tsx (unused)
+Action: DELETE backups, keep only active
+
+List ALL duplicates
+```
+
+### E. Empty or Stub Functions
+```
+Find functions that do nothing:
+
+□ Empty function bodies
+□ Functions that just return null
+□ Functions with only TODO comments
+□ Placeholder implementations
+
+Report format:
+File: src/services/integration-service.ts
+Function: async function syncData() { /* TODO */ }
+Status: STUB
+Action: IMPLEMENT or DELETE
+
+List ALL stubs
+If keeping stub: Add clear "Not Yet Implemented" error
+```
+
+### F. Unused React Components
+```
+Find components never rendered:
+
+□ Components exported but never imported
+□ Components in /components but not used
+□ Old/deprecated components
+
+Report format:
+Component: OldDashboard.tsx
+Created: 2024-10-20
+Last modified: 2024-10-21  
+Imported by: NONE
+Action: DELETE
+
+List ALL unused components
+109 components claimed - how many actually used?
+```
+
+### G. Console.logs and Debug Code
+```
+Find all debugging code that shouldn't be in production:
+
+Search for:
+□ console.log()
+□ console.error() (except in error handlers)
+□ console.warn()
+□ console.debug()
+□ console.table()
+□ debugger; statements
+□ // DEBUG comments
+
+Report format:
+File: src/lib/translation-engine/index.ts
+Line: 147
+Code: console.log('Processing event:', event)
+Context: Inside translation logic
+Action: DELETE or replace with proper logger
+
+List ALL instances (target: 0 in production code)
+
+Exceptions allowed:
+- Error handlers (console.error with structured data)
+- Development-only code blocks (if (process.env.NODE_ENV === 'development'))
+```
+
+**BLOAT ASSESSMENT:**
+```
+Total lines of code: 53,654
+Estimated dead code: ____ lines
+Dead code percentage: ____%
+
+Goal: <5% dead code
+If >10% → Significant cleanup needed
+If >20% → Major bloat problem
+
+Estimated cleanup:
+- Delete ____ files
+- Delete ____ functions
+- Delete ____ components
+- Remove ____ lines of code
+
+Time to clean: ___ hours
+```
+
+---
+
+## DIMENSION 2: SECURITY VULNERABILITIES 🔒
+
+**Goal:** Fix every security hole before customer deployment.
+
+### A. Hardcoded Secrets
+```
+Search for exposed API keys, tokens, passwords:
+
+Patterns to find:
+□ const API_KEY = "sk_..."
+□ const TOKEN = "Bearer ..."
+□ password: "..."
+□ secret: "..."
+□ apiKey: "..."
+□ auth: "..."
+
+Search locations:
+- All .ts/.tsx files
+- Config files
+- .env files committed to git (should never be committed!)
+- Constants files
+
+Report format:
+File: src/config/integrations.ts
+Line: 23
+Code: const LANGSMITH_KEY = "lsv2_pt_xxxx"
+Risk: CRITICAL - API key exposed in client code
+Fix: Move to environment variable
+
+Action for each:
+1. Move to .env file
+2. Add to .env.example (with placeholder)
+3. Update code to use process.env.VARIABLE_NAME
+4. Verify .env is in .gitignore
+5. Rotate exposed secret immediately
+
+List ALL instances (target: 0)
+```
+
+### B. SQL Injection Vulnerabilities
+```
+Check for unsafe database queries:
+
+□ Raw SQL strings with user input
+□ String concatenation in queries
+□ Unsafe use of dynamic queries
+
+Look for patterns:
+- db.query(`SELECT * FROM users WHERE id = ${userId}`)
+- db.raw('...' + userInput + '...')
+- Dynamic table/column names from user input
+
+Report format:
+File: src/lib/db/queries.ts
+Line: 89
+Code: db.query(`SELECT * FROM ai_systems WHERE name = '${req.body.name}'`)
+Risk: HIGH - SQL injection via name parameter
+Fix: Use parameterized query
+
+Current code:
+```typescript
+const systems = await db.query(
+  `SELECT * FROM ai_systems WHERE name = '${name}'`
+)
+```
+
+Fixed code:
+```typescript
+const systems = await db.select()
+  .from(aiSystems)
+  .where(eq(aiSystems.name, name))
+// Drizzle ORM handles parameterization
+```
+
+List ALL instances
+Should be 0 if using Drizzle ORM correctly
+```
+
+### C. XSS (Cross-Site Scripting) Vulnerabilities
+```
+Find unsafe HTML rendering:
+
+□ dangerouslySetInnerHTML usage
+□ Unescaped user input in HTML
+□ innerHTML assignments
+□ Unsanitized markdown rendering
+
+Report format:
+File: src/components/AlertMessage.tsx
+Line: 45
+Code: <div dangerouslySetInnerHTML={{ __html: userMessage }} />
+Risk: HIGH - XSS via user message
+Fix: Use text content or sanitize HTML
+
+List ALL instances
+React escapes by default - should be rare
+If found: MUST sanitize with DOMPurify or similar
+```
+
+### D. Authentication Bypass Risks
+```
+Audit all API routes for auth:
+
+□ Check EVERY route in /app/api/**
+□ Verify auth middleware applied
+□ Check for routes accessible without token
+□ Verify role-based access control
+
+Report format:
+File: app/api/ai-systems/[id]/route.ts
+Endpoint: GET /api/ai-systems/:id
+Auth required: NO ❌
+Risk: HIGH - Anyone can view AI system details
+Fix: Add auth middleware
+
+Current code:
+```typescript
+export async function GET(req: Request) {
+  const id = req.params.id
+  const system = await db.query.aiSystems.findFirst({
+    where: eq(aiSystems.id, id)
+  })
+  return Response.json(system)
+}
+```
+
+Fixed code:
+```typescript
+import { requireAuth } from '@/lib/auth'
+
+export async function GET(req: Request) {
+  const session = await requireAuth(req)
+  
+  const id = req.params.id
+  const system = await db.query.aiSystems.findFirst({
+    where: and(
+      eq(aiSystems.id, id),
+      eq(aiSystems.healthSystemId, session.healthSystemId)
+    )
+  })
+  
+  if (!system) {
+    return Response.json({ error: 'Not found' }, { status: 404 })
+  }
+  
+  return Response.json(system)
+}
+```
+
+List ALL unprotected routes
+Target: 100% of routes protected (except login/signup)
+```
+
+### E. CSRF Vulnerabilities
+```
+Check POST/PUT/DELETE routes for CSRF protection:
+
+□ Are state-changing operations protected?
+□ Is CSRF token validated?
+□ Are cookies set with SameSite attribute?
+
+Report format:
+Route: POST /api/ai-systems
+CSRF protection: NO ❌
+Risk: MEDIUM - Potential CSRF attack
+Fix: Add CSRF token validation or use SameSite cookies
+
+List all state-changing routes
+Next.js default SameSite=Lax helps, but verify
+```
+
+### F. PHI Exposure Risks (HIPAA-Specific)
+```
+Find anywhere PHI could leak:
+
+□ Console.log with PHI data
+□ Error messages with PHI
+□ Logs with PHI
+□ Analytics tracking PHI
+□ URL parameters with PHI
+□ Unsecured webhooks receiving PHI
+
+Report format:
+File: src/lib/monitoring/webhook-handler.ts
+Line: 67
+Code: console.log('Received event:', event)
+Risk: CRITICAL - Event may contain PHI, logged to console
+Fix: Remove log or sanitize PHI first
+
+HIPAA rule: PHI must NEVER appear in logs, console, or unencrypted storage
+
+List ALL potential PHI exposure points
+This is audit failure if found
+```
+
+### G. Dependency Vulnerabilities
+```
+Scan npm packages for known vulnerabilities:
+
+Run: npm audit
+
+Report:
+- Critical vulnerabilities: ___
+- High vulnerabilities: ___
+- Moderate: ___
+- Low: ___
+
+For each critical/high:
+Package: package-name
+Vulnerability: CVE-2024-XXXXX
+Risk: Description
+Fix: npm update package-name OR npm audit fix
+
+Target: 0 critical, 0 high vulnerabilities
+```
+
+### H. Rate Limiting & DoS Protection
+```
+Check if API routes have rate limiting:
+
+□ Login endpoint (prevent brute force)
+□ Password reset (prevent enumeration)
+□ API endpoints (prevent abuse)
+□ Webhook endpoints (prevent flooding)
+
+Report format:
+Route: POST /api/monitoring/webhook
+Rate limit: NO ❌
+Risk: MEDIUM - Can be flooded with events
+Fix: Add rate limiting middleware
+
+Target: All public endpoints should be rate-limited
+```
+
+**SECURITY ASSESSMENT:**
+```
+Critical vulnerabilities: ___ (MUST FIX before launch)
+High vulnerabilities: ___ (MUST FIX this week)
+Medium vulnerabilities: ___ (Fix before enterprise customers)
+Low vulnerabilities: ___ (Backlog)
+
+Would Epic's security team approve this? YES / NO
+
+If NO, what are the blockers?
+```
+
+---
+
+## DIMENSION 3: PERFORMANCE PROBLEMS ⚡
+
+**Goal:** Ensure app stays fast at 50 enterprise customers (15,000 AI systems).
+
+### A. N+1 Query Problems
+```
+Find database queries inside loops:
+
+Pattern:
+for (const system of systems) {
+  const events = await db.query.monitoringEvents.findMany({
+    where: eq(monitoringEvents.aiSystemId, system.id)
+  })
+}
+
+This is N+1: 1 query for systems + N queries for events = 1001 queries total
+
+Report format:
+File: src/app/api/dashboard/route.ts
+Lines: 45-52
+Problem: Fetching events for each system individually
+Impact: 100 systems = 101 queries (slow!)
+Fix: Use single query with join or WHERE IN
+
+Current code:
+```typescript
+const systems = await db.query.aiSystems.findMany()
+for (const system of systems) {
+  system.events = await db.query.monitoringEvents.findMany({
+    where: eq(monitoringEvents.aiSystemId, system.id)
+  })
+}
+```
+
+Fixed code:
+```typescript
+const systems = await db.query.aiSystems.findMany({
+  with: {
+    events: true // Drizzle will do efficient join
+  }
+})
+// OR if not using relations:
+const systemIds = systems.map(s => s.id)
+const events = await db.query.monitoringEvents.findMany({
+  where: inArray(monitoringEvents.aiSystemId, systemIds)
+})
+// Then group by systemId in JS
+```
+
+List ALL N+1 patterns
+These kill performance at scale
+```
+
+### B. Missing Database Indexes
+```
+Analyze slow queries:
+
+For each table, check if indexes exist on:
+□ Foreign keys (aiSystemId, healthSystemId, etc.)
+□ Commonly filtered columns (status, createdAt)
+□ Columns in WHERE clauses
+□ Columns in ORDER BY clauses
+□ Columns in JOIN conditions
+
+Report format:
+Table: monitoring_events
+Slow query: SELECT * FROM monitoring_events WHERE ai_system_id = ? ORDER BY created_at DESC
+Missing index: ai_system_id
+Impact: Full table scan for millions of rows
+Fix: CREATE INDEX idx_monitoring_events_ai_system ON monitoring_events(ai_system_id, created_at DESC)
+
+List ALL missing indexes
+Each missing index = 10-100x slower queries
+```
+
+### C. Inefficient React Rendering
+```
+Find components that re-render unnecessarily:
+
+□ Large lists without React.memo
+□ Inline function definitions in render
+□ New object/array creation in render
+□ useEffect with missing dependencies
+□ Context value re-creating on every render
+
+Report format:
+Component: AISystemsList.tsx
+Problem: Rendering 1000 systems without virtualization
+Impact: Slow initial render, janky scrolling
+Fix: Use react-window or TanStack Virtual
+
+Current code:
+```typescript
+export function AISystemsList({ systems }) {
+  return (
+    <div>
+      {systems.map(system => (
+        <AISystemCard key={system.id} system={system} />
+      ))}
+    </div>
+  )
+}
+```
+
+Fixed code:
+```typescript
+import { useVirtualizer } from '@tanstack/react-virtual'
+
+export function AISystemsList({ systems }) {
+  const parentRef = useRef()
+  const virtualizer = useVirtualizer({
+    count: systems.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 100,
+  })
+  
+  return (
+    <div ref={parentRef} style={{ height: '600px', overflow: 'auto' }}>
+      <div style={{ height: virtualizer.getTotalSize() }}>
+        {virtualizer.getVirtualItems().map(item => (
+          <div key={item.key} style={{ 
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            transform: `translateY(${item.start}px)`,
+          }}>
+            <AISystemCard system={systems[item.index]} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+```
+
+List ALL performance anti-patterns in React components
+```
+
+### D. Unoptimized Images
+```
+Check image usage:
+
+□ Using next/image? (optimizes automatically)
+□ Images in WebP format?
+□ Images properly sized?
+□ Lazy loading enabled?
+
+Report format:
+File: src/components/Logo.tsx
+Problem: Using <img> instead of <Image>
+Current size: 500KB PNG
+Fix: Use next/image, convert to WebP (50KB)
+
+List ALL image optimization opportunities
+```
+
+### E. Bundle Size Issues
+```
+Analyze JavaScript bundle size:
+
+Run: npm run build
+
+Report:
+- Total bundle size: ___ MB
+- Largest chunks: 
+  1. ___ (___ KB)
+  2. ___ (___ KB)
+  3. ___ (___ KB)
+
+Target: <500KB initial load (gzipped)
+
+Check for:
+□ Unused dependencies bloating bundle
+□ Large libraries that could be replaced
+□ Missing code splitting
+□ Missing tree shaking
+
+Fix examples:
+- Using entire lodash? → Import specific functions
+- Using moment.js? → Replace with date-fns (10x smaller)
+- Not code splitting routes? → Use next/dynamic
+```
+
+### F. Slow API Routes
+```
+Profile API response times:
+
+Test each route:
+GET /api/ai-systems - ___ ms (target: <200ms)
+GET /api/monitoring/events - ___ ms (target: <500ms)
+POST /api/reports/generate - ___ ms (target: <3000ms)
+GET /api/dashboard - ___ ms (target: <300ms)
+
+For any route >target:
+- Profile with timing logs
+- Identify bottleneck (DB query? External API? Processing?)
+- Optimize or add caching
+
+Report format:
+Route: GET /api/dashboard
+Current: 2,400ms
+Bottleneck: Fetching compliance status for each system (N+1 query)
+Fix: Precompute compliance status, cache for 5 minutes
+After fix: 180ms
+```
+
+**PERFORMANCE ASSESSMENT:**
+```
+Slowest query time: ___ ms (target: <500ms)
+Slowest API route: ___ ms (target: <2000ms)
+Largest bundle chunk: ___ KB (target: <500KB)
+N+1 queries found: ___ (target: 0)
+
+Can this handle 50 customers (15,000 AI systems)? YES / NO
+
+If NO, what must be fixed?
+```
+
+---
+
+## DIMENSION 4: CODE DUPLICATION 🔄
+
+**Goal:** Apply DRY principle - Don't Repeat Yourself.
+
+### A. Copy-Paste Detection
+```
+Find duplicate code blocks:
+
+Use tool: jscpd (if available) or manual inspection
+
+Look for:
+□ Same component logic in 5+ places
+□ Same API call pattern repeated
+□ Same form validation logic
+□ Same error handling pattern
+□ Same utility function redefined
+
+Report format:
+Duplication found:
+Files:
+  - src/components/AISystemForm.tsx (lines 45-67)
+  - src/components/VendorForm.tsx (lines 89-111)
+  - src/components/UserForm.tsx (lines 34-56)
+
+Duplicate: Form validation logic (23 lines, 98% similar)
+
+Fix: Extract to shared function
+```typescript
+// Create: src/lib/validation/form-utils.ts
+export function validateRequired(value: string, fieldName: string) {
+  if (!value?.trim()) {
+    throw new Error(`${fieldName} is required`)
+  }
+}
+
+// Use in all 3 forms:
+import { validateRequired } from '@/lib/validation/form-utils'
+```
+
+Duplication percentage: ___% (target: <3%)
+If >10% → Major refactoring needed
+```
+
+### B. Similar Components
+```
+Find components that are almost identical:
+
+□ Button variants (PrimaryButton, SecondaryButton, etc.)
+□ Card variants (AISystemCard, VendorCard, etc.)
+□ Form components (similar structure, different fields)
+□ Table components (similar columns, different data)
+
+Report format:
+Similar components:
+  - AISystemCard.tsx (127 lines)
+  - VendorCard.tsx (134 lines)
+  - UserCard.tsx (119 lines)
+
+Similarity: 85% identical structure
+
+Fix: Create generic Card component with props
+```typescript
+// Instead of 3 separate components:
+<Card 
+  type="ai-system" | "vendor" | "user"
+  data={data}
+  onAction={handleAction}
+/>
+```
+
+Estimate lines saved: ___ lines
+```
+
+### C. Repeated API Patterns
+```
+Find duplicate fetch/API logic:
+
+If you see this pattern 10+ times:
+```typescript
+const response = await fetch('/api/...')
+if (!response.ok) throw new Error('Failed')
+const data = await response.json()
+return data
+```
+
+Fix: Create API client
+```typescript
+// src/lib/api/client.ts
+export async function apiGet<T>(endpoint: string): Promise<T> {
+  const response = await fetch(endpoint)
+  if (!response.ok) {
+    throw new Error(`API error: ${response.statusText}`)
+  }
+  return response.json()
+}
+
+// Usage:
+const systems = await apiGet<AISystem[]>('/api/ai-systems')
+```
+
+Count duplicate API patterns: ___
+Target: Abstract into client library
+```
+
+### D. Repeated Database Queries
+```
+Find queries that could be shared functions:
+
+Example:
+```typescript
+// Repeated in 5 files:
+const system = await db.query.aiSystems.findFirst({
+  where: and(
+    eq(aiSystems.id, id),
+    eq(aiSystems.healthSystemId, healthSystemId)
+  )
+})
+```
+
+Fix: Create repository pattern
+```typescript
+// src/lib/db/repositories/ai-systems.ts
+export async function getAISystemById(
+  id: string,
+  healthSystemId: string
+) {
+  return db.query.aiSystems.findFirst({
+    where: and(
+      eq(aiSystems.id, id),
+      eq(aiSystems.healthSystemId, healthSystemId)
+    )
+  })
+}
+
+// Use everywhere:
+import { getAISystemById } from '@/lib/db/repositories/ai-systems'
+const system = await getAISystemById(id, session.healthSystemId)
+```
+
+List all duplicate query patterns
+```
+
+**DUPLICATION ASSESSMENT:**
+```
+Total duplication: ___% of codebase
+Lines that could be deduplicated: ___ lines
+Potential reduction: ___ lines → ___ lines
+
+Refactoring priority: HIGH / MEDIUM / LOW
+Time to refactor: ___ hours
+```
+
+---
+
+## DIMENSION 5: TYPE SAFETY 🔷
+
+**Goal:** Maximum TypeScript strictness for production reliability.
+
+### A. 'any' Type Usage
+```
+Find all 'any' types:
+
+Search for:
+□ : any
+□ as any
+□ any[]
+□ Record<string, any>
+
+Report format:
+File: src/lib/integrations/langsmith.ts
+Line: 45
+Code: function parseEvent(event: any) {
+Risk: No type checking, runtime errors possible
+Fix: Define proper type
+
+Current:
+```typescript
+function parseEvent(event: any) {
+  return {
+    id: event.id,
+    type: event.type,
+    // ...
+  }
+}
+```
+
+Fixed:
+```typescript
+interface LangSmithEvent {
+  id: string
+  type: 'drift' | 'error' | 'latency'
+  metrics: {
+    accuracy?: number
+    latency?: number
+  }
+  // ...
+}
+
+function parseEvent(event: LangSmithEvent) {
+  // TypeScript ensures event.id exists and is string
+  return {
+    id: event.id,
+    type: event.type,
+    // ...
+  }
+}
+```
+
+Count 'any' usage: ___
+Target: <1% of codebase
+If >5% → Type safety problem
+```
+
+### B. Missing Type Definitions
+```
+Find functions/variables without types:
+
+□ Function parameters without types
+□ Function return types not specified
+□ Variables inferred as 'any'
+□ React component props not typed
+
+Report format:
+File: src/components/Dashboard.tsx
+Function: function loadData(id) { // Missing param type
+Risk: Can pass wrong type, runtime error
+Fix: Add types
+
+Current:
+```typescript
+function calculateRisk(violations) {
+  // violations could be anything!
+  return violations.length > 5 ? 'high' : 'low'
+}
+```
+
+Fixed:
+```typescript
+interface ComplianceViolation {
+  id: string
+  severity: 'low' | 'medium' | 'high' | 'critical'
+  controlId: string
+}
+
+function calculateRisk(
+  violations: ComplianceViolation[]
+): 'low' | 'medium' | 'high' | 'critical' {
+  if (violations.some(v => v.severity === 'critical')) return 'critical'
+  if (violations.length > 5) return 'high'
+  if (violations.length > 2) return 'medium'
+  return 'low'
+}
+```
+
+Count untyped functions: ___
+Target: 100% of functions explicitly typed
+```
+
+### C. Type Assertion Overuse
+```
+Find excessive use of type assertions:
+
+□ value as SomeType
+□ <SomeType>value
+□ ! non-null assertions
+
+These bypass type checking and can hide bugs.
+
+Report format:
+File: src/lib/api/events.ts
+Line: 78
+Code: const system = data.system as AISystem
+Risk: If data.system isn't AISystem, runtime error
+Fix: Validate with Zod schema instead
+
+Current:
+```typescript
+const response = await fetch('/api/systems')
+const data = await response.json()
+const system = data as AISystem // UNSAFE!
+```
+
+Fixed:
+```typescript
+import { z } from 'zod'
+
+const AISystemSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  status: z.enum(['active', 'paused', 'error']),
+  // ...
+})
+
+const response = await fetch('/api/systems')
+const data = await response.json()
+const system = AISystemSchema.parse(data) // Validates at runtime!
+// If invalid, throws descriptive error
+```
+
+Count type assertions: ___
+Target: <10 in entire codebase
+Each one is potential runtime bug
+```
+
+### D. Strict Mode Compliance
+```
+Check tsconfig.json settings:
+
+Required for production:
+□ "strict": true
+□ "noImplicitAny": true
+□ "strictNullChecks": true
+□ "strictFunctionTypes": true
+□ "noImplicitThis": true
+□ "alwaysStrict": true
+
+Current tsconfig settings:
+- strict: ___ (should be true)
+- noImplicitAny: ___ (should be true)
+- strictNullChecks: ___ (should be true)
+
+If ANY are false:
+1. Enable them
+2. Fix all resulting errors (could be 100+)
+3. This is 1-2 days of work but CRITICAL
+
+How many errors with strict mode? ___
+```
+
+**TYPE SAFETY ASSESSMENT:**
+```
+'any' usage: ___% (target: <1%)
+Untyped functions: ___ (target: 0)
+Type assertions: ___ (target: <10)
+Strict mode: ON / OFF (must be ON)
+
+TypeScript strictness score: ___/100
+
+Would this pass Epic's code review? YES / NO
+```
+
+---
+
+## DIMENSION 6: ERROR HANDLING 🚨
+
+**Goal:** Graceful degradation, never crash production.
+
+### A. Uncaught Promise Rejections
+```
+Find async functions without try/catch:
+
+Pattern:
+```typescript
+async function getData() {
+  const result = await someAsyncCall() // No try/catch!
+  return result
+}
+```
+
+If someAsyncCall fails → Unhandled promise rejection → App crash
+
+Report format:
+File: src/app/api/monitoring/route.ts
+Function: async function POST(req: Request)
+Risk: Unhandled errors crash API route
+Fix: Wrap in try/catch
+
+Current:
+```typescript
+export async function POST(req: Request) {
+  const body = await req.json()
+  const result = await processEvent(body)
+  return Response.json(result)
+}
+```
+
+Fixed:
+```typescript
+export async function POST(req: Request) {
+  try {
+    const body = await req.json()
+    const result = await processEvent(body)
+    return Response.json(result)
+  } catch (error) {
+    console.error('Failed to process event:', error)
+    return Response.json(
+      { error: 'Failed to process event' },
+      { status: 500 }
+    )
+  }
+}
+```
+
+Count unhandled async functions: ___
+Target: 100% of async functions have error handling
+```
+
+### B. Generic Error Messages
+```
+Find error handling that doesn't help debugging:
+
+Bad patterns:
+□ throw new Error('Error') // What error?
+□ catch (e) { return null } // Silent failure!
+□ console.log('Failed') // No context
+□ return { error: 'Something went wrong' } // Too vague
+
+Report format:
+File: src/lib/db/queries.ts
+Code: catch (error) { return null }
+Problem: Silent failure, no logging, impossible to debug
+Fix: Log error with context, return structured error
+
+Current:
+```typescript
+async function getSystem(id: string) {
+  try {
+    return await db.query.aiSystems.findFirst({ where: eq(aiSystems.id, id) })
+  } catch (error) {
+    return null // TERRIBLE! What happened?
+  }
+}
+```
+
+Fixed:
+```typescript
+async function getSystem(id: string) {
+  try {
+    return await db.query.aiSystems.findFirst({ 
+      where: eq(aiSystems.id, id) 
+    })
+  } catch (error) {
+    console.error('Failed to fetch AI system', {
+      systemId: id,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    })
+    throw new DatabaseError('Failed to fetch AI system', { 
+      cause: error,
+      context: { systemId: id }
+    })
+  }
+}
+```
+
+Count generic error handlers: ___
+All should have context (what failed, why, how to fix)
+```
+
+### C. Missing Input Validation
+```
+Find API routes that don't validate input:
+
+Every API route should validate:
+□ Request body exists
+□ Required fields present
+□ Types are correct
+□ Values in valid range
+□ Authorization (user can access this resource)
+
+Report format:
+Route: POST /api/ai-systems
+Validation: NONE ❌
+Risk: Can send malformed data, crash server
+Fix: Add Zod validation
+
+Current:
+```typescript
+export async function POST(req: Request) {
+  const { name, vendor } = await req.json()
+  // What if name is undefined? What if vendor is number instead of string?
+  const system = await createAISystem({ name, vendor })
+  return Response.json(system)
+}
+```
+
+Fixed:
+```typescript
+import { z } from 'zod'
+
+const CreateAISystemSchema = z.object({
+  name: z.string().min(1).max(100),
+  vendor: z.string().min(1),
+  category: z.enum(['clinical_ai', 'imaging', 'documentation']),
+  usesPhiType: z.boolean(),
+})
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json()
+    const validated = CreateAISystemSchema.parse(body)
+    // Now TypeScript knows exact types, runtime validated!
+    
+    const system = await createAISystem(validated)
+    return Response.json(system)
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return Response.json(
+        { error: 'Invalid input', details: error.errors },
+        { status: 400 }
+      )
+    }
+    throw error
+  }
+}
+```
+
+Count unvalidated API routes: ___
+Target: 100% of routes validate input
+```
+
+### D. Database Error Handling
+```
+Check database error handling:
+
+□ Unique constraint violations (duplicate email, etc.)
+□ Foreign key violations (referencing non-existent record)
+□ Connection errors (database down)
+□ Timeout errors (slow query)
+
+Report format:
+File: src/lib/db/repositories/users.ts
+Function: createUser
+Missing: Unique constraint handling
+Impact: Generic 500 error instead of "Email already exists"
+
+Current:
+```typescript
+async function createUser(email: string) {
+  return await db.insert(users).values({ email })
+  // If email exists, crashes with generic database error
+}
+```
+
+Fixed:
+```typescript
+async function createUser(email: string) {
+  try {
+    return await db.insert(users).values({ email })
+  } catch (error) {
+    if (error.code === '23505') { // PostgreSQL unique violation
+      throw new ValidationError('Email already exists')
+    }
+    if (error.code === '23503') { // Foreign key violation
+      throw new ValidationError('Referenced record does not exist')
+    }
+    throw new DatabaseError('Failed to create user', { cause: error })
+  }
+}
+```
+
+List all database operations
+Target: Handle specific errors, not just generic catch
+```
+
+### E. Frontend Error Boundaries
+```
+Check React error boundaries:
+
+□ Do we have error boundary component?
+□ Is it wrapping the entire app?
+□ Does it handle errors gracefully?
+□ Does it log errors to monitoring service?
+
+Report format:
+Error boundary: NOT FOUND ❌
+Risk: Any React error crashes entire app
+Fix: Add error boundary
+
+Create:
+```typescript
+// src/components/ErrorBoundary.tsx
+import { Component, ReactNode } from 'react'
+
+interface Props {
+  children: ReactNode
+  fallback?: ReactNode
+}
+
+interface State {
+  hasError: boolean
+  error?: Error
+}
+
+export class ErrorBoundary extends Component<Props, State> {
+  state: State = { hasError: false }
+  
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error }
+  }
+  
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error('React error:', error, errorInfo)
+    // Send to Sentry or similar
+  }
+  
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback || (
+        <div>
+          <h1>Something went wrong</h1>
+          <p>{this.state.error?.message}</p>
+          <button onClick={() => window.location.reload()}>
+            Reload page
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
+// Wrap app in layout.tsx:
+<ErrorBoundary>
+  {children}
+</ErrorBoundary>
+```
+
+Error boundary present: YES / NO
+If NO → CRITICAL GAP
+```
+
+**ERROR HANDLING ASSESSMENT:**
+```
+Unhandled async functions: ___ (target: 0)
+API routes without validation: ___ (target: 0)
+Generic error messages: ___ (target: <10)
+Error boundary: YES / NO (must be YES)
+
+Production resilience score: ___/100
+
+Would this survive production incidents? YES / NO
+```
+
+---
+
+## DIMENSION 7: MAINTAINABILITY 🔧
+
+**Goal:** Code that new engineer can understand in 1 week.
+
+### A. Inconsistent Code Patterns
+```
+Find pattern inconsistencies:
+
+□ Some API routes use tRPC, some use REST
+□ Some files use named exports, some default exports
+□ Some use async/await, some use .then()
+□ Some use `function`, some use arrow functions
+□ File naming inconsistent (camelCase vs kebab-case)
+
+Report format:
+Inconsistency: API route patterns
+Examples:
+  - /api/ai-systems/route.ts uses REST
+  - /api/monitoring uses tRPC
+  - /api/reports uses REST
+
+Impact: Developers confused which pattern to follow
+Fix: Standardize on one pattern (preferably tRPC)
+
+Time to standardize: ___ hours
+
+List all major inconsistencies
+Pick one pattern per category, enforce it
+```
+
+### B. Missing or Poor Documentation
+```
+Check documentation quality:
+
+Code documentation:
+□ Complex functions have JSDoc comments?
+□ Types have descriptions?
+□ Non-obvious logic explained?
+
+Project documentation:
+□ README.md exists and up-to-date?
+□ CONTRIBUTING.md for contributors?
+□ API documentation?
+□ Architecture diagrams?
+□ Setup instructions clear?
+
+Report format:
+File: src/lib/translation-engine/index.ts
+Function: translateEvent (100+ lines, complex logic)
+Documentation: NONE
+Impact: Impossible to understand without reading all code
+Fix: Add JSDoc
+
+Example:
+```typescript
+/**
+ * Translates AI monitoring event to healthcare compliance violations
+ * 
+ * This is the core IP - maps telemetry to HIPAA/NIST/FDA controls
+ * 
+ * @param event - Raw monitoring event from integration (LangSmith, Arize, etc)
+ * @param aiSystem - AI system configuration from database
+ * @returns Array of compliance violations with severity and required actions
+ * 
+ * @example
+ * const event = { type: 'drift', metrics: { accuracyDrop: 0.08 } }
+ * const violations = await translateEvent(event, system)
+ * // Returns: [{ framework: 'HIPAA', controlId: '164.312(b)', severity: 'high', ... }]
+ */
+export async function translateEvent(
+  event: MonitoringEvent,
+  aiSystem: AISystem
+): Promise<ComplianceViolation[]> {
+  // ...
+}
+```
+
+Functions needing docs: ___
+Target: Every public function, every complex function (>20 lines)
+```
+
+### C. Magic Numbers and Strings
+```
+Find hardcoded values that should be constants:
+
+Bad patterns:
+□ if (violations.length > 5) // Why 5?
+□ setTimeout(fn, 300000) // What is 300000?
+□ if (status === 'active') // String could be typo
+
+Report format:
+File: src/lib/risk-scorer.ts
+Code: if (violations.length > 5) return 'high'
+Problem: Magic number 5 - why 5? Could change to 3, who knows?
+Fix: Named constant
+
+Current:
+```typescript
+function calculateRisk(violations: Violation[]) {
+  if (violations.length > 5) return 'high'
+  if (violations.length > 2) return 'medium'
+  return 'low'
+}
+```
+
+Fixed:
+```typescript
+const RISK_THRESHOLDS = {
+  HIGH_VIOLATION_COUNT: 5,
+  MEDIUM_VIOLATION_COUNT: 2,
+} as const
+
+function calculateRisk(violations: Violation[]) {
+  if (violations.length > RISK_THRESHOLDS.HIGH_VIOLATION_COUNT) {
+    return 'high'
+  }
+  if (violations.length > RISK_THRESHOLDS.MEDIUM_VIOLATION_COUNT) {
+    return 'medium'
+  }
+  return 'low'
+}
+```
+
+Count magic numbers: ___
+Count hardcoded strings: ___
+Target: All should be named constants
+```
+
+### D. Long Functions (God Functions)
+```
+Find functions >100 lines:
+
+Report format:
+File: src/lib/translation-engine/compliance-mapper.ts
+Function: mapToControls
+Lines: 347 lines
+Problem: Does too many things, hard to test, hard to understand
+Fix: Break into smaller functions
+
+Current:
+```typescript
+async function mapToControls(event: Event) {
+  // 50 lines of setup
+  // 100 lines of HIPAA logic
+  // 100 lines of NIST logic
+  // 50 lines of FDA logic
+  // 47 lines of action generation
+  return violations
+}
+```
+
+Fixed:
+```typescript
+async function mapToControls(event: Event) {
+  const hipaaViolations = await mapToHIPAA(event)
+  const nistViolations = await mapToNIST(event)
+  const fdaViolations = await mapToFDA(event)
+  
+  return [...hipaaViolations, ...nistViolations, ...fdaViolations]
+}
+
+async function mapToHIPAA(event: Event): Promise<Violation[]> {
+  // 100 lines - focused on HIPAA only
+}
+
+async function mapToNIST(event: Event): Promise<Violation[]> {
+  // 100 lines - focused on NIST only
+}
+```
+
+Functions over 100 lines: ___
+Target: <10 functions >100 lines
+Ideal: Most functions 10-30 lines
+```
+
+### E. Deep Nesting
+```
+Find deeply nested code (>4 levels):
+
+Example of bad nesting:
+```typescript
+if (condition1) {
+  if (condition2) {
+    if (condition3) {
+      if (condition4) {
+        if (condition5) {
+          // Finally the actual logic, 5 levels deep!
+        }
+      }
+    }
+  }
+}
+```
+
+Report format:
+File: src/lib/monitoring/event-processor.ts
+Lines: 145-189
+Nesting depth: 6 levels
+Impact: Cognitive overload, hard to follow logic
+Fix: Early returns, extract functions
+
+Current:
+```typescript
+function processEvent(event: Event) {
+  if (event.type === 'monitoring') {
+    if (event.source === 'langsmith') {
+      if (event.data) {
+        if (event.data.metrics) {
+          if (event.data.metrics.accuracy < 0.9) {
+            // Finally do something
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Fixed:
+```typescript
+function processEvent(event: Event) {
+  // Early returns reduce nesting
+  if (event.type !== 'monitoring') return
+  if (event.source !== 'langsmith') return
+  if (!event.data?.metrics) return
+  
+  if (event.data.metrics.accuracy < 0.9) {
+    // Logic at nesting level 1, not 5!
+  }
+}
+```
+
+Functions with >4 nesting levels: ___
+Target: <5 in entire codebase
+```
+
+### F. Complex Boolean Logic
+```
+Find boolean expressions that are hard to parse:
+
+Bad:
+```typescript
+if (!user || !user.isActive && user.role === 'admin' || user.permissions.includes('write') && !user.suspended)
+```
+
+What does this even check?
+
+Report format:
+File: src/lib/auth/permissions.ts
+Code: if (!user || !user.isActive && user.role === 'admin' || ...)
+Problem: Unclear logic, easy to misunderstand
+Fix: Extract to named function with clear logic
+
+Fixed:
+```typescript
+function canUserAccessResource(user: User) {
+  if (!user) return false
+  
+  const isActiveAdmin = user.isActive && user.role === 'admin'
+  const hasWritePermission = user.permissions.includes('write') && !user.suspended
+  
+  return isActiveAdmin || hasWritePermission
+}
+
+if (canUserAccessResource(user)) {
+  // Clear what we're checking
+}
+```
+
+Complex boolean expressions: ___
+Target: All should be readable, or extracted to functions
+```
+
+**MAINTAINABILITY ASSESSMENT:**
+```
+Pattern inconsistencies: ___ major (target: 0)
+Undocumented complex functions: ___ (target: 0)
+Functions >100 lines: ___ (target: <10)
+Deep nesting (>4 levels): ___ (target: <5)
+Magic numbers: ___ (target: <20)
+
+Maintainability score: ___/100
+
+Could new engineer contribute in 1 week? YES / NO
+```
+
+---
+
+## DIMENSION 8: TESTING GAPS 🧪
+
+**Goal:** Critical paths have test coverage.
+
+### A. Test Coverage Analysis
+```
+Run test coverage:
+
+npm run test:coverage
+
+Report:
+- Overall coverage: ___%
+- Translation engine coverage: ___%
+- API routes coverage: ___%
+- Components coverage: ___%
+
+Benchmarks:
+- Critical paths (translation engine): >80% required
+- Business logic: >70% required
+- UI components: >50% acceptable
+- Config/types: Can skip
+
+Missing tests for:
+1. ___ (Critical path, no tests)
+2. ___ (High-risk area, no tests)
+3. ___ (Complex logic, no tests)
+```
+
+### B. Critical Path Test Gaps
+```
+Check if these are tested:
+
+Translation Engine:
+□ PHI leakage detection → HIPAA violation
+□ Model drift → NIST violation
+□ Bias detection → Compliance violation
+□ Risk scoring calculation
+□ Action generation logic
+
+API Routes:
+□ Authentication works
+□ Authorization (can't access others' data)
+□ Input validation rejects bad data
+□ Error handling returns proper codes
+
+Database:
+□ Queries return expected data
+□ Constraints enforced (unique, foreign keys)
+□ Transactions work correctly
+
+Report format:
+Critical path: Translation Engine - PHI detection
+Test status: NO TESTS ❌
+Risk: Core IP could break without knowing
+Priority: CRITICAL
+
+Write test:
+```typescript
+// src/lib/translation-engine/__tests__/phi-detection.test.ts
+import { translateEvent } from '../index'
+
+describe('PHI Detection', () => {
+  it('should detect PHI in model output', async () => {
+    const event = {
+      type: 'completion',
+      output: 'Patient MRN-123456 has diabetes',
+      // MRN is PHI!
+    }
+    
+    const violations = await translateEvent(event, mockAISystem)
+    
+    expect(violations).toContainEqual(
+      expect.objectContaining({
+        framework: 'HIPAA',
+        controlId: '164.402',
+        severity: 'critical',
+      })
+    )
+  })
+  
+  it('should not flag non-PHI medical terms', async () => {
+    const event = {
+      type: 'completion',
+      output: 'Diabetes is a chronic condition',
+      // No PHI here
+    }
+    
+    const violations = await translateEvent(event, mockAISystem)
+    
+    expect(violations).not.toContainEqual(
+      expect.objectContaining({
+        controlId: '164.402',
+      })
+    )
+  })
+})
+```
+
+List all critical paths without tests
+Priority: Write these tests first
+```
+
+### C. Edge Case Testing
+```
+Check if edge cases are tested:
+
+□ Empty arrays/null values
+□ Invalid input types
+□ Boundary conditions (0, -1, MAX_INT)
+□ Concurrent operations
+□ Database errors
+□ External API failures
+
+Report format:
+Function: calculateRisk(violations)
+Edge cases tested:
+  ✓ Empty array
+  ✗ Null input
+  ✗ Negative violation count
+  ✓ Very large array (1000+ violations)
+
+Missing tests:
+```typescript
+it('should handle null violations gracefully', () => {
+  expect(() => calculateRisk(null)).toThrow('Invalid input')
+})
+
+it('should handle invalid violation objects', () => {
+  const invalid = [{ wrongField: 'value' }]
+  expect(() => calculateRisk(invalid)).toThrow('Invalid violation format')
+})
+```
+
+Functions lacking edge case tests: ___
+```
+
+### D. Integration Test Gaps
+```
+Check if integration tests exist:
+
+End-to-end workflows:
+□ Add AI system → Receive webhook → Get alert → Generate report
+□ User signup → Login → Access dashboard
+□ Vendor certification workflow
+
+Report format:
+Integration test: Add AI system end-to-end
+Status: NOT IMPLEMENTED
+Priority: HIGH (Core user flow)
+
+Example test:
+```typescript
+// e2e/ai-system-workflow.test.ts
+import { test, expect } from '@playwright/test'
+
+test('complete AI system monitoring workflow', async ({ page }) => {
+  // Login
+  await page.goto('/login')
+  await page.fill('[name="email"]', 'test@hospital.com')
+  await page.fill('[name="password"]', 'password')
+  await page.click('button[type="submit"]')
+  
+  // Add AI system
+  await page.goto('/ai-systems/new')
+  await page.fill('[name="name"]', 'Test AI System')
+  await page.fill('[name="apiKey"]', 'test-key')
+  await page.click('button[type="submit"]')
+  
+  // Verify appears in dashboard
+  await page.goto('/dashboard')
+  await expect(page.locator('text=Test AI System')).toBeVisible()
+  
+  // Trigger webhook (mock)
+  // Verify alert appears
+  // Generate report
+  // Verify report downloads
+})
+```
+
+Missing integration tests: ___
+```
+
+**TESTING ASSESSMENT:**
+```
+Overall coverage: ___%
+Critical path coverage: ___% (target: >80%)
+Edge case coverage: GOOD / POOR
+Integration tests: ___ (target: 5+ key workflows)
+
+Production confidence score: ___/100
+
+Would you deploy this without more tests? YES / NO
+```
+
+---
+
+## DIMENSION 9: ARCHITECTURAL INCONSISTENCIES 🏗️
+
+**Goal:** Consistent patterns throughout codebase.
+
+### A. File Organization
+```
+Check directory structure consistency:
+
+Ideal Next.js structure:
+/app - Routes (pages, API routes)
+/components - React components
+  /ui - Reusable UI components
+  /features - Feature-specific components
+/lib - Business logic
+  /db - Database (schema, queries)
+  /api - API clients
+  /utils - Utilities
+/types - TypeScript types
+/config - Configuration
+
+Current structure issues:
+□ Files in wrong directories
+□ Inconsistent naming
+□ Deep nesting (>4 levels)
+□ Mixed concerns (UI + logic in same file)
+
+Report format:
+Issue: Business logic in components
+Example: Dashboard.tsx has 200 lines of data fetching
+Should be: Extract to /lib/dashboard/data-loader.ts
+
+List all structure violations
+Time to reorganize: ___ hours
+```
+
+### B. Mixed Architectural Patterns
+```
+Find mixing of incompatible patterns:
+
+□ REST + tRPC in same codebase
+□ Redux + Zustand + Context API all used
+□ Class components + Function components mixed
+□ Different folder structures in different areas
+
+Report format:
+Pattern inconsistency: State management
+Areas using:
+  - Dashboard: React Context
+  - Settings: Zustand
+  - Monitoring: Local state only
+
+Impact: Developers confused which pattern to use
+Fix: Standardize on Zustand (or Context, pick one)
+
+List all pattern inconsistencies
+Choose one pattern per category, migrate
+```
+
+### C. Coupling and Dependencies
+```
+Check for tight coupling:
+
+□ Components importing from /lib/db directly (should go through API)
+□ UI components with business logic
+□ Circular dependencies
+□ Components depending on 10+ other components
+
+Report format:
+File: src/components/AISystemCard.tsx
+Problem: Imports directly from database layer
+Should: Use API hook or service layer
+
+Current:
+```typescript
+// Component directly querying database
+import { db } from '@/lib/db'
+
+export function AISystemCard({ id }) {
+  useEffect(() => {
+    const system = await db.query.aiSystems.findFirst({ where: eq(aiSystems.id, id) })
+  }, [])
+}
+```
+
+Fixed:
+```typescript
+// Component uses API hook
+import { useAISystem } from '@/lib/api/hooks'
+
+export function AISystemCard({ id }) {
+  const { data: system } = useAISystem(id)
+}
+
+// Hook in /lib/api/hooks.ts handles data fetching
+```
+
+Coupling violations: ___
+Target: Clear separation (UI → API → Business Logic → Database)
+```
+
+### D. Naming Conventions
+```
+Check naming consistency:
+
+Files:
+□ kebab-case vs camelCase vs PascalCase
+□ Inconsistent suffixes (Card.tsx vs CardComponent.tsx)
+
+Functions:
+□ get vs fetch vs retrieve
+□ handle vs on (handleClick vs onClick)
+
+Variables:
+□ Abbreviations inconsistent (sys vs system, evt vs event)
+
+Report format:
+Inconsistency: Function naming
+Examples:
+  - getAISystem()
+  - fetchUser()
+  - retrieveMonitoringData()
+
+All do the same thing (fetch data) but use different verbs.
+
+Fix: Standardize on 'get' prefix for all data fetching
+```
+
+### E. Abstraction Levels
+```
+Check if abstractions are appropriate:
+
+Too much abstraction:
+```typescript
+// Overengineered
+class AISystemFactory {
+  constructor(private builder: AISystemBuilder) {}
+  create(strategy: CreationStrategy): AISystem {
+    return this.builder.build(strategy.getConfig())
+  }
+}
+```
+
+For just creating an object? Way too complex.
+
+Too little abstraction:
+```typescript
+// Everything in one file
+// 1000 lines of mixed concerns
+// Database queries + business logic + formatting + validation
+```
+
+Report format:
+File: src/lib/ai-systems.ts
+Problem: 1,200 lines, does everything
+Fix: Split into:
+  - /lib/db/ai-systems.ts (database queries)
+  - /lib/services/ai-systems.ts (business logic)
+  - /lib/validation/ai-systems.ts (validation)
+  - /lib/formatters/ai-systems.ts (formatting)
+
+Find over-abstracted or under-abstracted areas
+Target: Right level for complexity (not too clever, not too messy)
+```
+
+**ARCHITECTURE ASSESSMENT:**
+```
+File organization: GOOD / NEEDS WORK
+Pattern consistency: GOOD / MIXED / POOR
+Coupling: LOW / MEDIUM / HIGH (want LOW)
+Naming consistency: GOOD / INCONSISTENT
+Abstraction level: APPROPRIATE / OVER / UNDER
+
+Architecture score: ___/100
+
+Is architecture clear and consistent? YES / NO
+```
+
+---
+
+## DIMENSION 10: HEALTHCARE COMPLIANCE (HIPAA) 🏥
+
+**Goal:** Pass HIPAA audit without issues.
+
+### A. Audit Log Completeness
+```
+Check if ALL PHI access is logged:
+
+Required audit logs:
+□ User views AI system with PHI
+□ User generates report with PHI
+□ User exports data
+□ API accesses PHI
+□ Background jobs process PHI
+□ Webhook receives PHI
+
+For each access, log must include:
+□ User ID (who accessed)
+□ Timestamp (when)
+□ Resource ID (what PHI)
+□ Action (view/edit/export)
+□ IP address (where from)
+□ Result (success/failure)
+
+Report format:
+Missing audit log:
+Route: GET /api/ai-systems/[id]
+Contains: AI system may have PHI in configs
+Logged: NO ❌
+Fix: Add audit log
+
+Current:
+```typescript
+export async function GET(req: Request) {
+  const system = await db.query.aiSystems.findFirst(...)
+  return Response.json(system)
+}
+```
+
+Fixed:
+```typescript
+export async function GET(req: Request) {
+  const session = await requireAuth(req)
+  const system = await db.query.aiSystems.findFirst(...)
+  
+  // AUDIT LOG REQUIRED
+  await db.insert(auditLogs).values({
+    userId: session.userId,
+    action: 'view_ai_system',
+    resourceType: 'ai_system',
+    resourceId: system.id,
+    ipAddress: req.headers.get('x-forwarded-for'),
+    timestamp: new Date(),
+    result: 'success',
+  })
+  
+  return Response.json(system)
+}
+```
+
+Count routes accessing PHI without audit logs: ___
+Target: 0 (every access must be logged)
+```
+
+### B. Encryption Verification
+```
+Check encryption implementation:
+
+At Rest (Database):
+□ Database encryption enabled? (Supabase setting)
+□ Sensitive fields encrypted? (API keys, integration configs)
+□ Encryption algorithm documented? (AES-256-GCM claimed)
+
+In Transit:
+□ HTTPS enforced? (No HTTP allowed)
+□ TLS 1.3 used?
+□ API calls encrypted?
+□ Webhook POST bodies encrypted?
+
+Report format:
+Table: ai_systems
+Column: integration_config (contains API keys)
+Encryption: YES / NO
+Algorithm: ___
+
+If NO → CRITICAL HIPAA VIOLATION
+
+Code to check:
+```typescript
+// Should be using encryption for sensitive fields
+import { encrypt, decrypt } from '@/lib/crypto'
+
+// When storing API key
+const encrypted = await encrypt(apiKey)
+await db.insert(aiSystems).values({
+  integrationConfig: encrypted,
+})
+
+// When retrieving
+const system = await db.query.aiSystems.findFirst(...)
+const decrypted = await decrypt(system.integrationConfig)
+```
+
+Sensitive fields encrypted: ___/___
+Target: 100% of PHI and credentials encrypted
+```
+
+### C. Access Control Verification
+```
+Verify users can only access their own data:
+
+Check every query:
+□ Includes healthSystemId filter?
+□ Joins verify ownership?
+□ No way to access other organization's data?
+
+Report format:
+Query: Get AI systems
+Current:
+```typescript
+const systems = await db.query.aiSystems.findMany()
+// Returns ALL systems from ALL health systems! ❌
+```
+
+Fixed:
+```typescript
+const systems = await db.query.aiSystems.findMany({
+  where: eq(aiSystems.healthSystemId, session.healthSystemId)
+  // Only returns systems for logged-in user's organization ✓
+})
+```
+
+Queries without healthSystemId filter: ___
+Each one is potential data leak
+Target: 0 unfiltered queries
+```
+
+### D. Breach Notification Preparedness
+```
+Check if breach notification system exists:
+
+HIPAA requires notification within 60 days of breach.
+
+Required:
+□ Code to detect PHI exposure
+□ Automated alert to compliance officer
+□ Incident tracking system
+□ Notification templates ready
+□ Process documented
+
+Report format:
+Breach detection: IMPLEMENTED / PARTIAL / NONE
+
+If PHI detected in logs:
+```typescript
+// Should trigger breach notification workflow
+async function handlePHILeakage(event: MonitoringEvent) {
+  // 1. Log incident
+  await db.insert(securityIncidents).values({
+    type: 'phi_exposure',
+    severity: 'critical',
+    detectedAt: new Date(),
+    eventId: event.id,
+  })
+  
+  // 2. Immediate alert
+  await sendAlertToComplianceOfficer({
+    subject: 'CRITICAL: PHI Exposure Detected',
+    details: event,
+  })
+  
+  // 3. Auto-remediation
+  await rollbackAISystem(event.aiSystemId)
+  
+  // 4. Start breach notification countdown (60 days)
+  await createBreachNotificationTask({
+    deadline: addDays(new Date(), 60),
+  })
+}
+```
+
+Breach preparedness: READY / NOT READY
+```
+
+### E. Data Retention Policy
+```
+Check data retention compliance:
+
+HIPAA: Must retain audit logs for 6 years
+
+□ Are old audit logs being deleted? (BAD)
+□ Is there 6-year retention policy? (GOOD)
+□ Are old monitoring events archived?
+□ Is retention documented?
+
+Report format:
+Table: audit_logs
+Retention: NONE ❌
+Risk: May be deleting logs needed for HIPAA
+Fix: Implement 6-year retention
+
+Code:
+```typescript
+// Should NEVER delete audit logs
+// Only archive after 6 years
+
+// DON'T DO THIS:
+// await db.delete(auditLogs).where(lt(auditLogs.createdAt, oneYearAgo))
+
+// DO THIS:
+await db.update(auditLogs)
+  .set({ archived: true })
+  .where(lt(auditLogs.createdAt, sixYearsAgo))
+```
+
+Retention policy: IMPLEMENTED / NONE
+If NONE → HIPAA compliance risk
+```
+
+### F. Business Associate Agreements (BAA)
+```
+Verify all vendors have BAAs:
+
+Required BAAs:
+□ Supabase (database) - Signed?
+□ Vercel (hosting) - Signed?
+□ AWS S3 (storage) - Signed?
+□ SendGrid (email) - Signed?
+□ Any other service processing PHI
+
+Report format:
+Vendor: Supabase
+BAA Status: SIGNED / NOT SIGNED
+If NOT SIGNED → CRITICAL HIPAA VIOLATION
+
+Document in /docs/compliance/baas.md
+```
+
+**HIPAA COMPLIANCE ASSESSMENT:**
+```
+Audit logs: COMPLETE / GAPS
+Encryption: YES / NO
+Access control: PROPER / LEAKY
+Breach notification: READY / NOT READY
+Data retention: COMPLIANT / NON-COMPLIANT
+BAAs: ALL SIGNED / MISSING
+
+HIPAA compliance score: ___/100
+
+Would we pass HIPAA audit? YES / NO
+
+If NO, what are blockers?
+```
+
+---
+
+## COMPREHENSIVE SUMMARY
+
+### CLEANUP PRIORITY MATRIX
+
+```
+CRITICAL (Fix in next 24 hours):
+1. ___ [Category] [Specific issue]
+2. ___ [Category] [Specific issue]
+3. ___ [Category] [Specific issue]
+
+Time estimate: ___ hours
+Impact: Blocks production launch
+
+HIGH (Fix this week):
+4-10. [List issues]
+
+Time estimate: ___ hours
+Impact: Production quality
+
+MEDIUM (Fix before Series A):
+11-20. [List issues]
+
+Time estimate: ___ days
+Impact: Code maintainability
+
+LOW (Technical debt backlog):
+21+. [List issues]
+
+Time estimate: ___ weeks
+Impact: Nice to have
+```
+
+---
+
+## OVERALL SCORES
+
+```
+1. Dead Code & Bloat:          ___/100
+2. Security:                   ___/100
+3. Performance:                ___/100
+4. Code Duplication:           ___/100
+5. Type Safety:                ___/100
+6. Error Handling:             ___/100
+7. Maintainability:            ___/100
+8. Testing:                    ___/100
+9. Architecture:               ___/100
+10. HIPAA Compliance:          ___/100
+
+WEIGHTED OVERALL: ___/100
+
+Weights:
+- Security: 25% (most critical)
+- HIPAA: 20% (compliance required)
+- Performance: 15% (scalability)
+- Error Handling: 10%
+- Maintainability: 10%
+- Type Safety: 10%
+- Testing: 5%
+- Architecture: 3%
+- Duplication: 1%
+- Bloat: 1%
+```
+
+---
+
+## CLEANUP ROADMAP
+
+### Phase 1: Critical Security & Compliance (Days 1-2)
+```
+□ Fix all security vulnerabilities
+□ Add audit logs for PHI access
+□ Verify encryption
+□ Fix access control gaps
+
+Blockers for production: These MUST be done
+```
+
+### Phase 2: Performance & Error Handling (Days 3-4)
+```
+□ Fix N+1 queries
+□ Add database indexes
+□ Add error boundaries
+□ Improve error messages
+
+Makes production stable: These should be done
+```
+
+### Phase 3: Maintainability (Days 5-7)
+```
+□ Remove dead code
+□ Fix code duplication
+□ Improve type safety
+□ Add documentation
+□ Consistent patterns
+
+Makes codebase maintainable: Nice to have before customers
+```
+
+### Phase 4: Testing & Architecture (Week 2-3)
+```
+□ Add critical path tests
+□ Integration tests
+□ Refactor god functions
+□ Improve architecture
+
+Long-term health: Can do alongside customer work
+```
+
+---
+
+## FINAL QUESTIONS
+
+Based on this comprehensive audit:
+
+1. **Can we launch to first customer?** YES / NO
+   - If NO, what blocks launch?
+
+2. **Would Epic's engineering team approve this in due diligence?** YES / NO
+   - If NO, what are gaps?
+
+3. **Is this production-grade enterprise software?** YES / NO
+   - If NO, what makes it not production-ready?
+
+4. **Estimated cleanup time:** ___ hours (critical) + ___ days (important)
+
+5. **Biggest risk if we don't clean up:** ___
+
+6. **Biggest opportunity if we do clean up:** ___
+
+---
+
+## CODE CLEANUP EXAMPLES
+
+For top 10 critical issues, provide:
+
+**Issue #1: [Specific problem]**
+
+Current code:
+```typescript
+[exact code with problem]
+```
+
+Fixed code:
+```typescript
+[corrected code]
+```
+
+Why this matters:
+[Impact on production/security/scalability]
+
+Time to fix: ___ minutes
+
+**[Repeat for issues #2-10]**
+
+---
+
+## BEGIN COMPREHENSIVE AUDIT NOW
+
+**BE BRUTALLY HONEST.**
+
+This is Shane's shot at $300M exit.
+
+If code isn't production-ready, tell him.
+If there are security holes, tell him.
+If maintainability is poor, tell him.
+
+**Find every issue. Prioritize ruthlessly. Provide specific fixes.**
+
+No sugarcoating. No generic advice. No fluff.
+
+Shane can handle the truth. He needs the truth.
+
+**START AUDIT.**
+```
+
+---
+
+## 🎯 HOW TO USE THIS PROMPT
+
+### **Step 1: Paste into Replit**
+- Copy entire prompt
+- Paste into Replit Agent
+- Wait 10-15 minutes for comprehensive analysis
+
+### **Step 2: Read Results**
+- Focus on CRITICAL section first
+- Note estimated cleanup time
+- Check security findings carefully
+
+### **Step 3: Prioritize Fixes**
+```
+TODAY (Critical):
+- Security vulnerabilities
+- HIPAA violations
+- Production blockers
+
+THIS WEEK (High):
+- Performance issues
+- Error handling gaps
+- Missing audit logs
+
+NEXT WEEK (Medium):
+- Code cleanup
+- Refactoring
+- Documentation
+
+BACKLOG (Low):
+- Nice-to-haves
+- Technical debt
+- Optimizations
+```
+
+### **Step 4: Fix and Validate**
+- Fix critical issues one by one
+- Have Claude Code review each fix
+- Redeploy and test
+- Repeat audit after fixes
+
+---
+
+## 💪 EXPECTED FINDINGS
+
+**Realistic expectations for 1-week codebase:**
+
+### **Critical Issues: 5-15**
+- 2-3 security holes
+- 3-5 HIPAA compliance gaps
+- 2-4 performance problems
+- 1-3 error handling gaps
+
+### **Important Issues: 20-40**
+- Dead code (~10% of codebase)
+- Type safety gaps
+- Missing tests
+- Code duplication
+
+### **Nice-to-Haves: 50-100**
+- Documentation
+- Refactoring opportunities
+- Architectural improvements
+
+**Don't panic at long list. Focus on critical.**
+
+---
+
+## 🚀 BOTTOM LINE
+
+**This prompt will find everything that could bite you in production.**
+
+Better to find it now in audit than in production with customers.
+
+**Paste it. Fix critical issues. Ship clean code.**
+
+**Your future acquirer will thank you.** 🎯
