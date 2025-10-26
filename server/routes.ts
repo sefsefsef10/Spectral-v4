@@ -273,7 +273,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Login (with rate limiting and MFA support)
+  /**
+   * @openapi
+   * /api/auth/login:
+   *   post:
+   *     summary: User login
+   *     description: Authenticate user with username/password and optional MFA token
+   *     tags: [Authentication]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [username, password]
+   *             properties:
+   *               username:
+   *                 type: string
+   *               password:
+   *                 type: string
+   *               mfaToken:
+   *                 type: string
+   *                 description: 6-digit MFA token (required if MFA enabled)
+   *     responses:
+   *       200:
+   *         description: Login successful or MFA required
+   *         content:
+   *           application/json:
+   *             schema:
+   *               oneOf:
+   *                 - $ref: '#/components/schemas/User'
+   *                 - type: object
+   *                   properties:
+   *                     mfaRequired:
+   *                       type: boolean
+   *                     message:
+   *                       type: string
+   *       401:
+   *         description: Invalid credentials or MFA token
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Error'
+   */
   app.post("/api/auth/login", authRateLimit, async (req, res) => {
     try {
       const schema = z.object({
@@ -325,7 +367,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Logout
+  /**
+   * @openapi
+   * /api/auth/logout:
+   *   post:
+   *     summary: User logout
+   *     description: Destroy user session and log out
+   *     tags: [Authentication]
+   *     security:
+   *       - cookieAuth: []
+   *     responses:
+   *       200:
+   *         description: Logout successful
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 message:
+   *                   type: string
+   *       500:
+   *         description: Logout failed
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Error'
+   */
   app.post("/api/auth/logout", (req, res) => {
     req.session.destroy((err) => {
       if (err) {
@@ -335,7 +402,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
   
-  // Get current user
+  /**
+   * @openapi
+   * /api/auth/me:
+   *   get:
+   *     summary: Get current user
+   *     description: Retrieve authenticated user profile
+   *     tags: [Authentication]
+   *     security:
+   *       - cookieAuth: []
+   *     responses:
+   *       200:
+   *         description: User profile
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/User'
+   *       401:
+   *         description: Not authenticated
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Error'
+   *       404:
+   *         description: User not found
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Error'
+   */
   app.get("/api/auth/me", async (req, res) => {
     if (!req.session.userId) {
       return res.status(401).json({ error: "Not authenticated" });
@@ -351,7 +446,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== MFA/2FA Routes =====
 
-  // Setup MFA - Generate QR code and backup codes
+  /**
+   * @openapi
+   * /api/auth/mfa/setup:
+   *   post:
+   *     summary: Setup MFA
+   *     description: Generate MFA secret, QR code, and backup codes for two-factor authentication
+   *     tags: [Authentication]
+   *     security:
+   *       - cookieAuth: []
+   *     responses:
+   *       200:
+   *         description: MFA setup data (QR code URL, backup codes, secret)
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 qrCodeUrl:
+   *                   type: string
+   *                   description: QR code URL for authenticator apps
+   *                 backupCodes:
+   *                   type: array
+   *                   items:
+   *                     type: string
+   *                   description: One-time backup codes (save these!)
+   *                 secret:
+   *                   type: string
+   *                   description: Secret key for manual entry
+   *       400:
+   *         description: MFA already enabled
+   *       401:
+   *         description: Not authenticated
+   *       404:
+   *         description: User not found
+   */
   app.post("/api/auth/mfa/setup", requireAuth, async (req, res) => {
     try {
       const user = await storage.getUser(req.session.userId!);
@@ -382,7 +511,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Verify and enable MFA
+  /**
+   * @openapi
+   * /api/auth/mfa/verify-setup:
+   *   post:
+   *     summary: Verify and enable MFA
+   *     description: Verify MFA token and enable two-factor authentication
+   *     tags: [Authentication]
+   *     security:
+   *       - cookieAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [token]
+   *             properties:
+   *               token:
+   *                 type: string
+   *                 description: 6-digit MFA token from authenticator app
+   *     responses:
+   *       200:
+   *         description: MFA enabled successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                 message:
+   *                   type: string
+   *       400:
+   *         description: MFA setup not initiated
+   *       401:
+   *         description: Invalid MFA token
+   *       404:
+   *         description: User not found
+   */
   app.post("/api/auth/mfa/verify-setup", requireAuth, mfaRateLimit, async (req, res) => {
     try {
       const { token } = z.object({ token: z.string() }).parse(req.body);
@@ -424,7 +591,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Verify backup code and login
+  /**
+   * @openapi
+   * /api/auth/mfa/backup:
+   *   post:
+   *     summary: Login with MFA backup code
+   *     description: Authenticate using one-time backup code when MFA device unavailable
+   *     tags: [Authentication]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [username, password, backupCode]
+   *             properties:
+   *               username:
+   *                 type: string
+   *               password:
+   *                 type: string
+   *               backupCode:
+   *                 type: string
+   *                 description: One-time 8-character backup code
+   *     responses:
+   *       200:
+   *         description: Login successful (backup code consumed)
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/User'
+   *       401:
+   *         description: Invalid credentials or backup code
+   */
   app.post("/api/auth/mfa/backup", authRateLimit, async (req, res) => {
     try {
       const { username, password, backupCode } = z.object({
@@ -471,7 +669,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Disable MFA
+  /**
+   * @openapi
+   * /api/auth/mfa/disable:
+   *   post:
+   *     summary: Disable MFA
+   *     description: Turn off two-factor authentication for user account
+   *     tags: [Authentication]
+   *     security:
+   *       - cookieAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [token]
+   *             properties:
+   *               token:
+   *                 type: string
+   *                 description: Current MFA token to confirm disable
+   *     responses:
+   *       200:
+   *         description: MFA disabled successfully
+   *       401:
+   *         description: Invalid MFA token or not authenticated
+   */
   app.post("/api/auth/mfa/disable", requireAuth, async (req, res) => {
     try {
       const { password } = z.object({ password: z.string() }).parse(req.body);
@@ -504,7 +727,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // ===== User Management Routes =====
   
-  // Get users for organization (admin only)
+  /**
+   * @openapi
+   * /api/users:
+   *   get:
+   *     summary: List organization users
+   *     description: Get all users in organization (admin only)
+   *     tags: [User Management]
+   *     security:
+   *       - cookieAuth: []
+   *     responses:
+   *       200:
+   *         description: List of users
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: array
+   *               items:
+   *                 $ref: '#/components/schemas/User'
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Admin access required
+   */
   app.get("/api/users", requireAuth, async (req, res) => {
     try {
       const currentUser = await storage.getUser(req.session.userId!);
@@ -530,7 +775,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Invite new user to organization
+  /**
+   * @openapi
+   * /api/users/invite:
+   *   post:
+   *     summary: Invite user to organization
+   *     description: Send secure invitation email to new user (admin only)
+   *     tags: [User Management]
+   *     security:
+   *       - cookieAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [email]
+   *             properties:
+   *               email:
+   *                 type: string
+   *                 format: email
+   *               permissions:
+   *                 type: string
+   *                 enum: [admin, user, viewer]
+   *                 default: user
+   *     responses:
+   *       201:
+   *         description: Invitation sent successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 invitation:
+   *                   type: object
+   *                 inviteUrl:
+   *                   type: string
+   *       400:
+   *         description: User already exists or invitation pending
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Admin access required
+   */
   app.post("/api/users/invite", requireAuth, async (req, res) => {
     try {
       const currentUser = await storage.getUser(req.session.userId!);
@@ -923,7 +1210,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Get audit logs (admin only)
+  /**
+   * @openapi
+   * /api/audit-logs:
+   *   get:
+   *     summary: Get audit logs
+   *     description: Retrieve audit logs for organization (admin only)
+   *     tags: [Audit Logs]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: query
+   *         name: action
+   *         schema:
+   *           type: string
+   *         description: Filter by action type
+   *       - in: query
+   *         name: resourceType
+   *         schema:
+   *           type: string
+   *         description: Filter by resource type
+   *       - in: query
+   *         name: userId
+   *         schema:
+   *           type: string
+   *         description: Filter by user ID
+   *     responses:
+   *       200:
+   *         description: List of audit logs
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: array
+   *               items:
+   *                 type: object
+   *                 properties:
+   *                   id:
+   *                     type: string
+   *                   userId:
+   *                     type: string
+   *                   action:
+   *                     type: string
+   *                   resourceType:
+   *                     type: string
+   *                   resourceId:
+   *                     type: string
+   *                   timestamp:
+   *                     type: string
+   *                     format: date-time
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Admin access required
+   */
   app.get("/api/audit-logs", requireAuth, async (req, res) => {
     try {
       const currentUser = await storage.getUser(req.session.userId!);
@@ -1034,7 +1373,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // AI System routes - ONLY health system users can access
+  /**
+   * @openapi
+   * /api/ai-systems:
+   *   get:
+   *     summary: List AI systems
+   *     description: Get all AI systems for authenticated health system
+   *     tags: [AI Systems]
+   *     security:
+   *       - cookieAuth: []
+   *     responses:
+   *       200:
+   *         description: List of AI systems
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: array
+   *               items:
+   *                 $ref: '#/components/schemas/AISystem'
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Access denied (health system only)
+   */
   app.get("/api/ai-systems", requireRole("health_system"), async (req, res) => {
     if (!req.session.userId) {
       return res.status(401).json({ error: "Not authenticated" });
@@ -1049,6 +1410,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(systems);
   });
 
+  /**
+   * @openapi
+   * /api/ai-systems/{id}:
+   *   get:
+   *     summary: Get AI system by ID
+   *     description: Retrieve detailed information for specific AI system
+   *     tags: [AI Systems]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: AI system ID
+   *     responses:
+   *       200:
+   *         description: AI system details
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/AISystem'
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Access denied
+   *       404:
+   *         description: AI system not found
+   */
   app.get("/api/ai-systems/:id", requireAuth, async (req, res) => {
     const system = await storage.getAISystem(req.params.id);
     if (!system) {
@@ -1067,6 +1458,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(system);
   });
 
+  /**
+   * @openapi
+   * /api/ai-systems:
+   *   post:
+   *     summary: Create AI system
+   *     description: Register new AI system in health system inventory
+   *     tags: [AI Systems]
+   *     security:
+   *       - cookieAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [name, department, riskLevel]
+   *             properties:
+   *               name:
+   *                 type: string
+   *               description:
+   *                 type: string
+   *               department:
+   *                 type: string
+   *               riskLevel:
+   *                 type: string
+   *                 enum: [low, medium, high, critical]
+   *               vendorId:
+   *                 type: string
+   *     responses:
+   *       201:
+   *         description: AI system created
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/AISystem'
+   *       400:
+   *         description: Invalid data
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Access denied (health system only)
+   */
   app.post("/api/ai-systems", requireRole("health_system"), async (req, res) => {
     try {
       if (!req.session.userId) {
@@ -1093,6 +1526,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  /**
+   * @openapi
+   * /api/ai-systems/{id}:
+   *   patch:
+   *     summary: Update AI system
+   *     description: Modify AI system properties
+   *     tags: [AI Systems]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: AI system ID
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               name:
+   *                 type: string
+   *               description:
+   *                 type: string
+   *               riskLevel:
+   *                 type: string
+   *                 enum: [low, medium, high, critical]
+   *               status:
+   *                 type: string
+   *     responses:
+   *       200:
+   *         description: AI system updated
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/AISystem'
+   *       400:
+   *         description: Invalid data
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Access denied
+   *       404:
+   *         description: AI system not found
+   */
   app.patch("/api/ai-systems/:id", requireAuth, async (req, res) => {
     try {
       // First get the system to validate ownership
@@ -1124,6 +1605,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  /**
+   * @openapi
+   * /api/ai-systems/{id}:
+   *   delete:
+   *     summary: Delete AI system
+   *     description: Remove AI system from inventory
+   *     tags: [AI Systems]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: AI system ID
+   *     responses:
+   *       204:
+   *         description: AI system deleted
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Access denied
+   *       404:
+   *         description: AI system not found
+   */
   app.delete("/api/ai-systems/:id", requireAuth, async (req, res) => {
     // First get the system to validate ownership
     const existingSystem = await storage.getAISystem(req.params.id);
@@ -1144,7 +1651,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(204).send();
   });
 
-  // Monitoring Alert routes - ONLY accessible by health system users
+  /**
+   * @openapi
+   * /api/alerts:
+   *   get:
+   *     summary: List unresolved alerts
+   *     description: Get all unresolved monitoring alerts for health system
+   *     tags: [Alerts]
+   *     security:
+   *       - cookieAuth: []
+   *     responses:
+   *       200:
+   *         description: List of unresolved alerts
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: array
+   *               items:
+   *                 $ref: '#/components/schemas/Alert'
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Access denied (health system only)
+   */
   app.get("/api/alerts", requireRole("health_system"), async (req, res) => {
     if (!req.session.userId) {
       return res.status(401).json({ error: "Not authenticated" });
@@ -1159,6 +1688,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(alerts);
   });
 
+  /**
+   * @openapi
+   * /api/alerts:
+   *   post:
+   *     summary: Create alert
+   *     description: Create new monitoring alert for AI system
+   *     tags: [Alerts]
+   *     security:
+   *       - cookieAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [aiSystemId, severity, type, message]
+   *             properties:
+   *               aiSystemId:
+   *                 type: string
+   *               severity:
+   *                 type: string
+   *                 enum: [low, medium, high, critical]
+   *               type:
+   *                 type: string
+   *               message:
+   *                 type: string
+   *     responses:
+   *       201:
+   *         description: Alert created
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Alert'
+   *       400:
+   *         description: Invalid data
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Access denied
+   *       404:
+   *         description: AI system not found
+   */
   app.post("/api/alerts", requireAuth, async (req, res) => {
     try {
       const data = insertMonitoringAlertSchema.parse(req.body);
@@ -1187,6 +1758,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  /**
+   * @openapi
+   * /api/alerts/{id}/resolve:
+   *   patch:
+   *     summary: Resolve alert
+   *     description: Mark monitoring alert as resolved
+   *     tags: [Alerts]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: Alert ID
+   *     responses:
+   *       204:
+   *         description: Alert resolved successfully
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Access denied
+   *       404:
+   *         description: Alert not found
+   */
   app.patch("/api/alerts/:id/resolve", requireAuth, async (req, res) => {
     if (!req.session.userId) {
       return res.status(401).json({ error: "Not authenticated" });
@@ -1287,13 +1884,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(204).send();
   });
 
-  // Vendor routes
+  /**
+   * @openapi
+   * /api/vendors:
+   *   get:
+   *     summary: List all vendors
+   *     description: Get list of all AI vendors in the platform
+   *     tags: [Vendors]
+   *     responses:
+   *       200:
+   *         description: List of vendors
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: array
+   *               items:
+   *                 type: object
+   *                 properties:
+   *                   id:
+   *                     type: string
+   *                   name:
+   *                     type: string
+   *                   verified:
+   *                     type: boolean
+   *                   description:
+   *                     type: string
+   */
   app.get("/api/vendors", async (req, res) => {
     const vendors = await storage.getVendors();
     res.json(vendors);
   });
 
-  // Get vendor by ID - accessible by all authenticated users (vendors can see their own, health systems can browse)
+  /**
+   * @openapi
+   * /api/vendors/{id}:
+   *   get:
+   *     summary: Get vendor by ID
+   *     description: Retrieve detailed vendor information
+   *     tags: [Vendors]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: Vendor ID
+   *     responses:
+   *       200:
+   *         description: Vendor details
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 id:
+   *                   type: string
+   *                 name:
+   *                   type: string
+   *                 verified:
+   *                   type: boolean
+   *       401:
+   *         description: Not authenticated
+   *       404:
+   *         description: Vendor not found
+   */
   app.get("/api/vendors/:id", requireAuth, async (req, res) => {
     const vendor = await storage.getVendor(req.params.id);
     if (!vendor) {
@@ -1399,7 +2055,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Deployment routes - role-based access control with session-derived tenant IDs
+  /**
+   * @openapi
+   * /api/deployments:
+   *   get:
+   *     summary: List deployments
+   *     description: Get AI system deployments for vendor or health system
+   *     tags: [Deployments]
+   *     security:
+   *       - cookieAuth: []
+   *     responses:
+   *       200:
+   *         description: List of deployments
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: array
+   *               items:
+   *                 type: object
+   *                 properties:
+   *                   id:
+   *                     type: string
+   *                   vendorId:
+   *                     type: string
+   *                   healthSystemId:
+   *                     type: string
+   *                   status:
+   *                     type: string
+   *                   deploymentDate:
+   *                     type: string
+   *                     format: date-time
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Access denied
+   */
   app.get("/api/deployments", requireAuth, async (req, res) => {
     if (!req.session.userId) {
       return res.status(401).json({ error: "Not authenticated" });
@@ -1431,6 +2121,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(403).json({ error: "Access denied: Invalid role" });
   });
 
+  /**
+   * @openapi
+   * /api/deployments:
+   *   post:
+   *     summary: Create deployment
+   *     description: Record AI system deployment at health system
+   *     tags: [Deployments]
+   *     security:
+   *       - cookieAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [aiSystemId]
+   *             properties:
+   *               aiSystemId:
+   *                 type: string
+   *               vendorId:
+   *                 type: string
+   *                 description: Required if user is health system
+   *               healthSystemId:
+   *                 type: string
+   *                 description: Required if user is vendor
+   *               status:
+   *                 type: string
+   *                 enum: [active, inactive, decommissioned]
+   *     responses:
+   *       201:
+   *         description: Deployment created
+   *       400:
+   *         description: Invalid data
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Access denied
+   */
   app.post("/api/deployments", requireAuth, async (req, res) => {
     try {
       if (!req.session.userId) {
@@ -1474,7 +2202,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Compliance Certification routes - ONLY vendor users
+  /**
+   * @openapi
+   * /api/certifications:
+   *   get:
+   *     summary: List certifications
+   *     description: Get all compliance certifications for vendor
+   *     tags: [Certifications]
+   *     security:
+   *       - cookieAuth: []
+   *     responses:
+   *       200:
+   *         description: List of certifications
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: array
+   *               items:
+   *                 type: object
+   *                 properties:
+   *                   id:
+   *                     type: string
+   *                   vendorId:
+   *                     type: string
+   *                   framework:
+   *                     type: string
+   *                   status:
+   *                     type: string
+   *                   expiryDate:
+   *                     type: string
+   *                     format: date-time
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Access denied (vendor only)
+   */
   app.get("/api/certifications", requireRole("vendor"), async (req, res) => {
     if (!req.session.userId) {
       return res.status(401).json({ error: "Not authenticated" });
@@ -1489,6 +2251,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(certifications);
   });
 
+  /**
+   * @openapi
+   * /api/certifications:
+   *   post:
+   *     summary: Create certification
+   *     description: Add new compliance certification for vendor
+   *     tags: [Certifications]
+   *     security:
+   *       - cookieAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [framework, status]
+   *             properties:
+   *               framework:
+   *                 type: string
+   *                 description: Compliance framework (HIPAA, SOC2, etc)
+   *               status:
+   *                 type: string
+   *                 enum: [active, expired, pending]
+   *               expiryDate:
+   *                 type: string
+   *                 format: date-time
+   *     responses:
+   *       201:
+   *         description: Certification created
+   *       400:
+   *         description: Invalid data
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Access denied (vendor only)
+   */
   app.post("/api/certifications", requireRole("vendor"), async (req, res) => {
     try {
       if (!req.session.userId) {
@@ -2055,7 +2853,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== Compliance Control Versioning API =====
 
-  // Get version history for a control
+  /**
+   * @openapi
+   * /api/compliance-controls/{controlId}/versions:
+   *   get:
+   *     summary: Get control version history
+   *     description: Retrieve version history for a compliance control
+   *     tags: [Compliance]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: controlId
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: Compliance control ID
+   *     responses:
+   *       200:
+   *         description: Version history
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: array
+   *               items:
+   *                 type: object
+   *                 properties:
+   *                   version:
+   *                     type: string
+   *                   createdAt:
+   *                     type: string
+   *                     format: date-time
+   *                   changes:
+   *                     type: object
+   *       401:
+   *         description: Not authenticated
+   */
   app.get("/api/compliance-controls/:controlId/versions", requireAuth, async (req, res) => {
     try {
       const { controlId } = req.params;
@@ -2087,7 +2920,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create new version for a control (admin only)
+  /**
+   * @openapi
+   * /api/compliance-controls/{controlId}/versions:
+   *   post:
+   *     summary: Create control version
+   *     description: Create new version for compliance control (admin only)
+   *     tags: [Compliance]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: controlId
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: Compliance control ID
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [versionType, changes]
+   *             properties:
+   *               versionType:
+   *                 type: string
+   *                 enum: [major, minor, patch]
+   *               changes:
+   *                 type: object
+   *                 properties:
+   *                   added:
+   *                     type: array
+   *                     items:
+   *                       type: string
+   *                   removed:
+   *                     type: array
+   *                     items:
+   *                       type: string
+   *                   reason:
+   *                     type: string
+   *     responses:
+   *       201:
+   *         description: Version created successfully
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Admin access required
+   */
   app.post("/api/compliance-controls/:controlId/versions", requireAuth, async (req, res) => {
     try {
       const currentUser = await storage.getUser(req.session.userId!);
@@ -2264,7 +3144,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Test AI system for bias
+  /**
+   * @openapi
+   * /api/ai-systems/{aiSystemId}/test-bias:
+   *   post:
+   *     summary: Test AI system for bias
+   *     description: Run Fairlearn bias detection on AI system predictions
+   *     tags: [Advanced Certification]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: aiSystemId
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: AI system ID
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [predictions, groundTruth, sensitiveFeatures]
+   *             properties:
+   *               predictions:
+   *                 type: array
+   *                 items:
+   *                   type: number
+   *               groundTruth:
+   *                 type: array
+   *                 items:
+   *                   type: number
+   *               sensitiveFeatures:
+   *                 type: object
+   *                 additionalProperties:
+   *                   type: array
+   *               threshold:
+   *                 type: number
+   *                 minimum: 0
+   *                 maximum: 1
+   *     responses:
+   *       200:
+   *         description: Bias test results
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 bias_detected:
+   *                   type: boolean
+   *                 violations:
+   *                   type: array
+   *                   items:
+   *                     type: object
+   *                 overall_metrics:
+   *                   type: object
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Access denied
+   *       404:
+   *         description: AI system not found
+   */
   app.post("/api/ai-systems/:aiSystemId/test-bias", requireAuth, async (req, res) => {
     try {
       const schema = z.object({
@@ -2393,7 +3335,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Scan AI system output for PHI
+  /**
+   * @openapi
+   * /api/ai-systems/{aiSystemId}/scan-phi:
+   *   post:
+   *     summary: Scan AI output for PHI
+   *     description: ML-based PHI detection using Microsoft Presidio to detect protected health information exposure
+   *     tags: [Advanced Certification]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: aiSystemId
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: AI system ID
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [output]
+   *             properties:
+   *               output:
+   *                 type: string
+   *                 description: AI system output text to scan
+   *     responses:
+   *       200:
+   *         description: PHI scan results
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 passed:
+   *                   type: boolean
+   *                 phi_detected:
+   *                   type: boolean
+   *                 details:
+   *                   type: object
+   *                   properties:
+   *                     phi_count:
+   *                       type: integer
+   *                     risk_score:
+   *                       type: number
+   *                     entities:
+   *                       type: array
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Access denied
+   *       404:
+   *         description: AI system not found
+   */
   app.post("/api/ai-systems/:aiSystemId/scan-phi", requireAuth, async (req, res) => {
     try {
       const { aiSystemId } = req.params;
@@ -2539,7 +3535,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== Compliance Report Generator API (Phase 3.5) =====
 
-  // Generate comprehensive compliance audit report (20-40 pages PDF)
+  /**
+   * @openapi
+   * /api/compliance/generate-report:
+   *   post:
+   *     summary: Generate compliance report
+   *     description: Generate comprehensive 20-40 page PDF compliance audit report
+   *     tags: [Compliance]
+   *     security:
+   *       - cookieAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [healthSystemId]
+   *             properties:
+   *               healthSystemId:
+   *                 type: string
+   *               frameworks:
+   *                 type: array
+   *                 items:
+   *                   type: string
+   *                 description: Compliance frameworks to include (HIPAA, NIST AI RMF, etc)
+   *               includeAIInventory:
+   *                 type: boolean
+   *               includeViolations:
+   *                 type: boolean
+   *               includeAuditEvidence:
+   *                 type: boolean
+   *               includeThreatModel:
+   *                 type: boolean
+   *               includeBiasAnalysis:
+   *                 type: boolean
+   *               timePeriodDays:
+   *                 type: number
+   *     responses:
+   *       200:
+   *         description: Report generated successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 report_id:
+   *                   type: string
+   *                 page_count:
+   *                   type: integer
+   *                 frameworks_covered:
+   *                   type: array
+   *                   items:
+   *                     type: string
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Access denied
+   */
   app.post("/api/compliance/generate-report", requireAuth, async (req, res) => {
     try {
       const schema = z.object({
@@ -2588,7 +3640,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== Threat Modeling API (Phase 3.4) =====
 
-  // Analyze AI system for security and privacy threats (STRIDE + LINDDUN)
+  /**
+   * @openapi
+   * /api/ai-systems/{aiSystemId}/threat-model:
+   *   post:
+   *     summary: Generate threat model
+   *     description: STRIDE + LINDDUN threat modeling analysis for AI system security and privacy
+   *     tags: [Advanced Certification]
+   *     security:
+   *       - cookieAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: aiSystemId
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: AI system ID
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [deployment_environment, data_access, integration_points, user_roles]
+   *             properties:
+   *               deployment_environment:
+   *                 type: string
+   *               data_access:
+   *                 type: array
+   *                 items:
+   *                   type: string
+   *               integration_points:
+   *                 type: array
+   *                 items:
+   *                   type: string
+   *               user_roles:
+   *                 type: array
+   *                 items:
+   *                   type: string
+   *     responses:
+   *       200:
+   *         description: Threat modeling analysis results
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 total_threats:
+   *                   type: integer
+   *                 critical_count:
+   *                   type: integer
+   *                 risk_score:
+   *                   type: number
+   *                 threats:
+   *                   type: array
+   *       401:
+   *         description: Not authenticated
+   *       403:
+   *         description: Access denied
+   *       404:
+   *         description: AI system not found
+   */
   app.post("/api/ai-systems/:aiSystemId/threat-model", requireAuth, async (req, res) => {
     try {
       const { aiSystemId } = req.params;
@@ -2840,7 +3952,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== AI Monitoring Webhook Routes (Public) =====
   
-  // LangSmith webhook receiver for AI telemetry events (HMAC-SHA256 verified)
+  /**
+   * @openapi
+   * /api/webhooks/langsmith/{aiSystemId}:
+   *   post:
+   *     summary: LangSmith AI telemetry webhook
+   *     description: Receive AI monitoring events from LangSmith (HMAC-SHA256 verified)
+   *     tags: [Webhooks]
+   *     parameters:
+   *       - in: path
+   *         name: aiSystemId
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: AI system ID
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             description: LangSmith telemetry payload
+   *     responses:
+   *       200:
+   *         description: Webhook processed successfully
+   *       400:
+   *         description: Invalid payload or signature
+   *       404:
+   *         description: AI system not found
+   *       429:
+   *         description: Rate limit exceeded
+   */
   app.post("/api/webhooks/langsmith/:aiSystemId", webhookRateLimit, verifyWebhookSignature('langsmith'), async (req, res) => {
     try {
       const { aiSystemId } = req.params;
@@ -3954,7 +5096,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get invoice list for current user's billing account
+  /**
+   * @openapi
+   * /api/billing/invoices:
+   *   get:
+   *     summary: Get billing invoices
+   *     description: Retrieve all invoices for user's billing account
+   *     tags: [Billing]
+   *     security:
+   *       - cookieAuth: []
+   *     responses:
+   *       200:
+   *         description: List of invoices
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: array
+   *               items:
+   *                 type: object
+   *                 properties:
+   *                   id:
+   *                     type: string
+   *                   billingAccountId:
+   *                     type: string
+   *                   totalAmount:
+   *                     type: integer
+   *                     description: Amount in cents
+   *                   status:
+   *                     type: string
+   *                     enum: [draft, open, paid, void, uncollectible]
+   *                   dueDate:
+   *                     type: string
+   *                     format: date-time
+   *       401:
+   *         description: Not authenticated
+   *       404:
+   *         description: Billing account not found
+   */
   app.get("/api/billing/invoices", requireAuth, async (req, res) => {
     try {
       if (!req.session.userId) {
@@ -3988,7 +5166,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get upcoming invoice preview
+  /**
+   * @openapi
+   * /api/billing/invoices/upcoming:
+   *   get:
+   *     summary: Get upcoming invoice preview
+   *     description: Preview next billing cycle invoice with line items
+   *     tags: [Billing]
+   *     security:
+   *       - cookieAuth: []
+   *     responses:
+   *       200:
+   *         description: Upcoming invoice preview
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 estimatedTotal:
+   *                   type: integer
+   *                   description: Amount in cents
+   *                 periodStart:
+   *                   type: string
+   *                   format: date-time
+   *                 periodEnd:
+   *                   type: string
+   *                   format: date-time
+   *                 lineItems:
+   *                   type: array
+   *       401:
+   *         description: Not authenticated
+   */
   app.get("/api/billing/invoices/upcoming", requireAuth, async (req, res) => {
     try {
       if (!req.session.userId) {
@@ -4093,7 +5301,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // SUBSCRIPTION MANAGEMENT
   // ==========================================
 
-  // Get current user's subscription
+  /**
+   * @openapi
+   * /api/billing/subscription:
+   *   get:
+   *     summary: Get active subscription
+   *     description: Retrieve active subscription for user's organization with billing details
+   *     tags: [Billing]
+   *     security:
+   *       - cookieAuth: []
+   *     responses:
+   *       200:
+   *         description: Active subscription details
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 id:
+   *                   type: string
+   *                 planTier:
+   *                   type: string
+   *                   enum: [starter, professional, enterprise]
+   *                 status:
+   *                   type: string
+   *                   enum: [active, cancelled, past_due]
+   *                 currentPeriodStart:
+   *                   type: string
+   *                   format: date-time
+   *                 currentPeriodEnd:
+   *                   type: string
+   *                   format: date-time
+   *                 cancelAtPeriodEnd:
+   *                   type: boolean
+   *       401:
+   *         description: Not authenticated
+   *       404:
+   *         description: No active subscription found
+   */
   app.get("/api/billing/subscription", requireAuth, async (req, res) => {
     try {
       if (!req.session.userId) {
