@@ -22,6 +22,13 @@
       "when": 1761445955309,
       "tag": "0002_adorable_shockwave",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1761562462769,
+      "tag": "0003_mixed_riptide",
+      "breakpoints": true
     }
   ]
 }
