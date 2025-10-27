@@ -206,10 +206,19 @@ describe('DrizzleSubscriptionRepository (Integration)', () => {
         name: 'Exists Test Hospital',
       });
 
-      const existsBefore = await repository.exists(healthSystem.id);
-      expect(existsBefore).toBe(true); // Health system exists
+      const subscription = Subscription.create(
+        healthSystem.id,
+        healthSystem.id,
+        SubscriptionTier.STARTER
+      );
 
-      const existsInvalid = await repository.exists('non-existent-id');
+      await repository.save(subscription);
+
+      // Check existence by subscription ID
+      const existsAfterSave = await repository.exists(subscription.id);
+      expect(existsAfterSave).toBe(true); // Subscription exists
+
+      const existsInvalid = await repository.exists('non-existent-subscription-id');
       expect(existsInvalid).toBe(false);
     });
   });
