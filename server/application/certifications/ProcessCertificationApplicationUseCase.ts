@@ -15,12 +15,12 @@
 import { 
   CertificationApplication, 
   CertificationChecks 
-} from '@server/domain/entities/CertificationApplication';
+} from '../../domain/entities/CertificationApplication';
 import { 
   CertificationApplicationRepository, 
   DeploymentRepository 
-} from '@server/domain/repositories/CertificationApplicationRepository';
-import { Logger } from '@server/logger';
+} from '../../domain/repositories/CertificationApplicationRepository';
+import { Logger } from '../../logger';
 
 // Request/Response DTOs (Data Transfer Objects)
 

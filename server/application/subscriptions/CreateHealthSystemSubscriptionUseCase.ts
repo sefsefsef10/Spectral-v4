@@ -8,9 +8,9 @@
  * 4. Persist to database
  */
 
-import { SubscriptionRepository } from '@server/domain/repositories/SubscriptionRepository';
-import { StripeGateway } from '@server/domain/gateways/StripeGateway';
-import { Subscription, SubscriptionTier } from '@server/domain/entities/Subscription';
+import { SubscriptionRepository } from '../../domain/repositories/SubscriptionRepository';
+import { StripeGateway } from '../../domain/gateways/StripeGateway';
+import { Subscription, SubscriptionTier } from '../../domain/entities/Subscription';
 
 export interface CreateHealthSystemSubscriptionRequest {
   healthSystemId: string;

@@ -5,8 +5,8 @@
  * This is a critical business capability for enforcing plan limits.
  */
 
-import { SubscriptionRepository } from '@server/domain/repositories/SubscriptionRepository';
-import { Subscription, SubscriptionTier } from '@server/domain/entities/Subscription';
+import { SubscriptionRepository } from '../../domain/repositories/SubscriptionRepository';
+import { Subscription, SubscriptionTier } from '../../domain/entities/Subscription';
 
 export interface CheckUsageLimitsRequest {
   healthSystemId: string;

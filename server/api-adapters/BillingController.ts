@@ -60,6 +60,13 @@ export class BillingController {
         return;
       }
       
+      // Get health system name for Stripe customer
+      const healthSystem = await storage.getHealthSystem(user.healthSystemId);
+      if (!healthSystem) {
+        res.status(404).json({ error: 'Health system not found' });
+        return;
+      }
+      
       const { tier } = req.body;
       const domainTier = mapTierToDomain(tier);
       
@@ -69,33 +76,26 @@ export class BillingController {
         this.stripeGateway
       );
       
-      const subscription = await useCase.execute({
+      const result = await useCase.execute({
         healthSystemId: user.healthSystemId,
+        healthSystemName: healthSystem.name,
         tier: domainTier,
       });
       
       logger.info({ 
         healthSystemId: user.healthSystemId, 
         tier: domainTier,
-        subscriptionId: subscription.id,
+        subscriptionId: result.subscriptionId,
       }, 'Health system subscription created (Clean Architecture)');
       
-      // Map domain entity to API response
-      res.json({
-        subscriptionId: subscription.id,
-        tier: subscription.tier,
-        status: subscription.status,
-        trialEndsAt: subscription.trialEndsAt,
-        currentPeriodStart: subscription.currentPeriodStart,
-        currentPeriodEnd: subscription.currentPeriodEnd,
-        limits: subscription.getTierLimits(),
-      });
+      // Return use case response directly (already in correct format)
+      res.json(result);
     } catch (error) {
       logger.error({ error }, 'Failed to create health system subscription (Clean Architecture)');
       
       // Map domain errors to HTTP status codes
       if (error instanceof Error) {
-        if (error.message.includes('already has an active subscription')) {
+        if (error.message.includes('already has')) {
           res.status(409).json({ error: error.message });
           return;
         }
@@ -134,15 +134,17 @@ export class BillingController {
         currentAISystemCount: currentCount,
       });
       
+      // Map use case response to API response format
+      const isUnlimited = result.limit === -1;
       res.json({
-        canAddSystem: result.canAddSystem,
+        canAddSystem: result.allowed,
         currentCount: result.currentCount,
         limit: result.limit,
-        tier: result.tier,
-        isUnlimited: result.isUnlimited,
-        message: result.canAddSystem 
-          ? `You can add ${result.isUnlimited ? 'unlimited' : result.limit - result.currentCount} more AI systems`
-          : `You've reached your limit of ${result.limit} AI systems. Upgrade to add more.`,
+        tier: result.currentTier,
+        isUnlimited,
+        message: result.allowed 
+          ? `You can add ${isUnlimited ? 'unlimited' : result.limit - result.currentCount} more AI systems`
+          : (result.reason || `You've reached your limit of ${result.limit} AI systems. Upgrade to add more.`),
       });
     } catch (error) {
       logger.error({ error }, 'Failed to check AI system usage (Clean Architecture)');

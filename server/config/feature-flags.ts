@@ -22,8 +22,8 @@ export interface FeatureFlags {
  * Default feature flags (development environment)
  */
 const defaultFlags: FeatureFlags = {
-  // Enable in development for testing
-  useCleanArchitectureBilling: process.env.NODE_ENV === 'development',
+  // Temporarily disabled until import paths are fixed
+  useCleanArchitectureBilling: false,
 };
 
 /**
