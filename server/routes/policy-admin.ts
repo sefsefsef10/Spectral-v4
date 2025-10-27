@@ -5,11 +5,36 @@
  * Restricted to admin users only.
  */
 
-import type { Express } from 'express';
+import type { Express, Request, Response, NextFunction } from 'express';
 import { migratePolicies, validatePolicyCompleteness } from '../services/translation-engine/policy-migration';
 import { policyLoader } from '../services/translation-engine/policy-loader';
 import { storage } from '../storage';
 import { logger } from '../logger';
+import { requireFeature } from '../config/feature-flags';
+import { policyController } from '../api-adapters/PolicyController';
+
+/**
+ * Shared authentication middleware for health system users
+ * Ensures user is authenticated and has health_system role
+ */
+async function requireHealthSystemAuth(req: Request, res: Response, next: NextFunction) {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  
+  const user = await storage.getUser(req.session.userId);
+  if (!user) {
+    return res.status(401).json({ error: 'User not found' });
+  }
+  
+  if (user.role !== 'health_system') {
+    return res.status(403).json({ error: 'Health system access required' });
+  }
+  
+  // Attach user to request for downstream use
+  (req as any).user = user;
+  next();
+}
 
 export function registerPolicyAdminRoutes(app: Express) {
   /**
@@ -153,4 +178,31 @@ export function registerPolicyAdminRoutes(app: Express) {
       });
     }
   });
+
+  // ✨ CLEAN ARCHITECTURE POLICY ROUTES (Phase 5)
+  // Feature-flagged endpoints for refactored policy enforcement
+
+  /**
+   * POST /api/policies
+   * Create a new policy rule (Clean Architecture)
+   * Requires: Authentication + Health System role
+   */
+  app.post(
+    '/api/policies',
+    requireHealthSystemAuth,
+    requireFeature('useCleanArchitecturePolicies'),
+    (req, res) => policyController.createPolicy(req, res)
+  );
+
+  /**
+   * POST /api/ai-systems/:id/evaluate-policies
+   * Evaluate AI system against all applicable policies (Clean Architecture)
+   * Requires: Authentication + Health System role
+   */
+  app.post(
+    '/api/ai-systems/:id/evaluate-policies',
+    requireHealthSystemAuth,
+    requireFeature('useCleanArchitecturePolicies'),
+    (req, res) => policyController.evaluatePolicies(req, res)
+  );
 }
