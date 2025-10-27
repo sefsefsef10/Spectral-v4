@@ -1,0 +1,39 @@
+{
+  "healthSystems": [
+    {
+      "email": "admin@foundation.com",
+      "password": "Test123!",
+      "name": "Foundation Health System",
+      "tier": "foundation",
+      "role": "health_system_admin"
+    },
+    {
+      "email": "admin@growth.com",
+      "password": "Test123!",
+      "name": "Growth Medical Center",
+      "tier": "growth",
+      "role": "compliance_officer"
+    },
+    {
+      "email": "admin@enterprise.com",
+      "password": "Test123!",
+      "name": "Enterprise Health Network",
+      "tier": "enterprise",
+      "role": "super_admin"
+    }
+  ],
+  "vendors": [
+    {
+      "email": "vendor@epic.com",
+      "password": "Vendor123!",
+      "name": "Epic Systems",
+      "certifiedSystems": 8
+    },
+    {
+      "email": "vendor@ibm.com",
+      "password": "Vendor123!",
+      "name": "IBM Watson Health",
+      "certifiedSystems": 5
+    }
+  ]
+}

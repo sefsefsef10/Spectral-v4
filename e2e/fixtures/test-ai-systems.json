@@ -1,0 +1,44 @@
+{
+  "aiSystems": [
+    {
+      "name": "Sepsis Early Warning System",
+      "vendor": "Epic Systems",
+      "category": "Clinical Decision Support",
+      "department": "ICU",
+      "riskScore": 45.2,
+      "certificationLevel": "certified"
+    },
+    {
+      "name": "Retinal Image Analyzer",
+      "vendor": "IDx Technologies",
+      "category": "Medical Imaging",
+      "department": "Ophthalmology",
+      "riskScore": 28.5,
+      "certificationLevel": "verified"
+    },
+    {
+      "name": "Pneumonia Detection AI",
+      "vendor": "Aidoc",
+      "category": "Medical Imaging",
+      "department": "Radiology",
+      "riskScore": 62.8,
+      "certificationLevel": null
+    },
+    {
+      "name": "ECG Arrhythmia Classifier",
+      "vendor": "Cardiologs",
+      "category": "Wearable Device AI",
+      "department": "Cardiology",
+      "riskScore": 35.1,
+      "certificationLevel": "trusted"
+    },
+    {
+      "name": "Stroke Risk Calculator",
+      "vendor": "Viz.ai",
+      "category": "Clinical Decision Support",
+      "department": "Neurology",
+      "riskScore": 41.3,
+      "certificationLevel": "certified"
+    }
+  ]
+}

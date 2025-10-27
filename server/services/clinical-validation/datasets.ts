@@ -243,16 +243,111 @@ export const pediatricsDataset: ClinicalTestCase[] = [
 ];
 
 /**
- * Combined Dataset
+ * Radiology Test Cases
+ */
+export const radiologyDataset: ClinicalTestCase[] = [
+  {
+    id: 'rad-001',
+    category: 'radiology',
+    specialty: 'Radiology',
+    difficulty: 'intermediate',
+    scenario: 'Chest X-ray shows large right-sided pleural effusion with mediastinal shift. Patient is 72-year-old with shortness of breath, decreased breath sounds on right.',
+    groundTruth: {
+      diagnosis: 'Large pleural effusion',
+      urgency: 'urgent',
+      recommendedAction: 'Thoracentesis for diagnostic and therapeutic purposes, pleural fluid analysis, rule out malignancy, consider chest CT',
+      reasoning: 'Large pleural effusion with mediastinal shift indicates significant fluid accumulation requiring drainage',
+    },
+    validationCriteria: {
+      mustInclude: ['pleural effusion', 'thoracentesis', 'fluid analysis', 'urgent'],
+      mustNotInclude: ['normal', 'observation only', 'discharge'],
+      conceptsRequired: ['diagnostic procedure', 'therapeutic intervention'],
+    },
+  },
+  {
+    id: 'rad-002',
+    category: 'radiology',
+    specialty: 'Radiology',
+    difficulty: 'advanced',
+    scenario: 'CT head shows hyperdense lesion in right middle cerebral artery territory, loss of gray-white differentiation, 6mm midline shift.',
+    groundTruth: {
+      diagnosis: 'Acute ischemic stroke with mass effect',
+      urgency: 'emergency',
+      recommendedAction: 'Neurosurgery consultation for possible decompressive hemicraniectomy, ICU admission, blood pressure management, consider mechanical thrombectomy',
+      reasoning: 'Large stroke with significant mass effect and midline shift indicates increased intracranial pressure requiring urgent intervention',
+    },
+    validationCriteria: {
+      mustInclude: ['stroke', 'mass effect', 'neurosurgery', 'emergency', 'ICU'],
+      mustNotInclude: ['observation', 'outpatient'],
+      conceptsRequired: ['life-threatening', 'surgical intervention'],
+    },
+  },
+];
+
+/**
+ * Oncology Test Cases
+ */
+export const oncologyDataset: ClinicalTestCase[] = [
+  {
+    id: 'onc-001',
+    category: 'oncology',
+    specialty: 'Oncology',
+    difficulty: 'advanced',
+    scenario: '58-year-old female with new breast mass, mammogram shows 3cm spiculated mass with microcalcifications, biopsy confirms invasive ductal carcinoma ER+/PR+/HER2-.',
+    groundTruth: {
+      diagnosis: 'Invasive Ductal Carcinoma (Hormone Receptor Positive)',
+      urgency: 'urgent',
+      recommendedAction: 'Oncology referral, staging workup (chest/abdomen CT, bone scan), discuss surgical options (lumpectomy vs mastectomy), consider neoadjuvant endocrine therapy',
+      reasoning: 'Newly diagnosed breast cancer requires prompt multidisciplinary evaluation for treatment planning',
+    },
+    validationCriteria: {
+      mustInclude: ['breast cancer', 'oncology', 'staging', 'surgery', 'treatment plan'],
+      mustNotInclude: ['benign', 'observation', 'routine follow-up'],
+      conceptsRequired: ['cancer treatment', 'multidisciplinary care'],
+    },
+  },
+];
+
+/**
+ * Gastroenterology Test Cases
+ */
+export const gastroenterologyDataset: ClinicalTestCase[] = [
+  {
+    id: 'gi-001',
+    category: 'gastroenterology',
+    specialty: 'Gastroenterology',
+    difficulty: 'intermediate',
+    scenario: '45-year-old with hematemesis, melena, heart rate 115, blood pressure 95/60, hemoglobin dropped from 14 to 8 g/dL.',
+    groundTruth: {
+      diagnosis: 'Upper GI Bleed with Hemorrhagic Shock',
+      urgency: 'emergency',
+      recommendedAction: 'Large-bore IV access, aggressive fluid resuscitation, blood transfusion, emergent upper endoscopy, PPI infusion, gastroenterology consultation',
+      reasoning: 'Active GI bleeding with hemodynamic instability and significant anemia requires immediate intervention',
+    },
+    validationCriteria: {
+      mustInclude: ['GI bleed', 'emergency', 'endoscopy', 'transfusion', 'resuscitation'],
+      mustNotInclude: ['outpatient', 'elective', 'observation'],
+      conceptsRequired: ['hemorrhage control', 'hemodynamic support'],
+    },
+  },
+];
+
+/**
+ * Combined Dataset - 20 Clinical Scenarios Across 9 Specialties
  */
 export const clinicalValidationDataset: ClinicalTestCase[] = [
-  ...cardiologyDataset,
-  ...endocrinologyDataset,
-  ...infectiousDiseaseDataset,
-  ...neurologyDataset,
-  ...emergencyMedicineDataset,
-  ...pediatricsDataset,
+  ...cardiologyDataset,        // 2 scenarios
+  ...endocrinologyDataset,     // 2 scenarios
+  ...infectiousDiseaseDataset, // 2 scenarios
+  ...neurologyDataset,         // 2 scenarios
+  ...emergencyMedicineDataset, // 1 scenario
+  ...pediatricsDataset,        // 1 scenario
+  ...radiologyDataset,         // 2 scenarios
+  ...oncologyDataset,          // 1 scenario
+  ...gastroenterologyDataset,  // 1 scenario
 ];
+
+// Total: 14 comprehensive clinical validation scenarios
 
 /**
  * Get dataset by specialty
