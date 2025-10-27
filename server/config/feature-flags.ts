@@ -17,8 +17,9 @@ export interface FeatureFlags {
   // Phase 4: Refactored AI system management (create, update, delete)
   useCleanArchitectureAISystems: boolean;
   
-  // Future flags:
-  // useCleanArchitecturePolicies: boolean;
+  // Clean Architecture Policy Enforcement
+  // Phase 5: Refactored policy rule management and compliance evaluation
+  useCleanArchitecturePolicies: boolean;
 }
 
 /**
@@ -30,6 +31,9 @@ const defaultFlags: FeatureFlags = {
   
   // Temporarily disabled for safe rollout
   useCleanArchitectureAISystems: false,
+  
+  // Temporarily disabled for safe rollout
+  useCleanArchitecturePolicies: false,
 };
 
 /**
@@ -38,6 +42,7 @@ const defaultFlags: FeatureFlags = {
 const productionFlags: FeatureFlags = {
   useCleanArchitectureBilling: process.env.FEATURE_CLEAN_BILLING === 'true',
   useCleanArchitectureAISystems: process.env.FEATURE_CLEAN_AI_SYSTEMS === 'true',
+  useCleanArchitecturePolicies: process.env.FEATURE_CLEAN_POLICIES === 'true',
 };
 
 /**
