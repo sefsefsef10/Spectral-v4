@@ -6,7 +6,7 @@
 import { eq, and } from 'drizzle-orm';
 import { User, type UserRole } from '../../domain/entities/User';
 import type { UserRepository } from '../../application/user-management/RegisterUserUseCase';
-import { db } from '../../storage';
+import { db } from '../../db';
 import { users } from '../../../shared/schema';
 
 export class DrizzleUserRepository implements UserRepository {

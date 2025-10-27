@@ -8290,3 +8290,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   return httpServer;
 }
+
+// ============================================================
+// CLEAN ARCHITECTURE: User Management Routes
+// ============================================================
+import userRoutes from "./api/routes/users";
+
+export function registerCleanArchitectureRoutes(app: Express) {
+  app.use('/api/users', userRoutes);
+  
+  logger.info('Clean Architecture routes registered', {
+    routes: ['/api/users'],
+  });
+}
