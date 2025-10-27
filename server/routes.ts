@@ -2263,6 +2263,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
    *         description: Access denied (health system only)
    */
   app.post("/api/ai-systems", requireRole("health_system"), async (req, res) => {
+    // Feature flag: Use Clean Architecture if enabled
+    const { isFeatureEnabled } = await import("./config/feature-flags");
+    if (isFeatureEnabled('useCleanArchitectureAISystems')) {
+      // Clean Architecture path
+      const { CreateAISystemUseCase } = await import("./application/ai-systems/CreateAISystemUseCase");
+      const { DrizzleAISystemRepository } = await import("./infrastructure/repositories/DrizzleAISystemRepository");
+      const { StripeBillingUsageLimitGateway } = await import("./infrastructure/gateways/StripeBillingUsageLimitGateway");
+      const { AISystemController } = await import("./api-adapters/AISystemController");
+      const { UpdateAISystemUseCase } = await import("./application/ai-systems/UpdateAISystemUseCase");
+      const { DeleteAISystemUseCase } = await import("./application/ai-systems/DeleteAISystemUseCase");
+      
+      // Validate session
+      if (!req.session.userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const user = await storage.getUser(req.session.userId);
+      if (!user || !user.healthSystemId) {
+        return res.status(403).json({ error: "No health system associated with this account" });
+      }
+      
+      // Inject healthSystemId into request for controller
+      (req as any).healthSystemId = user.healthSystemId;
+      
+      // Wire up dependencies
+      const repository = new DrizzleAISystemRepository();
+      const usageLimitGateway = new StripeBillingUsageLimitGateway();
+      const createUseCase = new CreateAISystemUseCase(repository, usageLimitGateway);
+      const updateUseCase = new UpdateAISystemUseCase(repository);
+      const deleteUseCase = new DeleteAISystemUseCase(repository);
+      const controller = new AISystemController(createUseCase, updateUseCase, deleteUseCase);
+      
+      return controller.create(req, res);
+    }
+    
+    // Legacy path (original implementation)
     try {
       if (!req.session.userId) {
         return res.status(401).json({ error: "Not authenticated" });
@@ -2351,6 +2386,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
    *         description: AI system not found
    */
   app.patch("/api/ai-systems/:id", requireAuth, async (req, res) => {
+    // Feature flag: Use Clean Architecture if enabled
+    const { isFeatureEnabled } = await import("./config/feature-flags");
+    if (isFeatureEnabled('useCleanArchitectureAISystems')) {
+      // Clean Architecture path
+      const { CreateAISystemUseCase } = await import("./application/ai-systems/CreateAISystemUseCase");
+      const { UpdateAISystemUseCase } = await import("./application/ai-systems/UpdateAISystemUseCase");
+      const { DeleteAISystemUseCase } = await import("./application/ai-systems/DeleteAISystemUseCase");
+      const { DrizzleAISystemRepository } = await import("./infrastructure/repositories/DrizzleAISystemRepository");
+      const { StripeBillingUsageLimitGateway } = await import("./infrastructure/gateways/StripeBillingUsageLimitGateway");
+      const { AISystemController } = await import("./api-adapters/AISystemController");
+      
+      // Validate session
+      if (!req.session.userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const user = await storage.getUser(req.session.userId);
+      if (!user || !user.healthSystemId) {
+        return res.status(403).json({ error: "No health system associated with this account" });
+      }
+      
+      // Inject healthSystemId into request for controller
+      (req as any).healthSystemId = user.healthSystemId;
+      
+      // Wire up dependencies
+      const repository = new DrizzleAISystemRepository();
+      const usageLimitGateway = new StripeBillingUsageLimitGateway();
+      const createUseCase = new CreateAISystemUseCase(repository, usageLimitGateway);
+      const updateUseCase = new UpdateAISystemUseCase(repository);
+      const deleteUseCase = new DeleteAISystemUseCase(repository);
+      const controller = new AISystemController(createUseCase, updateUseCase, deleteUseCase);
+      
+      return controller.update(req, res);
+    }
+    
+    // Legacy path
     try {
       // First get the system to validate ownership
       const existingSystem = await storage.getAISystem(req.params.id);
@@ -2408,6 +2478,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
    *         description: AI system not found
    */
   app.delete("/api/ai-systems/:id", requireAuth, async (req, res) => {
+    // Feature flag: Use Clean Architecture if enabled
+    const { isFeatureEnabled } = await import("./config/feature-flags");
+    if (isFeatureEnabled('useCleanArchitectureAISystems')) {
+      // Clean Architecture path
+      const { CreateAISystemUseCase } = await import("./application/ai-systems/CreateAISystemUseCase");
+      const { UpdateAISystemUseCase } = await import("./application/ai-systems/UpdateAISystemUseCase");
+      const { DeleteAISystemUseCase } = await import("./application/ai-systems/DeleteAISystemUseCase");
+      const { DrizzleAISystemRepository } = await import("./infrastructure/repositories/DrizzleAISystemRepository");
+      const { StripeBillingUsageLimitGateway } = await import("./infrastructure/gateways/StripeBillingUsageLimitGateway");
+      const { AISystemController } = await import("./api-adapters/AISystemController");
+      
+      // Validate session
+      if (!req.session.userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const user = await storage.getUser(req.session.userId);
+      if (!user || !user.healthSystemId) {
+        return res.status(403).json({ error: "No health system associated with this account" });
+      }
+      
+      // Inject healthSystemId into request for controller
+      (req as any).healthSystemId = user.healthSystemId;
+      
+      // Wire up dependencies
+      const repository = new DrizzleAISystemRepository();
+      const usageLimitGateway = new StripeBillingUsageLimitGateway();
+      const createUseCase = new CreateAISystemUseCase(repository, usageLimitGateway);
+      const updateUseCase = new UpdateAISystemUseCase(repository);
+      const deleteUseCase = new DeleteAISystemUseCase(repository);
+      const controller = new AISystemController(createUseCase, updateUseCase, deleteUseCase);
+      
+      return controller.delete(req, res);
+    }
+    
+    // Legacy path
     // First get the system to validate ownership
     const existingSystem = await storage.getAISystem(req.params.id);
     if (!existingSystem) {
