@@ -25,6 +25,7 @@ import VendorTrustPage from "@/pages/vendor-trust-page";
 import VendorBadgeManager from "@/pages/VendorBadgeManager";
 import RosettaStone from "@/pages/RosettaStone";
 import BillingDashboard from "@/pages/BillingDashboard";
+import CleanArchitectureManagement from "@/pages/CleanArchitectureManagement";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
 
@@ -92,6 +93,9 @@ function Router() {
       </Route>
       <Route path="/rosetta-stone">
         {() => <ProtectedRoute component={RosettaStone} />}
+      </Route>
+      <Route path="/management">
+        {() => <ProtectedRoute component={CleanArchitectureManagement} />}
       </Route>
       <Route component={NotFound} />
     </Switch>
