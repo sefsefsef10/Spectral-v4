@@ -18,12 +18,19 @@ import { RateLimitPolicy } from '../../server/domain/entities/RateLimitPolicy';
 export class MockUserRepository implements IUserRepository {
   private users: Map<string, User> = new Map();
   private passwords: Map<string, string> = new Map();
+  private idCounter = 1;
 
   async save(user: User): Promise<void> {
+    if (!user.id) {
+      (user as any).props.id = `user-${this.idCounter++}`;
+    }
     this.users.set(user.id!, user);
   }
 
   async saveWithPassword(user: User, hashedPassword: string): Promise<void> {
+    if (!user.id) {
+      (user as any).props.id = `user-${this.idCounter++}`;
+    }
     this.users.set(user.id!, user);
     this.passwords.set(user.id!, hashedPassword);
   }
@@ -56,8 +63,12 @@ export class MockUserRepository implements IUserRepository {
  */
 export class MockDeploymentRepository implements IDeploymentRepository {
   private deployments: Map<string, Deployment> = new Map();
+  private idCounter = 1;
 
   async save(deployment: Deployment): Promise<void> {
+    if (!deployment.id) {
+      (deployment as any).props.id = `deployment-${this.idCounter++}`;
+    }
     this.deployments.set(deployment.id!, deployment);
   }
 
@@ -89,8 +100,12 @@ export class MockDeploymentRepository implements IDeploymentRepository {
  */
 export class MockAlertRepository implements IAlertRepository {
   private alerts: Map<string, Alert> = new Map();
+  private idCounter = 1;
 
   async save(alert: Alert): Promise<void> {
+    if (!alert.id) {
+      (alert as any).props.id = `alert-${this.idCounter++}`;
+    }
     this.alerts.set(alert.id!, alert);
   }
 
@@ -151,8 +166,12 @@ export class MockAlertRepository implements IAlertRepository {
  */
 export class MockRateLimitPolicyRepository implements IRateLimitPolicyRepository {
   private policies: Map<string, RateLimitPolicy> = new Map();
+  private idCounter = 1;
 
   async save(policy: RateLimitPolicy): Promise<void> {
+    if (!policy.id) {
+      (policy as any).props.id = `policy-${this.idCounter++}`;
+    }
     this.policies.set(policy.id!, policy);
   }
 
