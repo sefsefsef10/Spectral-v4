@@ -86,3 +86,5 @@ Key features include:
 4. **Predictive Analytics API**: Complete API routes for ML-based predictive alerts with database-level tenant filtering using inArray() to prevent cross-tenant data leakage.
 
 5. **Enterprise SSO Auto-Provisioning**: WorkOS integration with automatic user/org creation, role mapping, and audit logging for SAML/OAuth flows.
+
+6. **Clean Architecture Refactoring Plan** (October 27, 2025): Comprehensive 20-week roadmap to incrementally refactor codebase to Clean Architecture principles. Assessment identified current state: 3/5 quality, 40% architectural alignment. Critical gaps: zero test coverage, anemic domain model, missing application layer. Plan uses vertical-slice refactoring approach starting with Certification flow as pilot, then expanding to high-value features (Billing, Policy Enforcement, AI Systems). Expected outcomes: 80%+ test coverage, testable business logic, faster feature development, improved maintainability. See docs/CLEAN_ARCHITECTURE_ROADMAP.md for full implementation plan.

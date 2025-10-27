@@ -1,0 +1,2598 @@
+# Clean Architecture Assessment & Refactoring Plan
+## shane-prototype Project
+
+**Date:** 2025-10-27
+**Evaluator:** Architecture Assessment
+**Target Architecture:** ARCHITECTURE.md (Clean Architecture with Vertical Slicing)
+
+---
+
+## Executive Summary
+
+### Current State
+
+The **shane-prototype** is a sophisticated, production-ready healthcare AI compliance SaaS platform built with TypeScript (Express backend, React frontend) managing complex business domains including certifications, billing, compliance monitoring, and vendor management. The codebase demonstrates **strong technical execution with partial architectural alignment** to Clean Architecture principles.
+
+### Quality Assessment: ⭐⭐⭐ (3/5)
+
+**Strengths:**
+- ✅ Type-safe throughout with TypeScript and Zod validation
+- ✅ Well-documented with clear intent and business context
+- ✅ Production infrastructure (Stripe, encryption, audit logging, MFA, SSO)
+- ✅ Modern tech stack (React 18, Drizzle ORM, Vite, Inngest workflows)
+- ✅ Security-conscious (PHI encryption, CSRF protection, rate limiting)
+
+**Concerns:**
+- ⚠️ Anemic domain model (business logic scattered across services)
+- ⚠️ Mixed layer responsibilities (routes contain business logic)
+- ⚠️ No clear separation between domain, application, and infrastructure
+- ⚠️ Tight coupling to specific implementations (storage, services)
+
+**Critical Gaps:**
+- ❌ No domain entities with business logic
+- ❌ No use case pattern (application layer missing)
+- ❌ Dependencies flow outward (violates Dependency Rule)
+- ❌ Zero test coverage (no unit, integration, or E2E tests found)
+
+### Architectural Alignment: 40% Overall
+
+| Layer | Alignment | Status |
+|-------|-----------|--------|
+| **Framework** (Routes) | 80% | ✅ Exists but handles too much logic |
+| **Application** (Use Cases) | 0% | ❌ Completely missing |
+| **Domain** (Entities) | 10% | ❌ Anemic model, no behavior |
+| **Infrastructure** (Repositories) | 60% | ⚠️ Exists but mixed with domain |
+
+### Recommendation
+
+**Proceed with incremental refactoring using vertical slicing approach.** The codebase is well-structured enough to refactor iteratively without a full rewrite. Priority should focus on extracting domain entities and creating use cases for critical business flows first.
+
+**Key Success Factor:** Implement tests BEFORE refactoring to create safety net.
+
+---
+
+## Detailed Technical Analysis
+
+### 1. Current Architecture Pattern
+
+**Identified Pattern:** Service-Oriented Layered Architecture (NOT Clean Architecture)
+
+```
+Current Implementation:
+┌─────────────────────────────────────────────────────┐
+│ HTTP Request → Route Handler                        │
+│       ↓                                             │
+│   Service Layer (Domain + Infrastructure mixed)    │
+│       ↓                                             │
+│   Storage Layer (Concrete Implementation)          │
+│       ↓                                             │
+│   Database (Drizzle ORM + PostgreSQL)              │
+│       ↓                                             │
+│   HTTP Response                                     │
+└─────────────────────────────────────────────────────┘
+
+Missing Clean Architecture Layers:
+❌ Domain entities with business logic
+❌ Use case orchestration (application layer)
+❌ Repository abstraction (depends on concrete storage)
+❌ Clear dependency inversion
+```
+
+**Example Violation from `server/routes/billing.ts` (lines 57-82):**
+
+```typescript
+// ANTI-PATTERN: Route directly calls storage and service
+// Bypasses domain and application layers entirely
+app.post('/api/billing/subscriptions/health-system', requireAuth, async (req, res) => {
+  const user = await storage.getUser(req.session.userId!); // Direct storage access
+
+  if (!user.healthSystemId) {
+    return res.status(403).json({ error: '...' }); // Business logic in route
+  }
+
+  const result = await stripeBillingService.createHealthSystemSubscription(...);
+  res.json(result);
+});
+```
+
+**Should be (Clean Architecture):**
+
+```typescript
+// Framework layer - thin controller
+app.post('/api/billing/subscriptions/health-system', requireAuth, async (req, res) => {
+  const request = new CreateHealthSystemSubscriptionRequest(
+    req.session.userId!,
+    req.body.tier
+  );
+
+  const result = await createSubscriptionUseCase.execute(request);
+  res.status(201).json(result);
+});
+
+// Application layer - use case handles orchestration
+class CreateHealthSystemSubscriptionUseCase {
+  execute(request: CreateHealthSystemSubscriptionRequest): Promise<CreateHealthSystemSubscriptionResponse> {
+    const user = await userRepository.findById(request.userId);
+    // Validation and business logic...
+  }
+}
+```
+
+### 2. Layer-by-Layer Assessment
+
+#### 2.1 Framework Layer (Routes) - 80% Aligned
+
+**Location:** `server/routes/*.ts` (5 route files)
+
+**Files:**
+- `billing.ts` - Subscription management (270 lines)
+- `customization.ts` - Branding/settings
+- `health-system.ts` - Organization management
+- `policy-admin.ts` - Policy configuration
+- `provider-connections.ts` - EHR integrations
+
+**Strengths:**
+- ✅ Clear HTTP endpoint definitions with RESTful conventions
+- ✅ Request validation using Zod schemas
+- ✅ Authentication middleware (`requireAuth`)
+- ✅ Comprehensive error handling and logging
+- ✅ Webhook signature verification (Stripe)
+- ✅ Well-documented with JSDoc comments
+
+**Gaps and Violations:**
+
+1. **Business Logic in Routes** (lines 64-66 in billing.ts):
+```typescript
+if (!user.healthSystemId) {
+  return res.status(403).json({ error: 'Only health system users can create...' });
+}
+```
+*Should be:* Validation in domain entity or use case
+
+2. **Direct Storage Access** (line 59):
+```typescript
+const user = await storage.getUser(req.session.userId!);
+```
+*Should be:* Use case should orchestrate, route should only call use case
+
+3. **No Request/Response DTOs:**
+```typescript
+// Current: Raw body and JSON responses
+const { tier } = createHealthSystemSubscriptionSchema.parse(req.body);
+res.json(result);
+```
+*Should be:* Explicit request/response models from application layer
+
+4. **Mixed Concerns:**
+Routes handle: validation, authorization, business logic, data access, response formatting
+
+**Refactoring Priority:** Medium (clean up after application layer is created)
+
+---
+
+#### 2.2 Application Layer (Use Cases) - 0% Aligned ❌ CRITICAL
+
+**Location:** DOES NOT EXIST
+
+**Expected Structure (from ARCHITECTURE.md):**
+```
+server/application/
+├── billing/
+│   ├── CreateHealthSystemSubscription.ts  # Use case + Request/Response
+│   ├── CreateVendorSubscription.ts
+│   ├── CheckUsageLimits.ts
+│   └── Views.ts                            # Shared view models
+├── certifications/
+│   ├── ProcessApplication.ts
+│   ├── ApproveApplication.ts
+│   └── RunVendorTests.ts
+├── policies/
+│   ├── EvaluateAISystem.ts
+│   ├── CreatePolicy.ts
+│   └── ResolveViolation.ts
+└── ai-systems/
+    ├── RegisterAISystem.ts
+    ├── UpdateAISystem.ts
+    └── DeployAISystem.ts
+```
+
+**Critical Impact:**
+
+Without an application layer:
+- ❌ No clear orchestration of business workflows
+- ❌ Business logic scattered between routes and services
+- ❌ Cannot test workflows in isolation
+- ❌ Cross-cutting concerns (auth, transactions) duplicated
+- ❌ No clear use case boundaries for feature development
+
+**Example: Current Certification Flow**
+
+**Current Implementation** (certification-processor.ts - all in one service):
+```typescript
+// 286 lines mixing orchestration, domain logic, and infrastructure
+export async function processCertificationApplication(applicationId: string) {
+  const application = await storage.getCertificationApplication(applicationId);
+
+  // Domain logic mixed with orchestration
+  const checks = {
+    documentationComplete: checkDocumentationComplete(application),
+    complianceStatementsValid: checkComplianceStatements(application),
+    // ... more checks
+  };
+
+  // Infrastructure calls mixed in
+  const allTestResults = await vendorTestingSuite.runAllTests(testConfig);
+
+  // Scoring algorithm in service (should be in domain)
+  let score = 0;
+  if (checks.documentationComplete) score += 20;
+  // ...
+
+  // Direct storage call
+  await storage.updateCertificationApplicationStatus(...);
+}
+```
+
+**Should be (Clean Architecture):**
+
+```typescript
+// APPLICATION LAYER - Use case orchestrates workflow
+class ProcessCertificationApplicationUseCase {
+  constructor(
+    private certificationRepo: CertificationApplicationRepository,
+    private testingGateway: VendorTestingGateway
+  ) {}
+
+  async execute(request: ProcessCertificationRequest): Promise<ProcessCertificationResponse> {
+    // Load aggregate
+    const application = await this.certificationRepo.findById(request.applicationId);
+
+    // Domain logic - entity has business rules
+    const result = application.evaluate();
+
+    // Infrastructure - gateway handles external testing
+    const testResults = await this.testingGateway.runTests(application);
+    application.applyTestResults(testResults);
+
+    // Persist
+    await this.certificationRepo.save(application);
+
+    return ProcessCertificationResponse.fromEntity(application);
+  }
+}
+
+// DOMAIN LAYER - Entity contains business logic
+class CertificationApplication {
+  private checks: CertificationChecks;
+
+  evaluate(): EvaluationResult {
+    this.checks.validateDocumentation();
+    this.checks.validateCompliance();
+    return new EvaluationResult(this.calculateScore(), this.checks);
+  }
+
+  calculateScore(): number {
+    // Business rules encapsulated in entity
+    let score = 0;
+    if (this.checks.documentationComplete) score += 20;
+    if (this.checks.complianceStatementsValid) score += 20;
+    // ...
+    return score;
+  }
+
+  applyTestResults(results: TestResults): void {
+    // Domain logic for interpreting test results
+    this.checks.updateFromTests(results);
+  }
+}
+```
+
+**Refactoring Priority:** 🔥 **HIGHEST** - Application layer is the linchpin of Clean Architecture
+
+---
+
+#### 2.3 Domain Layer (Entities) - 10% Aligned ❌ CRITICAL
+
+**Location:** `shared/schema.ts` (database schema only - NOT domain layer)
+
+**Current State: Anemic Domain Model Anti-Pattern**
+
+The project uses Drizzle ORM schema definitions as domain models, which are just data structures with no behavior:
+
+```typescript
+// shared/schema.ts - Database schema, not domain entities
+export const aiSystems = pgTable("ai_systems", {
+  id: varchar("id").primaryKey(),
+  name: text("name").notNull(),
+  department: text("department").notNull(),
+  riskLevel: text("risk_level").notNull(),
+  status: text("status").notNull(),
+  healthSystemId: varchar("health_system_id"),
+  vendorId: varchar("vendor_id"),
+  // ... more fields
+  // NO METHODS, NO VALIDATION, NO BUSINESS RULES
+});
+
+export type AISystem = typeof aiSystems.$inferSelect;
+export type InsertAISystem = typeof aiSystems.$inferInsert;
+```
+
+**Problems with this approach:**
+
+1. **No encapsulation** - All fields public, no validation
+2. **No behavior** - Business logic lives in services, not entities
+3. **Anemic** - Entities are just data bags, violating OOP principles
+4. **Tight coupling** - Database schema IS the domain model
+5. **Cannot evolve independently** - Domain changes require migration
+
+**Example: Business Logic in Services (should be in Domain)**
+
+**File:** `server/services/certification-processor.ts` (lines 143-157)
+
+```typescript
+// ANTI-PATTERN: Scoring algorithm in service file
+let score = 0;
+if (checks.documentationComplete) score += 20;
+if (checks.complianceStatementsValid) score += 20;
+if (checks.deploymentHistoryValid) score += 10;
+if (checks.phiExposureTest) score += 15;
+if (checks.clinicalAccuracyTest) score += 15;
+if (checks.biasDetectionTest) score += 10;
+if (checks.securityScanTest) score += 10;
+
+const passed = Object.values(checks).every(check => check === true);
+```
+
+**Should be:**
+
+```typescript
+// DOMAIN LAYER - domain/entities/CertificationApplication.ts
+class CertificationApplication {
+  private _checks: CertificationChecks;
+  private _tierRequested: CertificationTier;
+
+  calculateScore(): CertificationScore {
+    const weights = {
+      documentation: 20,
+      compliance: 20,
+      deployment: 10,
+      phiTest: 15,
+      clinicalTest: 15,
+      biasTest: 10,
+      securityTest: 10
+    };
+
+    return new CertificationScore(
+      this._checks.calculateWeightedScore(weights)
+    );
+  }
+
+  hasPassedEvaluation(): boolean {
+    return this._checks.allChecksPassed() &&
+           this.calculateScore().meetsThreshold(this._tierRequested);
+  }
+
+  // More business logic methods...
+}
+```
+
+**Additional Missing Domain Concepts:**
+
+Based on the codebase analysis, these should be domain entities but don't exist:
+
+| Missing Entity | Business Logic Location | Lines of Code |
+|----------------|------------------------|---------------|
+| `CertificationApplication` | certification-processor.ts | 287 |
+| `Policy` | policy-enforcement-engine.ts | 620 |
+| `AISystem` | Multiple services | 500+ |
+| `Subscription` | stripe-billing.ts | 400+ |
+| `ComplianceReport` | Multiple services | 300+ |
+| `Deployment` | Multiple services | 200+ |
+
+**Impact:**
+
+- ❌ Business logic scattered across 56+ service files
+- ❌ Difficult to test domain rules in isolation
+- ❌ Duplicate validation logic across services
+- ❌ Cannot reason about business rules without reading code
+- ❌ Hard to onboard new developers (no clear domain model)
+
+**Refactoring Priority:** 🔥 **HIGHEST** - Domain layer is the heart of Clean Architecture
+
+---
+
+#### 2.4 Infrastructure Layer - 60% Aligned ⚠️
+
+**Location:** `server/services/`, `server/storage.ts`, `server/db.ts`
+
+**Components:**
+
+| Component | Purpose | Status |
+|-----------|---------|--------|
+| `storage.ts` | Data access layer | ⚠️ Exists but not abstracted |
+| `db.ts` | Drizzle ORM setup | ✅ Good separation |
+| `encryption.ts` | Field encryption | ✅ Good separation |
+| `phi-encryption.ts` | PHI-specific encryption | ✅ HIPAA compliant |
+| `stripe-billing.ts` | Payment gateway | ⚠️ Mixed domain/infra |
+| `epic-fhir-service.ts` | EHR integration | ⚠️ Mixed domain/infra |
+| `arize-client.ts` | ML monitoring | ✅ Good gateway |
+| `langsmith-client.ts` | LLM tracing | ✅ Good gateway |
+| `email-notification.ts` | SendGrid integration | ✅ Good gateway |
+
+**Strengths:**
+
+✅ **Clear external integrations:**
+- Stripe for billing
+- Epic FHIR for health system data
+- Arize/LangSmith for AI monitoring
+- SendGrid/Twilio/Slack for notifications
+- AWS S3 for file storage
+
+✅ **Security implementations:**
+- AES-256-GCM encryption for PHI
+- Separate encryption for different data types
+- Secure credential storage
+
+✅ **Database abstraction with Drizzle ORM:**
+- Type-safe query builder
+- Migration management
+- Connection pooling with Neon serverless
+
+**Critical Gap: No Repository Pattern**
+
+**Current:** `storage.ts` defines interface and implementation together
+
+```typescript
+// storage.ts - Interface and implementation in same file
+export interface IStorage {
+  getUser(id: string): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  // ... 200+ methods
+}
+
+class Storage implements IStorage {
+  // Direct Drizzle ORM usage
+  async getUser(id: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.id, id));
+    return result[0];
+  }
+  // ... implementations
+}
+
+// Singleton export - hard to test, hard to swap
+export const storage = new Storage();
+```
+
+**Problems:**
+
+1. **Tight coupling** - All code depends on concrete `Storage` class
+2. **Hard to test** - Cannot easily mock, singleton pattern
+3. **Violates Dependency Inversion** - Inner layers depend on outer layers
+4. **Cannot swap implementations** - Tied to Drizzle/PostgreSQL
+
+**Should be (Repository Pattern):**
+
+```typescript
+// DOMAIN LAYER - domain/repositories/UserRepository.ts
+export interface UserRepository {
+  findById(id: string): Promise<User | null>;
+  findByUsername(username: string): Promise<User | null>;
+  save(user: User): Promise<void>;
+}
+
+// INFRASTRUCTURE LAYER - infrastructure/repositories/DrizzleUserRepository.ts
+export class DrizzleUserRepository implements UserRepository {
+  constructor(private db: DrizzleDB) {}
+
+  async findById(id: string): Promise<User | null> {
+    const result = await this.db.select().from(usersTable).where(eq(usersTable.id, id));
+    return result[0] ? this.toDomainEntity(result[0]) : null;
+  }
+
+  private toDomainEntity(row: UserRow): User {
+    // Map database row to domain entity
+    return new User(row.id, row.username, row.email, ...);
+  }
+}
+
+// FRAMEWORK LAYER - Dependency injection
+const userRepository: UserRepository = new DrizzleUserRepository(db);
+const useCase = new CreateUserUseCase(userRepository);
+```
+
+**Additional Infrastructure Issues:**
+
+1. **God Services** - Single service files with 500-600+ lines:
+   - `policy-enforcement-engine.ts` (620 lines) - Should be split
+   - `stripe-billing.ts` (400+ lines) - Mixed domain and infrastructure
+
+2. **Business logic in infrastructure:**
+```typescript
+// stripe-billing.ts line 85-95
+// Business rule in infrastructure layer
+canAddAISystem(healthSystemId: string) {
+  const healthSystem = await storage.getHealthSystem(healthSystemId);
+
+  const tierLimits = {
+    'starter': 3,
+    'professional': 10,
+    'enterprise': 999999
+  };
+
+  const limit = tierLimits[healthSystem.subscriptionTier] || 0;
+  // ... should be in Subscription domain entity
+}
+```
+
+**Refactoring Priority:** Medium-High (after domain and application layers)
+
+---
+
+### 3. Anti-Patterns Identified
+
+#### 3.1 Anemic Domain Model ⚠️ **CRITICAL**
+
+**Definition:** Domain entities with only data (getters/setters) and no business logic behavior.
+
+**Evidence:**
+
+All domain logic lives in service files instead of entities:
+
+```typescript
+// Current: Anemic model (just data structure)
+type AISystem = {
+  id: string;
+  name: string;
+  riskLevel: string;  // Just a string, no validation
+  status: string;      // No state machine
+  // ... no methods
+};
+
+// Business logic scattered in services
+function canDeployAISystem(system: AISystem): boolean {
+  if (system.status === 'inactive') return false;
+  if (system.riskLevel === 'critical' && !system.vendorId) return false;
+  // ... logic in function, not in entity
+}
+```
+
+**Should be:**
+
+```typescript
+// Rich domain model with behavior
+class AISystem {
+  private _status: SystemStatus;
+  private _riskLevel: RiskLevel;
+  private _vendor: Vendor | null;
+
+  canDeploy(): boolean {
+    return this._status.isActive() &&
+           this._riskLevel.allowsDeployment(this._vendor);
+  }
+
+  deploy(): void {
+    if (!this.canDeploy()) {
+      throw new DomainError('Cannot deploy system in current state');
+    }
+    this._status = SystemStatus.DEPLOYED;
+    this.raiseEvent(new SystemDeployedEvent(this.id));
+  }
+}
+```
+
+**Impact:**
+- Difficult to reason about business rules
+- Duplicate validation logic across multiple services
+- Cannot test business logic without infrastructure
+- Easy to introduce bugs by bypassing validation
+
+**Prevalence:** 🔥 **Pervasive** - Affects entire codebase (56+ service files)
+
+---
+
+#### 3.2 God Services ⚠️ **HIGH**
+
+**Definition:** Single service classes handling too many responsibilities, violating Single Responsibility Principle.
+
+**Evidence:**
+
+**File:** `server/services/policy-enforcement-engine.ts` (620 lines)
+
+Responsibilities mixed in one class:
+1. Policy creation (lines 96-125)
+2. Policy evaluation (lines 129-293)
+3. Violation logging (lines 405-436)
+4. Alert generation (lines 373-400)
+5. Statistics calculation (lines 595-617)
+6. Policy CRUD operations (lines 441-561)
+
+**Should be split into:**
+
+```typescript
+// Domain layer
+class Policy { /* entity with evaluation logic */ }
+class PolicyEvaluator { /* domain service */ }
+
+// Application layer
+class CreatePolicyUseCase { /* */ }
+class EvaluateAISystemUseCase { /* */ }
+class ResolvePolicyViolationUseCase { /* */ }
+
+// Infrastructure layer
+class PolicyRepository { /* persistence */ }
+class PolicyViolationRepository { /* persistence */ }
+class AlertGateway { /* notification sending */ }
+```
+
+**Other examples:**
+- `stripe-billing.ts` (400+ lines) - Billing + subscription + usage limits + webhooks
+- `certification-processor.ts` (287 lines) - Validation + testing + scoring + persistence
+
+**Impact:**
+- Hard to test (many dependencies)
+- Hard to maintain (too much to understand)
+- Violates SRP (multiple reasons to change)
+- Difficult to reuse components
+
+---
+
+#### 3.3 Leaking Infrastructure into Framework ⚠️ **HIGH**
+
+**Definition:** Framework layer (routes) directly accessing infrastructure (storage, databases).
+
+**Evidence:**
+
+**File:** `server/routes/billing.ts` (line 59)
+
+```typescript
+app.post('/api/billing/subscriptions/health-system', requireAuth, async (req, res) => {
+  // Route directly accesses storage (infrastructure layer)
+  const user = await storage.getUser(req.session.userId!);
+  const healthSystem = await storage.getHealthSystem(user.healthSystemId);
+
+  // Route directly calls service (infrastructure layer)
+  const result = await stripeBillingService.createHealthSystemSubscription(...);
+});
+```
+
+**Violates Dependency Rule:**
+```
+Framework (outer) → Infrastructure (outer) ❌ WRONG
+Should be:
+Framework → Application → Domain ← Infrastructure ✅
+```
+
+**Should be:**
+
+```typescript
+app.post('/api/billing/subscriptions/health-system', requireAuth, async (req, res) => {
+  const request = new CreateHealthSystemSubscriptionRequest(
+    req.session.userId!,
+    req.body.tier
+  );
+
+  // Route only calls use case (application layer)
+  const response = await createSubscriptionUseCase.execute(request);
+
+  res.status(201).json(response);
+});
+```
+
+**Impact:**
+- Tight coupling between layers
+- Cannot test routes without database
+- Hard to swap infrastructure implementations
+- Violates Clean Architecture principles
+
+---
+
+#### 3.4 No Repository Pattern ⚠️ **MEDIUM-HIGH**
+
+**Definition:** No abstraction between business logic and data access, tight coupling to ORM.
+
+**Evidence:**
+
+Direct usage of `storage` singleton throughout codebase:
+
+```typescript
+// Services directly depend on concrete storage implementation
+import { storage } from "../storage";
+
+async function someBusinessLogic() {
+  const user = await storage.getUser(id);  // Depends on concrete class
+  // ... if we want to swap ORMs, we have to change all services
+}
+```
+
+**Problems:**
+
+1. **Cannot mock for testing** - Singleton pattern makes testing difficult
+2. **Tight coupling to Drizzle ORM** - Cannot easily migrate to different database
+3. **Violates Dependency Inversion** - Business logic depends on infrastructure details
+4. **No clear aggregate boundaries** - 200+ methods on single interface
+
+**Should be:**
+
+```typescript
+// Domain layer defines interface
+interface UserRepository {
+  findById(id: string): Promise<User | null>;
+  save(user: User): Promise<void>;
+}
+
+// Business logic depends on interface (injected)
+class SomeUseCase {
+  constructor(private userRepo: UserRepository) {}
+
+  async execute() {
+    const user = await this.userRepo.findById(id);  // Depends on abstraction
+    // ... easy to mock, easy to swap implementations
+  }
+}
+
+// Infrastructure provides implementation
+class DrizzleUserRepository implements UserRepository { /* ... */ }
+```
+
+---
+
+#### 3.5 DTOs Everywhere ⚠️ **MEDIUM**
+
+**Definition:** Database schema types used across all layers, causing tight coupling.
+
+**Evidence:**
+
+```typescript
+// shared/schema.ts exports used everywhere
+import type { User, AISystem, Vendor } from "@shared/schema";
+
+// Used in routes (framework layer)
+app.get('/api/users', async (req, res) => {
+  const users: User[] = await storage.getUsers();  // DB type leaks to API
+  res.json(users);
+});
+
+// Used in services (domain/application layer)
+function validateUser(user: User) { /* ... */ }
+
+// Used in frontend (presentation layer)
+interface DashboardProps {
+  systems: AISystem[];  // DB schema in React components
+}
+```
+
+**Problems:**
+
+1. **Tight coupling** - Changing database schema breaks API contracts
+2. **Security risk** - Accidentally expose internal fields (passwords, secrets)
+3. **Cannot evolve independently** - Domain and persistence locked together
+4. **Frontend depends on backend** - Shared types create tight coupling
+
+**Should be:**
+
+```typescript
+// Domain layer - pure business entities
+class User {
+  constructor(
+    readonly id: string,
+    readonly username: string,
+    readonly email: Email  // Value object
+  ) {}
+}
+
+// Application layer - API DTOs
+interface UserView {
+  id: string;
+  username: string;
+  email: string;
+  // Only fields needed for API response
+}
+
+// Infrastructure layer - database models
+interface UserRow {
+  id: string;
+  username: string;
+  email: string;
+  password_hash: string;  // Never exposed to API
+  created_at: Date;
+}
+
+// Explicit mapping between layers
+class UserView {
+  static fromEntity(user: User): UserView {
+    return { id: user.id, username: user.username, email: user.email.value };
+  }
+}
+```
+
+---
+
+#### 3.6 Missing Tests ⚠️ **CRITICAL**
+
+**Definition:** No automated tests to validate behavior or enable safe refactoring.
+
+**Evidence:**
+
+```bash
+$ find . -name "*.test.ts" -o -name "*.spec.ts"
+# Returns: 0 files found
+```
+
+**Impact:**
+
+1. **Cannot refactor safely** - No regression detection
+2. **No documentation** - Tests serve as executable specifications
+3. **Unknown behavior** - Cannot verify business rules work correctly
+4. **High risk** - Any change could break production
+5. **Cannot evolve** - Fear of breaking things prevents improvements
+
+**Note:** Found test files in `server/services/vendor-testing/` but these are testing tools FOR vendors, not unit tests for the codebase.
+
+**Test Strategy Needed:**
+
+```
+Testing Pyramid:
+
+        /\
+       /E2E\      ← Fewest (critical user flows)
+      /------\
+     /  Integ \   ← Medium (use cases + repositories)
+    /----------\
+   /    Unit    \ ← Most (domain entities, value objects)
+  /              \
+```
+
+**Priority:** 🔥 **CRITICAL** - Must implement tests before major refactoring
+
+---
+
+### 4. Frontend Assessment
+
+**Structure:** `client/src/` - Feature-based organization
+
+**Files:**
+- ~50 React components organized by feature
+- Custom hooks for API calls (`use-toast`, `use-websocket`)
+- Utility libraries (`queryClient`, `csv-export`, `utils`)
+- Pages for routing (`Dashboard`, etc.)
+
+**Assessment:** ✅ **Appropriate for complexity level**
+
+The frontend does **NOT need full Clean Architecture** implementation. Per ARCHITECTURE.md:
+
+> "Frontend architecture should match frontend complexity. Over-engineering is more common than under-engineering in UI development."
+
+**Current Pattern:**
+
+```
+client/src/
+├── components/          # Feature-organized UI
+│   ├── billing/
+│   ├── dashboard/
+│   ├── customization/
+│   └── ui/              # Radix UI component library
+├── pages/               # Route pages
+├── hooks/               # API calls + custom logic
+└── lib/                 # Utilities (queryClient, csv-export)
+```
+
+**Alignment with ARCHITECTURE.md Guidance:**
+
+The current structure follows the recommended "start simple" approach:
+- ✅ Feature-based organization (clear domain grouping)
+- ✅ Shared UI components library
+- ✅ Custom hooks for reusable logic
+- ✅ React Query for server state management
+- ✅ Minimal abstraction overhead
+
+**When to introduce Clean Architecture to frontend:**
+
+Only if these conditions emerge:
+- Complex business logic needs testing independent of React
+- Multiple UIs sharing same logic (web + mobile)
+- Rich offline capabilities requiring local domain model
+- Frequent framework changes
+
+**Recommendation:**
+
+**Keep current frontend structure.** Only extract complex domain logic if it emerges naturally (e.g., complex multi-step form validation with business rules).
+
+If extraction becomes necessary later, start with:
+1. Extract pure validation functions to `lib/validation/`
+2. Create domain models for complex client-side state
+3. Avoid creating repositories for simple HTTP calls
+
+**Frontend Priority:** ✅ **NO ACTION NEEDED** - Focus refactoring effort on backend
+
+---
+
+### 5. Positive Observations
+
+Despite architectural gaps, the codebase demonstrates **strong engineering practices:**
+
+#### 5.1 Type Safety ✅
+
+**Evidence:**
+- Comprehensive TypeScript usage (strict mode)
+- Runtime validation with Zod schemas
+- Type inference with Drizzle ORM
+- No usage of `any` type (good discipline)
+
+```typescript
+// Example: Type-safe validation
+const createHealthSystemSubscriptionSchema = z.object({
+  tier: z.enum(['starter', 'professional', 'enterprise']),
+});
+
+type CreateHealthSystemSubscriptionRequest = z.infer<typeof createHealthSystemSubscriptionSchema>;
+```
+
+#### 5.2 Security & Compliance ✅
+
+**HIPAA-compliant implementations:**
+
+1. **PHI Encryption** (`phi-encryption.ts`):
+   - AES-256-GCM encryption for sensitive data
+   - Separate encryption keys for different data types
+   - Encrypted at rest (database) and in transit
+
+2. **Audit Logging** (`auditLogs` table):
+   - Comprehensive tracking of all actions
+   - IP address and user agent logging
+   - Before/after state for compliance investigations
+   - Indexed for fast queries
+
+3. **Authentication & Authorization:**
+   - MFA/2FA support with TOTP
+   - Enterprise SSO via WorkOS
+   - Role-based permissions
+   - Session management with secure cookies
+
+4. **API Security:**
+   - CSRF protection
+   - Rate limiting
+   - API key management for partners
+   - Webhook signature verification
+
+#### 5.3 Production Infrastructure ✅
+
+**Robust integrations:**
+
+| Service | Purpose | Implementation Quality |
+|---------|---------|----------------------|
+| Stripe | Billing/subscriptions | ✅ Webhook handling, idempotency |
+| Epic FHIR | EHR integration | ✅ OAuth 2.0, resource sync |
+| WorkOS | Enterprise SSO | ✅ SAML, directory sync |
+| Inngest | Background jobs | ✅ Retry logic, observability |
+| AWS S3 | File storage | ✅ Presigned URLs, encryption |
+| SendGrid/Twilio | Notifications | ✅ Templates, retry logic |
+| Arize/LangSmith | AI monitoring | ✅ Metric tracking |
+
+#### 5.4 Documentation ✅
+
+**Well-documented code:**
+
+```typescript
+/**
+ * 🔒 POLICY ENFORCEMENT ENGINE - Phase 4 Business Model
+ *
+ * Real-time governance policy evaluation and enforcement
+ * Enables automated compliance policy management
+ */
+```
+
+- Clear intent in comments
+- Business context explained
+- Phase/priority indicators
+- Complex logic documented
+
+#### 5.5 Modern Technology Stack ✅
+
+**Backend:**
+- Node.js 20+ with TypeScript 5
+- Express.js (mature, well-understood)
+- Drizzle ORM (type-safe, modern)
+- PostgreSQL with Neon (serverless, scalable)
+- Pino structured logging
+
+**Frontend:**
+- React 18 (latest)
+- Vite (fast builds)
+- TailwindCSS (utility-first)
+- Radix UI (accessible components)
+- React Query (excellent server state)
+
+**DevOps:**
+- TypeScript build pipeline
+- Database migrations (Drizzle)
+- Environment-based configuration
+
+#### 5.6 Domain Understanding ✅
+
+**Clear business concepts:**
+
+The codebase demonstrates deep understanding of the healthcare AI compliance domain:
+
+- **Certification tiers** (Silver/Gold/Platinum) with specific requirements
+- **Policy enforcement** with approval workflows
+- **Risk levels** with deployment restrictions
+- **Compliance frameworks** (HIPAA, NIST AI RMF, FDA, ISO)
+- **Vendor testing** (PHI exposure, bias detection, clinical accuracy)
+- **Usage-based billing** with tier limits
+
+This domain knowledge is a huge asset - refactoring will preserve and better structure this valuable business logic.
+
+---
+
+## High-Level Refactoring Plan
+
+### Strategy: Incremental Vertical Slicing with Layer Sanctity
+
+**Principle:** Refactor ONE business capability at a time, implementing all layers for that capability before moving to the next.
+
+**Why this approach:**
+- ✅ Incremental value delivery (existing features keep working)
+- ✅ Risk mitigation (validate each refactor before proceeding)
+- ✅ Team learning (build muscle memory for Clean Architecture)
+- ✅ Maintain working system throughout (no "big bang" rewrite)
+- ✅ Early feedback (can adjust approach based on learnings)
+
+**Key Disciplines:**
+
+1. **Vertical Slicing** (WHEN to build): One user story at a time, P1 → P2 → P3
+2. **Layer Sanctity** (HOW to build): Always maintain inward-pointing dependencies
+3. **Test-First** (SAFETY): Write characterization tests before refactoring
+4. **Parallel Implementation** (RISK): New code alongside old, gradual cutover
+5. **Feature Flags** (CONTROL): Toggle between old/new implementations
+
+---
+
+### Phase 1: Foundation Setup (Weeks 1-2)
+
+**Goal:** Establish architectural skeleton and testing infrastructure WITHOUT breaking existing code.
+
+#### Tasks:
+
+**1.1 Create Directory Structure**
+
+```bash
+server/
+├── domain/                     # NEW - Pure business logic
+│   ├── entities/              # Business entities with behavior
+│   ├── value-objects/         # Immutable domain values
+│   ├── repositories/          # Repository interfaces (abstractions)
+│   ├── services/              # Domain services (pure logic)
+│   └── events/                # Domain events
+│
+├── application/               # NEW - Use cases and orchestration
+│   ├── billing/
+│   │   ├── CreateHealthSystemSubscription.ts
+│   │   ├── CheckUsageLimits.ts
+│   │   └── Views.ts
+│   ├── certifications/
+│   │   ├── ProcessApplication.ts
+│   │   ├── ApproveApplication.ts
+│   │   └── Views.ts
+│   ├── policies/
+│   │   ├── EvaluateAISystem.ts
+│   │   ├── CreatePolicy.ts
+│   │   └── Views.ts
+│   └── ai-systems/
+│       ├── RegisterAISystem.ts
+│       └── Views.ts
+│
+├── infrastructure/            # REORGANIZE EXISTING
+│   ├── repositories/          # Repository implementations
+│   │   ├── DrizzleUserRepository.ts
+│   │   ├── DrizzleAISystemRepository.ts
+│   │   └── ...
+│   ├── gateways/             # External service integrations
+│   │   ├── StripeGateway.ts
+│   │   ├── EpicFHIRGateway.ts
+│   │   ├── EmailGateway.ts
+│   │   └── ...
+│   ├── encryption/           # Move encryption services here
+│   └── persistence/          # Database setup
+│       ├── db.ts
+│       └── migrations/
+│
+└── frameworks/                # RENAME FROM routes/
+    └── http/
+        ├── routes/           # Express routes (thin)
+        ├── middleware/       # Existing middleware
+        └── controllers/      # NEW - Thin controllers
+```
+
+**1.2 Install Testing Framework**
+
+```bash
+npm install --save-dev vitest @vitest/ui
+npm install --save-dev @types/node
+npm install --save-dev @faker-js/faker  # Test data generation
+```
+
+**vitest.config.ts:**
+```typescript
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    globals: true,
+    environment: 'node',
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      exclude: ['**/node_modules/**', '**/dist/**']
+    }
+  }
+});
+```
+
+**package.json scripts:**
+```json
+{
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage"
+  }
+}
+```
+
+**1.3 Set Up Architectural Fitness Functions**
+
+**ESLint plugin to enforce layer boundaries:**
+
+```bash
+npm install --save-dev eslint-plugin-import
+```
+
+**.eslintrc.js:**
+```javascript
+module.exports = {
+  rules: {
+    'import/no-restricted-paths': ['error', {
+      zones: [
+        // Domain cannot import from outer layers
+        {
+          target: './server/domain',
+          from: ['./server/application', './server/infrastructure', './server/frameworks']
+        },
+        // Application can only import from domain
+        {
+          target: './server/application',
+          from: ['./server/infrastructure', './server/frameworks']
+        },
+        // Infrastructure can import domain + application
+        {
+          target: './server/infrastructure',
+          from: ['./server/frameworks']
+        }
+      ]
+    }]
+  }
+};
+```
+
+**Script to detect circular dependencies:**
+
+```typescript
+// scripts/check-architecture.ts
+import madge from 'madge';
+
+madge('server/', { fileExtensions: ['ts'] })
+  .then((res) => {
+    const circular = res.circular();
+    if (circular.length > 0) {
+      console.error('Circular dependencies found:', circular);
+      process.exit(1);
+    }
+    console.log('✅ No circular dependencies');
+  });
+```
+
+**Deliverables:**
+- [ ] Directory structure created
+- [ ] Vitest installed and configured
+- [ ] Sample test passing
+- [ ] ESLint rules enforcing layers
+- [ ] Architecture check script
+
+**Risk:** Low - No changes to existing code
+**Duration:** 3-5 days
+
+---
+
+### Phase 2: Pilot Refactor - Certification Flow (Weeks 3-4)
+
+**Goal:** Refactor ONE complete business capability end-to-end to validate the approach and train the team.
+
+**Why Certification Flow:**
+- ✅ Well-defined business rules (scoring, validation)
+- ✅ Medium complexity (not too simple, not too complex)
+- ✅ Clear domain concepts (Application, Certification, Test Results)
+- ✅ High business value (core platform feature)
+- ✅ Self-contained (fewer dependencies on other features)
+
+#### Step 2.1: Write Characterization Tests
+
+**Purpose:** Create safety net BEFORE refactoring
+
+```typescript
+// tests/integration/certification-processor.test.ts
+import { describe, it, expect, beforeEach } from 'vitest';
+import { processCertificationApplication } from '../../server/services/certification-processor';
+
+describe('Certification Processor (Characterization Tests)', () => {
+  beforeEach(async () => {
+    // Set up test database with known state
+  });
+
+  it('should pass Silver tier with 1 document and HIPAA compliance', async () => {
+    // Arrange
+    const applicationId = await createTestApplication({
+      tierRequested: 'Silver',
+      documentationUrls: ['https://example.com/hipaa.pdf'],
+      complianceStatements: { hipaa: true }
+    });
+
+    // Act
+    const result = await processCertificationApplication(applicationId);
+
+    // Assert
+    expect(result.passed).toBe(true);
+    expect(result.score).toBeGreaterThanOrEqual(40); // Document + compliance
+  });
+
+  it('should fail Gold tier without NIST compliance', async () => {
+    // Test existing behavior to lock it in
+  });
+
+  // More characterization tests...
+});
+```
+
+**Deliverable:**
+- [ ] 15-20 characterization tests covering existing behavior
+- [ ] All tests passing (green bar)
+
+#### Step 2.2: Extract Domain Entity
+
+**Create rich domain model with business logic:**
+
+```typescript
+// server/domain/entities/CertificationApplication.ts
+
+export class CertificationApplication {
+  private constructor(
+    readonly id: string,
+    private _vendorId: string,
+    private _tierRequested: CertificationTier,
+    private _documentation: Documentation,
+    private _compliance: ComplianceStatements,
+    private _checks: CertificationChecks,
+    private _testResults: TestResults | null
+  ) {}
+
+  // Factory method
+  static create(
+    vendorId: string,
+    tier: CertificationTier,
+    documentation: Documentation,
+    compliance: ComplianceStatements
+  ): CertificationApplication {
+    // Domain validation
+    if (!tier.isValid()) {
+      throw new InvalidCertificationTierError(tier);
+    }
+
+    return new CertificationApplication(
+      generateId(),
+      vendorId,
+      tier,
+      documentation,
+      compliance,
+      CertificationChecks.initial(),
+      null
+    );
+  }
+
+  // Business logic methods
+  evaluate(): EvaluationResult {
+    this._checks = CertificationChecks.from({
+      documentationComplete: this._documentation.meetsRequirements(this._tierRequested),
+      complianceValid: this._compliance.meetsRequirements(this._tierRequested),
+      deploymentHistoryValid: this._tierRequested.deploymentRequirementsMet(this._vendorId)
+    });
+
+    return new EvaluationResult(
+      this.calculateScore(),
+      this._checks,
+      this.generateRecommendations()
+    );
+  }
+
+  applyTestResults(results: TestResults): void {
+    this._testResults = results;
+    this._checks = this._checks.updateFromTests(results);
+  }
+
+  calculateScore(): number {
+    const weights = CertificationScoring.getWeights();
+    return this._checks.calculateWeightedScore(weights);
+  }
+
+  hasPassedEvaluation(): boolean {
+    return this._checks.allChecksPassed() &&
+           this.calculateScore() >= this._tierRequested.minimumScore();
+  }
+
+  private generateRecommendations(): string[] {
+    const recommendations: string[] = [];
+
+    if (!this._checks.documentationComplete) {
+      recommendations.push(
+        this._tierRequested.documentationRequirementMessage()
+      );
+    }
+
+    // More business logic for recommendations...
+
+    return recommendations;
+  }
+
+  // Domain events
+  collectEvents(): DomainEvent[] {
+    return this._domainEvents;
+  }
+}
+```
+
+**Value Objects:**
+
+```typescript
+// server/domain/value-objects/CertificationTier.ts
+
+export class CertificationTier {
+  private constructor(private readonly value: 'Silver' | 'Gold' | 'Platinum') {}
+
+  static Silver = new CertificationTier('Silver');
+  static Gold = new CertificationTier('Gold');
+  static Platinum = new CertificationTier('Platinum');
+
+  static fromString(tier: string): CertificationTier {
+    switch (tier) {
+      case 'Silver': return CertificationTier.Silver;
+      case 'Gold': return CertificationTier.Gold;
+      case 'Platinum': return CertificationTier.Platinum;
+      default: throw new InvalidCertificationTierError(tier);
+    }
+  }
+
+  minimumScore(): number {
+    switch (this.value) {
+      case 'Silver': return 40;
+      case 'Gold': return 70;
+      case 'Platinum': return 90;
+    }
+  }
+
+  requiredDocuments(): number {
+    switch (this.value) {
+      case 'Silver': return 1;
+      case 'Gold': return 2;
+      case 'Platinum': return 3;
+    }
+  }
+
+  deploymentRequirementsMet(vendorId: string): boolean {
+    // Would call repository to check deployments
+    // This is where we'd inject repository if needed
+  }
+}
+```
+
+**Deliverable:**
+- [ ] CertificationApplication entity with business logic
+- [ ] CertificationTier value object
+- [ ] Unit tests for entity (90%+ coverage)
+
+#### Step 2.3: Create Repository Interface
+
+```typescript
+// server/domain/repositories/CertificationApplicationRepository.ts
+
+export interface CertificationApplicationRepository {
+  findById(id: string): Promise<CertificationApplication | null>;
+  save(application: CertificationApplication): Promise<void>;
+  findByVendor(vendorId: string): Promise<CertificationApplication[]>;
+}
+```
+
+**Implementation:**
+
+```typescript
+// server/infrastructure/repositories/DrizzleCertificationApplicationRepository.ts
+
+export class DrizzleCertificationApplicationRepository
+  implements CertificationApplicationRepository {
+
+  constructor(private db: DrizzleDB) {}
+
+  async findById(id: string): Promise<CertificationApplication | null> {
+    const rows = await this.db
+      .select()
+      .from(certificationApplications)
+      .where(eq(certificationApplications.id, id));
+
+    if (rows.length === 0) return null;
+
+    return this.toDomainEntity(rows[0]);
+  }
+
+  async save(application: CertificationApplication): Promise<void> {
+    const data = this.toDataModel(application);
+
+    await this.db
+      .insert(certificationApplications)
+      .values(data)
+      .onConflictDoUpdate({
+        target: certificationApplications.id,
+        set: data
+      });
+  }
+
+  private toDomainEntity(row: CertificationApplicationRow): CertificationApplication {
+    // Map database row to domain entity
+    return CertificationApplication.reconstitute(
+      row.id,
+      row.vendor_id,
+      CertificationTier.fromString(row.tier_requested),
+      // ... more mapping
+    );
+  }
+
+  private toDataModel(application: CertificationApplication): CertificationApplicationRow {
+    // Map domain entity to database row
+    return {
+      id: application.id,
+      vendor_id: application.vendorId,
+      tier_requested: application.tierRequested.toString(),
+      // ... more mapping
+    };
+  }
+}
+```
+
+**Deliverable:**
+- [ ] Repository interface in domain
+- [ ] Repository implementation in infrastructure
+- [ ] Integration tests for repository
+
+#### Step 2.4: Create Use Case
+
+```typescript
+// server/application/certifications/ProcessApplication.ts
+
+export class ProcessApplicationRequest {
+  constructor(readonly applicationId: string) {}
+}
+
+export class ProcessApplicationResponse {
+  constructor(
+    readonly passed: boolean,
+    readonly score: number,
+    readonly checks: CertificationChecksView,
+    readonly recommendations: string[]
+  ) {}
+
+  static fromEvaluationResult(result: EvaluationResult): ProcessApplicationResponse {
+    return new ProcessApplicationResponse(
+      result.passed,
+      result.score,
+      CertificationChecksView.fromDomain(result.checks),
+      result.recommendations
+    );
+  }
+}
+
+export class ProcessCertificationApplicationUseCase {
+  constructor(
+    private applicationRepo: CertificationApplicationRepository,
+    private testingGateway: VendorTestingGateway
+  ) {}
+
+  async execute(request: ProcessApplicationRequest): Promise<ProcessApplicationResponse> {
+    // 1. Load aggregate
+    const application = await this.applicationRepo.findById(request.applicationId);
+    if (!application) {
+      throw new ApplicationNotFoundError(request.applicationId);
+    }
+
+    // 2. Run evaluation (domain logic in entity)
+    const evaluationResult = application.evaluate();
+
+    // 3. Run external tests (infrastructure gateway)
+    const testResults = await this.testingGateway.runAllTests({
+      applicationId: request.applicationId,
+      vendorId: application.vendorId
+    });
+
+    // 4. Apply test results (domain logic in entity)
+    application.applyTestResults(testResults);
+
+    // 5. Persist
+    await this.applicationRepo.save(application);
+
+    // 6. Return response
+    return ProcessApplicationResponse.fromEvaluationResult(evaluationResult);
+  }
+}
+```
+
+**Deliverable:**
+- [ ] Use case with request/response models
+- [ ] Integration tests for use case (mocked repository)
+
+#### Step 2.5: Update Route (Thin Controller)
+
+```typescript
+// server/frameworks/http/routes/certifications.ts
+
+export function registerCertificationRoutes(app: Express) {
+  app.post('/api/certifications/:id/process', requireAuth, async (req, res) => {
+    try {
+      // 1. Create request from HTTP input
+      const request = new ProcessApplicationRequest(req.params.id);
+
+      // 2. Execute use case (all logic delegated)
+      const response = await processCertificationUseCase.execute(request);
+
+      // 3. Return HTTP response
+      res.status(200).json(response);
+    } catch (error) {
+      if (error instanceof ApplicationNotFoundError) {
+        return res.status(404).json({ error: error.message });
+      }
+      throw error;
+    }
+  });
+}
+```
+
+**Deliverable:**
+- [ ] Updated route (thin, delegates to use case)
+- [ ] Existing tests still passing
+
+#### Step 2.6: Parallel Implementation & Cutover
+
+**Strategy:** Run both old and new implementations side-by-side, compare results
+
+```typescript
+// Feature flag for gradual rollout
+const USE_NEW_CERTIFICATION_FLOW = process.env.USE_NEW_CERTIFICATION === 'true';
+
+app.post('/api/certifications/:id/process', requireAuth, async (req, res) => {
+  if (USE_NEW_CERTIFICATION_FLOW) {
+    // New implementation (Clean Architecture)
+    const request = new ProcessApplicationRequest(req.params.id);
+    const response = await processCertificationUseCase.execute(request);
+    return res.status(200).json(response);
+  } else {
+    // Old implementation (keep for now)
+    const result = await processCertificationApplication(req.params.id);
+    return res.status(200).json(result);
+  }
+});
+```
+
+**Validation:**
+1. Deploy with feature flag OFF (old implementation)
+2. Run comparison script (call both, compare results)
+3. Fix discrepancies
+4. Enable feature flag for 10% of requests (canary)
+5. Monitor for errors
+6. Roll out to 50%, then 100%
+7. Remove old implementation
+
+**Deliverable:**
+- [ ] Feature flag implemented
+- [ ] Comparison tests passing
+- [ ] Cutover completed
+- [ ] Old code removed
+
+#### Phase 2 Deliverables Summary
+
+- [x] Characterization tests (safety net)
+- [x] Domain entity with business logic
+- [x] Repository pattern implemented
+- [x] Use case orchestrating workflow
+- [x] Thin controller in framework layer
+- [x] All tests passing
+- [x] Feature deployed to production
+- [x] Team trained on Clean Architecture
+
+**Duration:** 2 weeks
+**Risk:** Medium (pilot project, learning phase)
+
+---
+
+### Phase 3: Expand to P1 Features (Weeks 5-8)
+
+**Goal:** Refactor high-priority business capabilities using lessons from pilot.
+
+**Priority Order (by business criticality):**
+
+#### Story 1: Policy Enforcement (Week 5-6)
+
+**Current:** `policy-enforcement-engine.ts` (620 lines, mixed concerns)
+
+**Refactor to:**
+
+```
+Domain:
+├── Policy entity (evaluation logic)
+├── AISystem entity (risk assessment)
+├── PolicyRule value object
+└── PolicyEvaluator domain service
+
+Application:
+├── EvaluateAISystemUseCase
+├── CreatePolicyUseCase
+└── ResolvePolicyViolationUseCase
+
+Infrastructure:
+├── PolicyRepository
+├── PolicyViolationRepository
+└── AlertGateway (Slack/email notifications)
+
+Framework:
+└── POST /api/policies/:id/evaluate (thin)
+```
+
+**Business Value:** Critical for compliance, high usage feature
+
+#### Story 2: Billing & Subscriptions (Week 6-7)
+
+**Current:** `stripe-billing.ts` (400+ lines)
+
+**Refactor to:**
+
+```
+Domain:
+├── Subscription entity (usage limits, billing cycles)
+├── BillingAccount entity
+├── SubscriptionTier value object
+└── UsageValidator domain service
+
+Application:
+├── CreateHealthSystemSubscriptionUseCase
+├── CreateVendorSubscriptionUseCase
+├── CheckUsageLimitsUseCase
+└── HandleSubscriptionWebhookUseCase
+
+Infrastructure:
+├── SubscriptionRepository
+├── StripeGateway (payment processing)
+└── WebhookValidator
+
+Framework:
+└── POST /api/billing/subscriptions/* (thin)
+```
+
+**Business Value:** Revenue-critical feature
+
+#### Story 3: AI System Registration (Week 7-8)
+
+**Current:** Mixed across routes and services
+
+**Refactor to:**
+
+```
+Domain:
+├── AISystem entity (validation, state transitions)
+├── RiskLevel value object
+├── SystemStatus value object
+└── DeploymentPolicy domain service
+
+Application:
+├── RegisterAISystemUseCase
+├── UpdateAISystemUseCase
+├── DeployAISystemUseCase
+└── DeactivateAISystemUseCase
+
+Infrastructure:
+├── AISystemRepository
+├── EpicFHIRGateway (sync from EHR)
+└── TelemetryGateway (monitoring)
+
+Framework:
+└── POST /api/ai-systems (thin)
+```
+
+**Business Value:** Core platform functionality
+
+#### Phase 3 Deliverables
+
+- [ ] Policy enforcement refactored
+- [ ] Billing & subscriptions refactored
+- [ ] AI system registration refactored
+- [ ] 80%+ test coverage for these features
+- [ ] Feature flags removed (stable in production)
+- [ ] Documentation updated
+
+**Duration:** 4 weeks
+**Risk:** Medium (building on pilot learnings)
+
+---
+
+### Phase 4: Infrastructure Refactoring (Weeks 9-10)
+
+**Goal:** Consolidate infrastructure layer, complete repository pattern adoption.
+
+#### Task 4.1: Extract All Repositories
+
+**Replace:** `storage.ts` singleton with repository pattern
+
+**Create repositories for each aggregate:**
+
+```
+infrastructure/repositories/
+├── DrizzleUserRepository.ts
+├── DrizzleHealthSystemRepository.ts
+├── DrizzleVendorRepository.ts
+├── DrizzleAISystemRepository.ts
+├── DrizzleAlertRepository.ts
+├── DrizzleAuditLogRepository.ts
+└── ...
+```
+
+**Update:** All use cases to inject repositories via constructor
+
+#### Task 4.2: Extract All Gateways
+
+**Consolidate external integrations:**
+
+```
+infrastructure/gateways/
+├── StripeGateway.ts (billing)
+├── EpicFHIRGateway.ts (EHR sync)
+├── ArizeGateway.ts (ML monitoring)
+├── LangSmithGateway.ts (LLM tracing)
+├── EmailGateway.ts (SendGrid)
+├── SMSGateway.ts (Twilio)
+├── SlackGateway.ts (notifications)
+└── S3Gateway.ts (file storage)
+```
+
+**Define interfaces in domain/application, implement in infrastructure**
+
+#### Task 4.3: Service Consolidation
+
+**Merge related services:**
+
+1. **Notification Services** → Single `NotificationGateway`
+   - Combine: `email-notification.ts`, `sms-notification.ts`, `slack-notification.ts`
+
+2. **Encryption Services** → Single `EncryptionService`
+   - Combine: `encryption.ts`, `phi-encryption.ts`, `policy-encryption.ts`
+
+3. **Testing Services** → `VendorTestingGateway`
+   - Extract domain logic to entities, keep infrastructure in gateway
+
+#### Phase 4 Deliverables
+
+- [ ] All repositories extracted and injected
+- [ ] All gateways abstracted with interfaces
+- [ ] Related services consolidated
+- [ ] storage.ts singleton removed
+- [ ] Dependency injection configured
+- [ ] All tests passing
+
+**Duration:** 2 weeks
+**Risk:** Low (no behavior changes)
+
+---
+
+### Phase 5: Testing Implementation (Weeks 11-12)
+
+**Goal:** Achieve 80% test coverage for refactored modules.
+
+#### Test Strategy: Testing Pyramid
+
+```
+        /\
+       /E2E\      ← 5-10 tests (critical user flows)
+      /------\
+     /  Integ \   ← 50-100 tests (use cases + repos)
+    /----------\
+   /    Unit    \ ← 200+ tests (entities, value objects)
+  /              \
+```
+
+#### Unit Tests (Domain Layer) - MOST
+
+**Test entities and value objects in complete isolation:**
+
+```typescript
+// tests/unit/domain/entities/CertificationApplication.test.ts
+
+describe('CertificationApplication', () => {
+  describe('calculateScore', () => {
+    it('should award 20 points for complete documentation', () => {
+      const application = CertificationApplication.create(
+        'vendor-1',
+        CertificationTier.Silver,
+        Documentation.complete(['doc1.pdf']),
+        ComplianceStatements.hipaaOnly()
+      );
+
+      application.evaluate();
+      const score = application.calculateScore();
+
+      expect(score).toBe(40); // 20 (docs) + 20 (compliance)
+    });
+
+    it('should require 70+ score for Gold tier', () => {
+      const application = CertificationApplication.create(
+        'vendor-1',
+        CertificationTier.Gold,
+        Documentation.minimal(),
+        ComplianceStatements.hipaaOnly()
+      );
+
+      const result = application.evaluate();
+
+      expect(result.passed).toBe(false);
+      expect(application.calculateScore()).toBeLessThan(70);
+    });
+  });
+
+  describe('applyTestResults', () => {
+    it('should update checks based on test results', () => {
+      const application = createSampleApplication();
+      const testResults = TestResults.allPassed();
+
+      application.applyTestResults(testResults);
+
+      expect(application.hasPassedEvaluation()).toBe(true);
+    });
+  });
+});
+```
+
+**Characteristics:**
+- ✅ Fast (milliseconds)
+- ✅ No dependencies (no database, no HTTP)
+- ✅ Pure logic testing
+- ✅ Easy to maintain
+
+**Coverage Goal:** 90%+ for all domain entities and value objects
+
+#### Integration Tests (Application Layer) - MEDIUM
+
+**Test use cases with mocked infrastructure:**
+
+```typescript
+// tests/integration/application/ProcessCertificationApplication.test.ts
+
+describe('ProcessCertificationApplicationUseCase', () => {
+  let useCase: ProcessCertificationApplicationUseCase;
+  let mockRepo: MockCertificationApplicationRepository;
+  let mockGateway: MockVendorTestingGateway;
+
+  beforeEach(() => {
+    mockRepo = new MockCertificationApplicationRepository();
+    mockGateway = new MockVendorTestingGateway();
+    useCase = new ProcessCertificationApplicationUseCase(mockRepo, mockGateway);
+  });
+
+  it('should process application and save result', async () => {
+    // Arrange
+    const application = createSampleApplication();
+    mockRepo.setApplication(application);
+    mockGateway.setTestResults(TestResults.allPassed());
+
+    // Act
+    const response = await useCase.execute(
+      new ProcessApplicationRequest(application.id)
+    );
+
+    // Assert
+    expect(response.passed).toBe(true);
+    expect(mockRepo.saveWasCalled).toBe(true);
+  });
+
+  it('should throw error if application not found', async () => {
+    mockRepo.setApplication(null);
+
+    await expect(
+      useCase.execute(new ProcessApplicationRequest('invalid-id'))
+    ).rejects.toThrow(ApplicationNotFoundError);
+  });
+});
+```
+
+**Characteristics:**
+- ⚡ Medium speed (seconds)
+- 🎭 Mocked infrastructure (in-memory repositories)
+- 🔄 Tests orchestration logic
+- 📦 Tests use case workflows
+
+**Coverage Goal:** 80%+ for all use cases
+
+#### E2E Tests (Framework Layer) - FEWEST
+
+**Test complete user workflows through HTTP API:**
+
+```typescript
+// tests/e2e/certification-flow.test.ts
+
+describe('Certification Application Flow (E2E)', () => {
+  let app: Express;
+  let testDb: TestDatabase;
+
+  beforeAll(async () => {
+    testDb = await TestDatabase.create();
+    app = createTestApp(testDb);
+  });
+
+  afterAll(async () => {
+    await testDb.teardown();
+  });
+
+  it('should process certification application end-to-end', async () => {
+    // 1. Vendor creates certification application
+    const createResponse = await request(app)
+      .post('/api/certifications')
+      .send({
+        vendorId: 'vendor-1',
+        tierRequested: 'Silver',
+        documentationUrls: ['https://example.com/hipaa.pdf'],
+        complianceStatements: { hipaa: true }
+      })
+      .expect(201);
+
+    const applicationId = createResponse.body.id;
+
+    // 2. Process application
+    const processResponse = await request(app)
+      .post(`/api/certifications/${applicationId}/process`)
+      .expect(200);
+
+    // 3. Verify result
+    expect(processResponse.body.passed).toBe(true);
+    expect(processResponse.body.score).toBeGreaterThanOrEqual(40);
+
+    // 4. Verify database state
+    const application = await testDb.query(
+      'SELECT * FROM certification_applications WHERE id = ?',
+      [applicationId]
+    );
+    expect(application.status).toBe('in_review');
+  });
+});
+```
+
+**Characteristics:**
+- 🐌 Slow (seconds to minutes)
+- 🌐 Real HTTP requests
+- 🗄️ Real database (test container)
+- 🎯 Tests critical happy paths
+
+**Coverage Goal:** 5-10 critical user flows
+
+#### Phase 5 Deliverables
+
+- [ ] 200+ unit tests (domain layer)
+- [ ] 50+ integration tests (application layer)
+- [ ] 5-10 E2E tests (critical flows)
+- [ ] 80%+ overall code coverage
+- [ ] CI/CD pipeline running tests
+- [ ] Test documentation
+
+**Duration:** 2 weeks
+**Risk:** Low (adds safety, no behavior changes)
+
+---
+
+### Phase 6: Remaining Features (Weeks 13+)
+
+**Goal:** Complete refactoring for all business capabilities.
+
+#### P2 Stories (Medium Priority)
+
+**Week 13-14: Compliance Reporting**
+- Domain: ComplianceReport entity, ControlEvaluation value object
+- Application: GenerateComplianceReportUseCase
+- Infrastructure: ReportRepository, ReportGenerator
+
+**Week 15-16: Vendor Performance Tracking**
+- Domain: VendorPerformance entity, PerformanceMetrics value object
+- Application: TrackVendorPerformanceUseCase
+- Infrastructure: PerformanceRepository, MetricsCollector
+
+**Week 17-18: Network Metrics**
+- Domain: NetworkMetrics entity, VendorReach value object
+- Application: CalculateNetworkMetricsUseCase
+- Infrastructure: MetricsRepository
+
+**Week 19-20: Analytics & Dashboards**
+- Domain: Analytics domain service (calculations)
+- Application: GetDashboardDataUseCase
+- Infrastructure: AnalyticsRepository (read models)
+
+#### P3 Stories (Lower Priority)
+
+**As time permits:**
+- Background jobs refactoring (Inngest workflows)
+- Telemetry polling optimization
+- Audit log improvements
+- ROI metrics calculation
+
+#### Phase 6 Deliverables
+
+- [ ] All P2 features refactored
+- [ ] P3 features refactored (if time allows)
+- [ ] 80%+ test coverage maintained
+- [ ] All feature flags removed
+- [ ] Old code deleted
+- [ ] Architecture documentation complete
+
+**Duration:** 8+ weeks (adjust based on velocity)
+**Risk:** Low (well-established patterns by this point)
+
+---
+
+## Refactoring Guidelines & Best Practices
+
+### DO's ✅
+
+1. **Refactor one feature at a time (vertical slices)**
+   - Complete all layers before moving to next feature
+   - Validate each feature works before proceeding
+
+2. **Write tests BEFORE refactoring (characterization tests)**
+   - Lock in existing behavior
+   - Create safety net for changes
+   - Catch regressions immediately
+
+3. **Keep existing code working (parallel implementation)**
+   - Run old and new side-by-side
+   - Use feature flags for gradual cutover
+   - Compare outputs to validate correctness
+
+4. **Extract incrementally (strangler fig pattern)**
+   - Wrap old code with new interfaces
+   - Gradually replace internals
+   - Remove old code only when confident
+
+5. **Use feature flags for risky changes**
+   - Enable for small percentage of traffic
+   - Monitor errors and performance
+   - Roll back quickly if issues arise
+
+6. **Document architectural decisions (ADRs)**
+   - Record why decisions were made
+   - Help future developers understand context
+   - Track evolution of architecture
+
+7. **Pair program on refactoring**
+   - Share knowledge across team
+   - Catch issues early
+   - Build collective ownership
+
+8. **Review code at each checkpoint**
+   - Ensure patterns are consistent
+   - Catch violations of layer boundaries
+   - Maintain code quality
+
+### DON'Ts ❌
+
+1. **Don't rewrite everything at once**
+   - Too risky, too much can go wrong
+   - Hard to test and validate
+   - Delays value delivery
+
+2. **Don't skip testing (no tests = dangerous refactoring)**
+   - Tests are your safety net
+   - Without tests, you're flying blind
+   - Regressions will happen
+
+3. **Don't break existing functionality**
+   - Users depend on current behavior
+   - Business cannot tolerate downtime
+   - Refactoring should be transparent to users
+
+4. **Don't mix refactoring with new features**
+   - Conflates risk (is bug from refactor or new feature?)
+   - Harder to review and test
+   - Slows down both activities
+
+5. **Don't ignore performance implications**
+   - Abstractions can add overhead
+   - Monitor metrics during refactoring
+   - Optimize if needed (but don't prematurely)
+
+6. **Don't let perfect be enemy of good**
+   - 80% Clean Architecture is better than 0%
+   - Incremental improvement over time
+   - Pragmatism over purism
+
+7. **Don't force Clean Architecture where it doesn't fit**
+   - Simple CRUD doesn't need use cases
+   - Not every service needs a repository
+   - Apply patterns judiciously
+
+8. **Don't forget to delete old code**
+   - Once cutover is complete, remove old implementation
+   - Reduces maintenance burden
+   - Eliminates confusion
+
+---
+
+## Success Metrics
+
+### Architectural Health Indicators
+
+**Layer Separation:**
+- [ ] 100% of P1 features have domain entities
+- [ ] 100% of P1 features have use cases
+- [ ] 0 direct database access in routes
+- [ ] 0 business logic in framework layer
+- [ ] Repository pattern for all data access
+- [ ] Dependencies flow inward (no violations)
+
+**Code Quality:**
+- [ ] 80%+ test coverage (unit + integration)
+- [ ] <500 lines per service file
+- [ ] <10 dependencies per module
+- [ ] ESLint architectural rules passing
+- [ ] 0 circular dependencies
+
+**Team Velocity:**
+- [ ] No regression bugs from refactoring
+- [ ] Feature development continues during refactor
+- [ ] Pull request review time <24 hours
+- [ ] Onboarding time for new developers reduced
+
+**Business Continuity:**
+- [ ] 99.9%+ uptime maintained
+- [ ] No customer-reported issues from refactoring
+- [ ] Performance metrics stable or improved
+- [ ] Support tickets related to bugs declining
+
+### Tracking & Reporting
+
+**Weekly Status Report:**
+```markdown
+## Week [X] Refactoring Status
+
+### Completed:
+- [x] Feature X refactored (domain + application + infra)
+- [x] Test coverage: 85%
+- [x] Deployed to production (feature flag 100%)
+
+### In Progress:
+- [ ] Feature Y - domain layer (70% complete)
+
+### Blockers:
+- None
+
+### Metrics:
+- Lines of code: 15,234 (-500 from last week)
+- Test coverage: 72% (+8% from last week)
+- Build time: 2m 15s (stable)
+- Deployment success rate: 100%
+
+### Next Week:
+- Complete Feature Y
+- Start Feature Z
+```
+
+---
+
+## Risk Management
+
+### Identified Risks & Mitigations
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|------------|
+| **Breaking existing functionality** | High | Critical | • Write characterization tests first<br>• Parallel implementation with comparison<br>• Feature flags for gradual rollout |
+| **Performance degradation** | Medium | High | • Monitor metrics continuously<br>• Load testing before full rollout<br>• Optimize hotspots if needed |
+| **Team velocity slowdown** | Medium | Medium | • Training on Clean Architecture<br>• Pair programming for knowledge sharing<br>• Clear examples and patterns |
+| **Scope creep** | Medium | Medium | • Stick to vertical slices<br>• Don't add new features during refactoring<br>• Time-box each phase |
+| **Incomplete refactoring** | Low | Medium | • Prioritize P1 features<br>• P2/P3 are optional<br>• Document what remains |
+| **Resistance to change** | Low | Low | • Communicate benefits clearly<br>• Show incremental value<br>• Celebrate wins |
+
+### Rollback Plan
+
+**If issues arise during cutover:**
+
+1. **Immediate:** Disable feature flag (revert to old implementation)
+2. **Investigate:** Analyze logs, metrics, error reports
+3. **Fix:** Address issue in new implementation
+4. **Re-validate:** Test thoroughly in staging
+5. **Re-deploy:** Gradual rollout again (10% → 50% → 100%)
+
+**Feature flag implementation:**
+```typescript
+const USE_NEW_IMPLEMENTATION = getFeatureFlag('new-certification-flow', req.session.userId);
+
+if (USE_NEW_IMPLEMENTATION) {
+  // New Clean Architecture implementation
+} else {
+  // Old implementation (safety fallback)
+}
+```
+
+---
+
+## Effort Estimate
+
+### Timeline Summary
+
+| Phase | Duration | Risk Level | Business Value |
+|-------|----------|------------|----------------|
+| **Phase 1:** Foundation Setup | 2 weeks | Low | Foundation for all future work |
+| **Phase 2:** Pilot Refactor (Certification) | 2 weeks | Medium | Validate approach, train team |
+| **Phase 3:** P1 Features | 4 weeks | Medium | High business value features |
+| **Phase 4:** Infrastructure | 2 weeks | Low | Clean up technical debt |
+| **Phase 5:** Testing | 2 weeks | Low | Safety net for future changes |
+| **Phase 6:** P2/P3 Features | 8+ weeks | Low | Complete the refactoring |
+
+**Total Duration:** 20+ weeks (5+ months) with 1-2 engineers dedicated
+
+### Resource Requirements
+
+**Team Composition:**
+- 1-2 Engineers (80% time dedicated to refactoring)
+- 1 Tech Lead (20% time for architecture guidance and review)
+- 1 QA Engineer (20% time for testing strategy)
+
+**External Resources:**
+- Clean Architecture training/workshop (1-2 days)
+- Code review from external architect (optional, 2-3 sessions)
+
+### Cost-Benefit Analysis
+
+**Costs:**
+- 5 months of engineering time
+- Potential for bugs during refactoring (mitigated by testing)
+- Temporary slowdown in feature development
+
+**Benefits:**
+- **Testability:** 80%+ test coverage enables confident changes
+- **Maintainability:** Clear structure reduces cognitive load, faster onboarding
+- **Scalability:** Add features without touching infrastructure
+- **Quality:** Fewer bugs from well-tested, isolated business logic
+- **Velocity:** Faster feature development long-term (6+ months out)
+- **Team morale:** Modern architecture attracts and retains talent
+
+**Break-even:** Estimated 9-12 months (when accumulated velocity gains offset refactoring cost)
+
+---
+
+## Recommendations
+
+### Immediate Actions (Week 1)
+
+1. ✅ **Present this assessment** to engineering team and leadership for alignment
+2. ✅ **Set up testing framework** (Vitest) and write first sample test
+3. ✅ **Create directory structure** for new layers (domain, application, infrastructure)
+4. ✅ **Choose pilot feature** (recommend: Certification flow)
+5. ✅ **Write characterization tests** for pilot feature to create safety net
+
+### Strategic Decisions Needed
+
+Before starting Phase 2, answer these questions:
+
+1. **Refactoring Pace:**
+   - [ ] Dedicated time (1-2 engineers full-time on refactoring)?
+   - [ ] Parallel development (refactoring alongside feature work)?
+   - **Recommendation:** Dedicated time for Phase 2-3, then parallel
+
+2. **Team Training:**
+   - [ ] Workshop on Clean Architecture patterns (1-2 days)?
+   - [ ] Pair programming on first feature?
+   - [ ] External consultant for guidance?
+   - **Recommendation:** Workshop + pair programming
+
+3. **Tooling & Automation:**
+   - [ ] ESLint plugins for architecture enforcement?
+   - [ ] Automated dependency checks in CI?
+   - [ ] Test coverage requirements?
+   - **Recommendation:** All of the above (invest in quality gates)
+
+4. **Documentation:**
+   - [ ] ADRs (Architecture Decision Records) for major changes?
+   - [ ] Updated onboarding docs?
+   - [ ] Code examples and patterns?
+   - **Recommendation:** ADRs for each phase, examples in repo
+
+5. **Communication:**
+   - [ ] Weekly status updates to stakeholders?
+   - [ ] Monthly demos of refactored features?
+   - [ ] Retrospectives after each phase?
+   - **Recommendation:** All of the above (transparency builds trust)
+
+### Long-Term Vision
+
+**After refactoring is complete, the architecture will enable:**
+
+✅ **Testability**
+- Unit test domain logic in isolation (milliseconds)
+- Integration test use cases with mocked infrastructure
+- High confidence in changes
+
+✅ **Maintainability**
+- Clear boundaries reduce cognitive load
+- New developers understand structure quickly
+- Easy to find where business logic lives
+
+✅ **Scalability**
+- Add features without touching infrastructure
+- Swap databases/frameworks with confidence
+- Handle growth without architectural rewrite
+
+✅ **Team Growth**
+- Modern architecture attracts talent
+- Clear patterns enable parallel development
+- Reduced onboarding time (days instead of weeks)
+
+✅ **Business Agility**
+- Faster feature delivery (lower bug rate)
+- Confident experimentation (rollback easily)
+- Compliance-ready (audit trail, testability)
+
+---
+
+## Appendix
+
+### A. Glossary
+
+**Clean Architecture Terms:**
+
+- **Entity:** Core business object with identity and behavior (e.g., CertificationApplication)
+- **Value Object:** Immutable object defined by its attributes (e.g., CertificationTier, RiskLevel)
+- **Aggregate:** Cluster of entities treated as a single unit (e.g., Order with OrderItems)
+- **Repository:** Abstraction for persisting and retrieving aggregates
+- **Use Case:** Application-specific business logic coordinating domain objects
+- **Gateway:** Abstraction for external service integrations
+- **Domain Service:** Stateless service for business logic spanning multiple entities
+- **Domain Event:** Record of something that happened in the domain
+
+**Architecture Concepts:**
+
+- **Dependency Rule:** Dependencies always point inward (outer layers depend on inner)
+- **Vertical Slicing:** Implementing one user story through all layers before moving to next
+- **Layer Sanctity:** Maintaining strict boundaries between layers
+- **Anemic Domain Model:** Anti-pattern where entities have no behavior (just data)
+- **God Service:** Anti-pattern where one service does too many things
+
+### B. Reference Architecture Diagram
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                      FRAMEWORKS LAYER                            │
+│  (HTTP Routes, Controllers, Middleware)                          │
+│  ┌────────────┐  ┌────────────┐  ┌────────────┐                │
+│  │  Express   │  │    Auth    │  │   CSRF     │                │
+│  │  Routes    │  │ Middleware │  │ Protection │                │
+│  └────────────┘  └────────────┘  └────────────┘                │
+│                         ↓                                        │
+├──────────────────────────────────────────────────────────────────┤
+│                    APPLICATION LAYER                             │
+│  (Use Cases, Request/Response Models, Views)                     │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │  CreateSubscriptionUseCase                                 │ │
+│  │  ProcessCertificationUseCase                               │ │
+│  │  EvaluateAISystemUseCase                                   │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                         ↓                                        │
+├──────────────────────────────────────────────────────────────────┤
+│                      DOMAIN LAYER                                │
+│  (Entities, Value Objects, Domain Services, Repository Interfaces)│
+│  ┌────────────┐  ┌────────────┐  ┌────────────┐                │
+│  │Subscription│  │ AISystem   │  │   Policy   │                │
+│  │  Entity    │  │  Entity    │  │   Entity   │                │
+│  └────────────┘  └────────────┘  └────────────┘                │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │  Repository Interfaces (ISubscriptionRepository, etc.)     │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                         ↑                                        │
+├──────────────────────────────────────────────────────────────────┤
+│                  INFRASTRUCTURE LAYER                            │
+│  (Repository Implementations, Gateways, External Services)       │
+│  ┌────────────┐  ┌────────────┐  ┌────────────┐                │
+│  │  Drizzle   │  │   Stripe   │  │    Epic    │                │
+│  │Repositories│  │  Gateway   │  │    FHIR    │                │
+│  └────────────┘  └────────────┘  └────────────┘                │
+│                                                                  │
+│  ┌────────────┐  ┌────────────┐  ┌────────────┐                │
+│  │ PostgreSQL │  │  SendGrid  │  │    AWS     │                │
+│  │  Database  │  │   Email    │  │     S3     │                │
+│  └────────────┘  └────────────┘  └────────────┘                │
+└──────────────────────────────────────────────────────────────────┘
+
+Dependency Flow: Outer → Inner (arrows point inward)
+```
+
+### C. Example File Structure
+
+```
+shane-prototype/
+├── client/                     # Frontend (React) - NO CHANGES
+├── shared/
+│   └── schema.ts              # Database schema (Drizzle) - keep for now
+├── server/
+│   ├── domain/                # NEW - Core business logic
+│   │   ├── entities/
+│   │   │   ├── AISystem.ts
+│   │   │   ├── CertificationApplication.ts
+│   │   │   ├── Policy.ts
+│   │   │   ├── Subscription.ts
+│   │   │   └── User.ts
+│   │   ├── value-objects/
+│   │   │   ├── CertificationTier.ts
+│   │   │   ├── Email.ts
+│   │   │   ├── Money.ts
+│   │   │   ├── RiskLevel.ts
+│   │   │   └── SystemStatus.ts
+│   │   ├── repositories/      # Interfaces only
+│   │   │   ├── AISystemRepository.ts
+│   │   │   ├── CertificationApplicationRepository.ts
+│   │   │   ├── PolicyRepository.ts
+│   │   │   └── SubscriptionRepository.ts
+│   │   ├── services/          # Domain services (pure logic)
+│   │   │   ├── PolicyEvaluator.ts
+│   │   │   └── RiskAssessor.ts
+│   │   └── events/
+│   │       ├── DomainEvent.ts
+│   │       ├── SystemDeployedEvent.ts
+│   │       └── CertificationApprovedEvent.ts
+│   │
+│   ├── application/           # NEW - Use cases
+│   │   ├── billing/
+│   │   │   ├── CreateHealthSystemSubscription.ts
+│   │   │   ├── CheckUsageLimits.ts
+│   │   │   └── Views.ts
+│   │   ├── certifications/
+│   │   │   ├── ProcessApplication.ts
+│   │   │   ├── ApproveApplication.ts
+│   │   │   └── Views.ts
+│   │   ├── policies/
+│   │   │   ├── CreatePolicy.ts
+│   │   │   ├── EvaluateAISystem.ts
+│   │   │   └── Views.ts
+│   │   └── ai-systems/
+│   │       ├── RegisterAISystem.ts
+│   │       ├── DeployAISystem.ts
+│   │       └── Views.ts
+│   │
+│   ├── infrastructure/        # REORGANIZE EXISTING
+│   │   ├── repositories/      # Implementations
+│   │   │   ├── DrizzleAISystemRepository.ts
+│   │   │   ├── DrizzleCertificationRepository.ts
+│   │   │   ├── DrizzlePolicyRepository.ts
+│   │   │   └── DrizzleSubscriptionRepository.ts
+│   │   ├── gateways/
+│   │   │   ├── StripeGateway.ts
+│   │   │   ├── EpicFHIRGateway.ts
+│   │   │   ├── EmailGateway.ts
+│   │   │   └── VendorTestingGateway.ts
+│   │   ├── encryption/
+│   │   │   └── EncryptionService.ts
+│   │   └── persistence/
+│   │       ├── db.ts
+│   │       └── migrations/
+│   │
+│   ├── frameworks/            # RENAME FROM routes/
+│   │   └── http/
+│   │       ├── routes/
+│   │       │   ├── billing.ts
+│   │       │   ├── certifications.ts
+│   │       │   └── policies.ts
+│   │       ├── controllers/   # NEW - thin controllers
+│   │       └── middleware/    # Existing middleware
+│   │
+│   ├── services/              # LEGACY - gradually remove
+│   │   └── [old service files to be refactored]
+│   │
+│   ├── storage.ts             # LEGACY - replace with repositories
+│   ├── db.ts                  # Move to infrastructure/persistence/
+│   ├── cache.ts               # Infrastructure layer
+│   ├── logger.ts              # Infrastructure layer
+│   └── index.ts               # Application entry point
+│
+├── tests/                     # NEW - Test suites
+│   ├── unit/                  # Domain layer tests
+│   │   └── domain/
+│   │       ├── entities/
+│   │       └── value-objects/
+│   ├── integration/           # Application layer tests
+│   │   └── application/
+│   └── e2e/                   # End-to-end tests
+│       └── workflows/
+│
+├── ARCHITECTURE.md            # Existing - target architecture
+├── REFACTORING_EVAL.md        # This document
+└── ADRs/                      # NEW - Architecture Decision Records
+    ├── 001-adopt-clean-architecture.md
+    ├── 002-repository-pattern.md
+    └── 003-testing-strategy.md
+```
+
+### D. Recommended Reading
+
+**Books:**
+1. **"Clean Architecture"** by Robert C. Martin - Foundational principles
+2. **"Domain-Driven Design"** by Eric Evans - Domain modeling
+3. **"Implementing Domain-Driven Design"** by Vaughn Vernon - Practical DDD
+4. **"Working Effectively with Legacy Code"** by Michael Feathers - Refactoring strategies
+
+**Articles:**
+1. [Clean Architecture with TypeScript](https://khalilstemmler.com/articles/software-design-architecture/organizing-app-logic/)
+2. [The Clean Architecture (Uncle Bob)](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
+3. [Anemic Domain Model (Martin Fowler)](https://martinfowler.com/bliki/AnemicDomainModel.html)
+
+**Videos:**
+1. [Clean Architecture and Design (Uncle Bob)](https://www.youtube.com/watch?v=2dKZ-dWaCiU)
+2. [DDD Europe Talks](https://www.youtube.com/c/ddd_eu)
+
+---
+
+## Next Steps
+
+1. **Week 1: Stakeholder Alignment**
+   - Present this assessment to engineering team
+   - Review with product/business stakeholders
+   - Get approval on timeline and approach
+   - Answer strategic questions (see section above)
+
+2. **Week 1-2: Foundation Phase**
+   - Set up testing framework (Vitest)
+   - Create directory structure
+   - Configure architectural fitness functions (ESLint rules)
+   - Write sample test to validate setup
+
+3. **Week 3-4: Pilot Refactor**
+   - Choose pilot feature (recommend: Certification flow)
+   - Write characterization tests
+   - Refactor through all layers
+   - Deploy with feature flag
+   - Validate approach
+
+4. **Week 5+: Expand Refactoring**
+   - Apply learnings to P1 features
+   - Build momentum and patterns
+   - Continue through phases 3-6
+
+5. **Ongoing: Monitor & Adjust**
+   - Weekly status updates
+   - Retrospectives after each phase
+   - Adjust plan based on learnings
+   - Celebrate wins!
+
+---
+
+**Document Version:** 1.0
+**Last Updated:** 2025-10-27
+**Author:** Architecture Assessment
+**Status:** Draft for Review
+
+---
+
+## Approval
+
+| Role | Name | Signature | Date |
+|------|------|-----------|------|
+| Engineering Lead | ________ | ________ | ________ |
+| Tech Lead | ________ | ________ | ________ |
+| Product Manager | ________ | ________ | ________ |
+| CTO/VP Engineering | ________ | ________ | ________ |
+
+---
+
+**End of Document**
