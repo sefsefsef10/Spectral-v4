@@ -11,28 +11,65 @@ import { users } from '../../../shared/schema';
 
 export class DrizzleUserRepository implements UserRepository {
   async save(user: User): Promise<void> {
+    if (!user.id) {
+      throw new Error('Cannot save user without ID. Use saveWithPassword for new users.');
+    }
+
     const data = this.toDatabase(user);
     
-    if (await this.findById(user.id!)) {
-      await db
-        .update(users)
-        .set({
-          ...data,
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, user.id!));
-    } else {
-      await db.insert(users).values(data);
+    const existing = await this.findById(user.id);
+    if (!existing) {
+      throw new Error(`User ${user.id} not found. Use saveWithPassword for new users.`);
     }
+
+    await db
+      .update(users)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, user.id));
   }
 
   async saveWithPassword(user: User, passwordHash: string): Promise<void> {
     const data = this.toDatabase(user);
     
-    await db.insert(users).values({
-      ...data,
-      password: passwordHash,
-    });
+    // Check if user exists (by ID or email)
+    let existing: User | null = null;
+    if (user.id) {
+      existing = await this.findById(user.id);
+    }
+    if (!existing) {
+      existing = await this.findByEmail(user.email);
+    }
+
+    if (existing) {
+      // Update existing user
+      await db
+        .update(users)
+        .set({
+          ...data,
+          password: passwordHash,
+          passwordChangedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, existing.id!));
+      
+      // Update the domain entity ID if it was null
+      if (!user.id) {
+        user._setId(existing.id!);
+      }
+    } else {
+      // Insert new user
+      const [inserted] = await db.insert(users).values({
+        ...data,
+        password: passwordHash,
+        passwordChangedAt: new Date(),
+      }).returning({ id: users.id });
+      
+      // Set the generated ID on the domain entity
+      user._setId(inserted.id);
+    }
   }
 
   async findById(id: string): Promise<User | null> {
