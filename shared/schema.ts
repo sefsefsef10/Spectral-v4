@@ -438,6 +438,129 @@ export const regulatoryUpdates = pgTable("regulatory_updates", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// 🎯 TIERED CUSTOMIZATION SYSTEM (Growth + Enterprise)
+// Threshold overrides for Growth tier ($200K/year)
+export const thresholdOverrides = pgTable("threshold_overrides", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  healthSystemId: varchar("health_system_id").notNull().references(() => healthSystems.id, { onDelete: "cascade" }),
+  aiSystemId: varchar("ai_system_id").references(() => aiSystems.id, { onDelete: "cascade" }), // Null = org-wide
+  eventType: text("event_type").notNull(), // 'phi_exposure', 'model_drift', 'bias_detected'
+  controlId: varchar("control_id").references(() => complianceControls.id, { onDelete: "cascade" }),
+  originalThreshold: text("original_threshold"), // Spectral's default (stored for audit)
+  customThreshold: text("custom_threshold").notNull(), // Customer's override
+  thresholdUnit: text("threshold_unit"), // 'percentage', 'count', 'milliseconds'
+  overrideReason: text("override_reason").notNull(), // Required justification
+  approvedBy: varchar("approved_by").references(() => users.id, { onDelete: "set null" }), // CISO or admin
+  approvedAt: timestamp("approved_at"),
+  effectiveDate: timestamp("effective_date").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at"), // Optional: time-bound overrides
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  // Index for fast threshold lookups during event processing
+  healthSystemEventIdx: sql`CREATE INDEX IF NOT EXISTS idx_threshold_overrides_lookup ON ${table} (health_system_id, event_type, active)`,
+}));
+
+// Custom compliance controls for Enterprise tier ($400K/year)
+export const customComplianceControls = pgTable("custom_compliance_controls", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  healthSystemId: varchar("health_system_id").notNull().references(() => healthSystems.id, { onDelete: "cascade" }),
+  framework: text("framework").notNull().default("INTERNAL"), // 'INTERNAL', 'STATE_LAW', 'CUSTOM'
+  controlId: text("control_id").notNull(), // Customer's control ID (e.g., 'MAYO-001')
+  controlName: text("control_name").notNull(),
+  description: text("description").notNull(),
+  mappedEventTypes: jsonb("mapped_event_types").notNull(), // Which events trigger this control
+  severity: text("severity").notNull(), // 'critical', 'high', 'medium', 'low'
+  requiresReporting: boolean("requires_reporting").notNull().default(false),
+  reportingDeadlineDays: integer("reporting_deadline_days"),
+  detectionLogic: text("detection_logic"), // Encrypted: customer's custom logic
+  remediationSteps: jsonb("remediation_steps"), // Custom remediation guidance
+  createdBy: varchar("created_by").notNull().references(() => users.id, { onDelete: "set null" }),
+  status: text("status").notNull().default("pending_review"), // 'pending_review', 'approved', 'rejected', 'active'
+  reviewedBy: varchar("reviewed_by").references(() => users.id, { onDelete: "set null" }), // Spectral reviewer
+  reviewedAt: timestamp("reviewed_at"),
+  reviewNotes: text("review_notes"),
+  approvalDate: timestamp("approval_date"),
+  effectiveDate: timestamp("effective_date"),
+  version: integer("version").notNull().default(1),
+  active: boolean("active").notNull().default(false), // Only active after Spectral approval
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  // Index for filtering by health system and status
+  healthSystemStatusIdx: sql`CREATE INDEX IF NOT EXISTS idx_custom_controls_status ON ${table} (health_system_id, status)`,
+  // Unique constraint: customer control IDs must be unique per org
+  uniqueControlIdx: sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_custom_controls_unique ON ${table} (health_system_id, control_id)`,
+}));
+
+// Customization approval workflow (Enterprise only)
+export const customizationApprovals = pgTable("customization_approvals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  healthSystemId: varchar("health_system_id").notNull().references(() => healthSystems.id, { onDelete: "cascade" }),
+  customizationType: text("customization_type").notNull(), // 'threshold_override', 'custom_control', 'policy_extension'
+  customizationId: varchar("customization_id").notNull(), // FK to thresholdOverrides or customComplianceControls
+  requestedBy: varchar("requested_by").notNull().references(() => users.id, { onDelete: "set null" }),
+  requestJustification: text("request_justification").notNull(),
+  regulatoryContext: text("regulatory_context"), // Why this customization is needed
+  impactAssessment: jsonb("impact_assessment"), // Estimated impact on compliance posture
+  status: text("status").notNull().default("pending"), // 'pending', 'under_review', 'approved', 'rejected'
+  assignedReviewer: varchar("assigned_reviewer").references(() => users.id, { onDelete: "set null" }), // Spectral compliance team
+  reviewStartedAt: timestamp("review_started_at"),
+  reviewCompletedAt: timestamp("review_completed_at"),
+  reviewDecision: text("review_decision"), // 'approved', 'rejected', 'needs_revision'
+  reviewNotes: text("review_notes"),
+  reviewerFeedback: jsonb("reviewer_feedback"), // Structured feedback for revisions
+  slaDeadline: timestamp("sla_deadline"), // 5 business days per strategy doc
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  // Index for reviewer workflow
+  statusReviewerIdx: sql`CREATE INDEX IF NOT EXISTS idx_approvals_workflow ON ${table} (status, assigned_reviewer)`,
+}));
+
+// Comprehensive audit log for all customizations
+export const customizationAuditLog = pgTable("customization_audit_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  healthSystemId: varchar("health_system_id").notNull().references(() => healthSystems.id, { onDelete: "cascade" }),
+  customizationType: text("customization_type").notNull(), // 'threshold_override', 'custom_control'
+  customizationId: varchar("customization_id").notNull(),
+  action: text("action").notNull(), // 'created', 'updated', 'approved', 'rejected', 'activated', 'deactivated'
+  field: text("field"), // Which field changed (for updates)
+  originalValue: text("original_value"), // Before change
+  newValue: text("new_value"), // After change
+  changedBy: varchar("changed_by").notNull().references(() => users.id, { onDelete: "set null" }),
+  changeReason: text("change_reason"),
+  regulatoryImpact: text("regulatory_impact"), // Does this affect compliance status?
+  approvalRequired: boolean("approval_required").notNull().default(false),
+  approvalStatus: text("approval_status"), // 'pending', 'approved', 'rejected'
+  metadata: jsonb("metadata"), // Additional context
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  // Index for audit trail queries
+  healthSystemTimeIdx: sql`CREATE INDEX IF NOT EXISTS idx_customization_audit_time ON ${table} (health_system_id, created_at DESC)`,
+  // Index for compliance reporting (what changed when)
+  customizationIdx: sql`CREATE INDEX IF NOT EXISTS idx_customization_audit_lookup ON ${table} (customization_id, created_at DESC)`,
+}));
+
+// Control enable/disable per AI system (Growth tier)
+export const controlToggles = pgTable("control_toggles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  healthSystemId: varchar("health_system_id").notNull().references(() => healthSystems.id, { onDelete: "cascade" }),
+  aiSystemId: varchar("ai_system_id").references(() => aiSystems.id, { onDelete: "cascade" }), // Null = org-wide
+  controlId: varchar("control_id").notNull().references(() => complianceControls.id, { onDelete: "cascade" }),
+  enabled: boolean("enabled").notNull().default(true),
+  disableReason: text("disable_reason"), // Required if disabled
+  disabledBy: varchar("disabled_by").references(() => users.id, { onDelete: "set null" }),
+  disabledAt: timestamp("disabled_at"),
+  regulatoryGuardrail: boolean("regulatory_guardrail").notNull().default(false), // True = cannot be disabled (HIPAA)
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  // Unique constraint: one toggle per control per AI system
+  uniqueToggleIdx: sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_control_toggles_unique ON ${table} (health_system_id, COALESCE(ai_system_id, ''), control_id)`,
+}));
+
 // 📡 AI MONITORING - LangSmith Integration
 // Stores telemetry events from AI monitoring platforms
 export const aiTelemetryEvents = pgTable("ai_telemetry_events", {
@@ -1016,6 +1139,11 @@ export const insertRequiredActionSchema = createInsertSchema(requiredActions).om
 export const insertBackgroundJobSchema = createInsertSchema(backgroundJobs).omit({ id: true, createdAt: true, startedAt: true, completedAt: true });
 export const insertCertificationApplicationSchema = createInsertSchema(certificationApplications).omit({ id: true, createdAt: true, submittedAt: true });
 export const insertVendorTestResultSchema = createInsertSchema(vendorTestResults).omit({ id: true, createdAt: true });
+export const insertThresholdOverrideSchema = createInsertSchema(thresholdOverrides).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCustomComplianceControlSchema = createInsertSchema(customComplianceControls).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCustomizationApprovalSchema = createInsertSchema(customizationApprovals).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCustomizationAuditLogSchema = createInsertSchema(customizationAuditLog).omit({ id: true, createdAt: true });
+export const insertControlToggleSchema = createInsertSchema(controlToggles).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Types
 export type User = typeof users.$inferSelect;
@@ -1086,6 +1214,21 @@ export type InsertCertificationApplication = z.infer<typeof insertCertificationA
 
 export type VendorTestResult = typeof vendorTestResults.$inferSelect;
 export type InsertVendorTestResult = z.infer<typeof insertVendorTestResultSchema>;
+
+export type ThresholdOverride = typeof thresholdOverrides.$inferSelect;
+export type InsertThresholdOverride = z.infer<typeof insertThresholdOverrideSchema>;
+
+export type CustomComplianceControl = typeof customComplianceControls.$inferSelect;
+export type InsertCustomComplianceControl = z.infer<typeof insertCustomComplianceControlSchema>;
+
+export type CustomizationApproval = typeof customizationApprovals.$inferSelect;
+export type InsertCustomizationApproval = z.infer<typeof insertCustomizationApprovalSchema>;
+
+export type CustomizationAuditLog = typeof customizationAuditLog.$inferSelect;
+export type InsertCustomizationAuditLog = z.infer<typeof insertCustomizationAuditLogSchema>;
+
+export type ControlToggle = typeof controlToggles.$inferSelect;
+export type InsertControlToggle = z.infer<typeof insertControlToggleSchema>;
 
 // ===== PHASE 1: WEBHOOK SECURITY =====
 
