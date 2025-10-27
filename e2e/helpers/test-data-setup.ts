@@ -4,7 +4,7 @@
  */
 
 import { APIRequestContext } from '@playwright/test';
-import testUsers from '../fixtures/test-users.json';
+import testUsers from '../fixtures/test-users.json' assert { type: 'json' };
 
 export interface TestUser {
   email: string;

@@ -7,7 +7,7 @@ import { chromium, FullConfig } from '@playwright/test';
 import { setupAllTestUsers } from './helpers/test-data-setup';
 
 async function globalSetup(config: FullConfig) {
-  const baseURL = config.use?.baseURL || 'http://localhost:5000';
+  const baseURL = config.projects?.[0]?.use?.baseURL || 'http://localhost:5000';
   
   console.log('\n=== E2E Test Global Setup ===');
   console.log(`Base URL: ${baseURL}`);
