@@ -22,13 +22,13 @@ interface StatusPayload {
 }
 
 export type WebSocketEvent =
-  | { type: 'alert_created'; payload: AlertPayload; timestamp: Date }
-  | { type: 'alert_resolved'; payload: { id: string }; timestamp: Date }
-  | { type: 'compliance_updated'; payload: CompliancePayload; timestamp: Date }
-  | { type: 'vendor_status_changed'; payload: StatusPayload; timestamp: Date }
-  | { type: 'system_status_changed'; payload: StatusPayload; timestamp: Date }
-  | { type: 'connection_established'; payload: Record<string, never>; timestamp: Date }
-  | { type: 'pong'; payload: Record<string, never>; timestamp: Date };
+  | { type: 'alert_created'; payload: AlertPayload; timestamp: string }
+  | { type: 'alert_resolved'; payload: { id: string }; timestamp: string }
+  | { type: 'compliance_updated'; payload: CompliancePayload; timestamp: string }
+  | { type: 'vendor_status_changed'; payload: StatusPayload; timestamp: string }
+  | { type: 'system_status_changed'; payload: StatusPayload; timestamp: string }
+  | { type: 'connection_established'; payload: Record<string, never>; timestamp: string }
+  | { type: 'pong'; payload: Record<string, never>; timestamp: string };
 
 export interface UseWebSocketOptions {
   onMessage?: (event: WebSocketEvent) => void;

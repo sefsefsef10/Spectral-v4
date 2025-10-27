@@ -13,9 +13,9 @@ Spectral is a B2B SaaS platform for AI governance, monitoring, and compliance in
 - **Code Quality**: Platform assessed at A- grade (91%), enterprise-ready with minor tactical cleanup completed
 
 ### Production Readiness Status
-- **Database**: All tables have proper indexes, provider connections table restored
+- **Database**: All tables have proper indexes, provider connections table created. **Deployment**: Use `npm run db:push --force` to sync schema to production database.
 - **Security**: No hardcoded secrets, proper authentication/authorization, PHI encryption validated
-- **Type Safety**: WebSocket events now use discriminated unions instead of 'any' types
+- **Type Safety**: WebSocket events use discriminated unions with correct string timestamps (JSON-safe)
 - **Error Handling**: Provider connections properly update database with error states
 - **Marketing Pages**: All placeholder handlers replaced with functional mailto links
 
