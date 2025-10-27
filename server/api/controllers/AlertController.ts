@@ -5,6 +5,8 @@
 
 import { Request, Response } from 'express';
 import { CreateAlertUseCase } from '../../application/alert-management/CreateAlertUseCase';
+import { ListAlertsUseCase } from '../../application/alert-management/ListAlertsUseCase';
+import { GetAlertUseCase } from '../../application/alert-management/GetAlertUseCase';
 import { AcknowledgeAlertUseCase } from '../../application/alert-management/AcknowledgeAlertUseCase';
 import { ResolveAlertUseCase } from '../../application/alert-management/ResolveAlertUseCase';
 import { DrizzleAlertRepository } from '../../infrastructure/repositories/DrizzleAlertRepository';
@@ -79,14 +81,13 @@ export class AlertController {
         return;
       }
 
-      let alerts = await alertRepository.findByAiSystemId(aiSystemId as string);
-
-      if (severity) {
-        alerts = alerts.filter(a => a.severity === severity);
-      }
-      if (status) {
-        alerts = alerts.filter(a => a.status === status);
-      }
+      const listAlertsUseCase = new ListAlertsUseCase(alertRepository);
+      
+      const alerts = await listAlertsUseCase.execute({
+        aiSystemId: aiSystemId as string,
+        severity: severity as string,
+        status: status as string
+      });
 
       res.status(200).json({
         alerts: alerts.map(a => ({
@@ -117,12 +118,9 @@ export class AlertController {
     try {
       const { id } = req.params;
 
-      const alert = await alertRepository.findById(id);
-
-      if (!alert) {
-        res.status(404).json({ error: 'Alert not found' });
-        return;
-      }
+      const getAlertUseCase = new GetAlertUseCase(alertRepository);
+      
+      const alert = await getAlertUseCase.execute({ alertId: id });
 
       res.status(200).json({
         id: alert.id,
@@ -142,6 +140,11 @@ export class AlertController {
         createdAt: alert.createdAt.toISOString()
       });
     } catch (error: any) {
+      if (error.message.includes('not found')) {
+        res.status(404).json({ error: 'Alert not found' });
+        return;
+      }
+      
       console.error('Get alert error:', error);
       res.status(500).json({ error: 'Failed to retrieve alert' });
     }

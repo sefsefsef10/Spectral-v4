@@ -4,11 +4,13 @@
  */
 
 import { Request, Response } from 'express';
-import { ValidateDeploymentUseCase } from '../../application/deployment/ValidateDeploymentUseCase';
+import { CreateDeploymentUseCase } from '../../application/deployment/CreateDeploymentUseCase';
+import { GetDeploymentStatusUseCase } from '../../application/deployment/GetDeploymentStatusUseCase';
 import { ExecuteHealthCheckUseCase } from '../../application/deployment/ExecuteHealthCheckUseCase';
 import { RollbackDeploymentUseCase } from '../../application/deployment/RollbackDeploymentUseCase';
+import { AdvanceCanaryUseCase } from '../../application/deployment/AdvanceCanaryUseCase';
+import { ListDeploymentsUseCase } from '../../application/deployment/ListDeploymentsUseCase';
 import { DrizzleDeploymentRepository } from '../../infrastructure/repositories/DrizzleDeploymentRepository';
-import { Deployment } from '../../domain/entities/Deployment';
 import type { DeploymentStrategy } from '../../domain/entities/Deployment';
 import { db } from '../../db';
 
@@ -31,7 +33,9 @@ export class DeploymentController {
         return;
       }
 
-      const deployment = Deployment.create({
+      const createUseCase = new CreateDeploymentUseCase(deploymentRepository);
+      
+      const deployment = await createUseCase.execute({
         aiSystemId,
         version,
         strategy: strategy as DeploymentStrategy,
@@ -40,8 +44,6 @@ export class DeploymentController {
         canaryPercentage,
         createdBy
       });
-
-      await deploymentRepository.save(deployment);
 
       res.status(201).json({
         id: deployment.id,
@@ -72,12 +74,9 @@ export class DeploymentController {
     try {
       const { id } = req.params;
 
-      const deployment = await deploymentRepository.findById(id);
-
-      if (!deployment) {
-        res.status(404).json({ error: 'Deployment not found' });
-        return;
-      }
+      const getStatusUseCase = new GetDeploymentStatusUseCase(deploymentRepository);
+      
+      const deployment = await getStatusUseCase.execute({ deploymentId: id });
 
       res.status(200).json({
         id: deployment.id,
@@ -97,6 +96,11 @@ export class DeploymentController {
         rollbackReason: deployment.rollbackReason
       });
     } catch (error: any) {
+      if (error.message.includes('not found')) {
+        res.status(404).json({ error: 'Deployment not found' });
+        return;
+      }
+      
       console.error('Get deployment status error:', error);
       res.status(500).json({ error: 'Failed to retrieve deployment status' });
     }
@@ -109,13 +113,6 @@ export class DeploymentController {
   static async executeHealthCheck(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-
-      const deployment = await deploymentRepository.findById(id);
-
-      if (!deployment) {
-        res.status(404).json({ error: 'Deployment not found' });
-        return;
-      }
 
       const healthCheckUseCase = new ExecuteHealthCheckUseCase(deploymentRepository);
       
@@ -134,6 +131,11 @@ export class DeploymentController {
         message: 'Health checks executed'
       });
     } catch (error: any) {
+      if (error.message.includes('not found')) {
+        res.status(404).json({ error: 'Deployment not found' });
+        return;
+      }
+      
       console.error('Execute health check error:', error);
       res.status(500).json({ error: 'Failed to execute health checks' });
     }
@@ -191,15 +193,9 @@ export class DeploymentController {
     try {
       const { id } = req.params;
 
-      const deployment = await deploymentRepository.findById(id);
-
-      if (!deployment) {
-        res.status(404).json({ error: 'Deployment not found' });
-        return;
-      }
-
-      deployment.advanceCanary();
-      await deploymentRepository.save(deployment);
+      const advanceCanaryUseCase = new AdvanceCanaryUseCase(deploymentRepository);
+      
+      const deployment = await advanceCanaryUseCase.execute({ deploymentId: id });
 
       res.status(200).json({
         id: deployment.id,
@@ -210,6 +206,10 @@ export class DeploymentController {
           : `Canary advanced to ${deployment.canaryPercentage}%`
       });
     } catch (error: any) {
+      if (error.message.includes('not found')) {
+        res.status(404).json({ error: 'Deployment not found' });
+        return;
+      }
       if (error.message.includes('Cannot advance canary') || error.message.includes('not a canary')) {
         res.status(400).json({ error: error.message });
         return;
@@ -228,15 +228,15 @@ export class DeploymentController {
     try {
       const { aiSystemId, status } = req.query;
 
-      const deployments = await deploymentRepository.findByAiSystemId(aiSystemId as string || '');
-
-      let filtered = deployments;
-      if (status) {
-        filtered = deployments.filter(d => d.status === status);
-      }
+      const listDeploymentsUseCase = new ListDeploymentsUseCase(deploymentRepository);
+      
+      const deployments = await listDeploymentsUseCase.execute({
+        aiSystemId: aiSystemId as string,
+        status: status as string
+      });
 
       res.status(200).json({
-        deployments: filtered.map(d => ({
+        deployments: deployments.map(d => ({
           id: d.id,
           aiSystemId: d.aiSystemId,
           version: d.version,
@@ -248,7 +248,7 @@ export class DeploymentController {
           completedAt: d.completedAt?.toISOString(),
           rolledBackAt: d.rolledBackAt?.toISOString()
         })),
-        total: filtered.length
+        total: deployments.length
       });
     } catch (error: any) {
       console.error('List deployments error:', error);
