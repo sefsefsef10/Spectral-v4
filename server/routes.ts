@@ -7790,16 +7790,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { vendorId } = req.params;
       
+      // Get Spectral's actual origin for cross-origin embeds
+      const protocol = req.protocol;
+      const host = req.get('host');
+      const spectralOrigin = `${protocol}://${host}`;
+      
       // Serve JavaScript widget that vendors can embed on their sites
       const widgetScript = `
 (function() {
   'use strict';
   
   const vendorId = '${vendorId}';
-  const baseUrl = window.location.origin;
+  const spectralApiUrl = '${spectralOrigin}';
   
-  // Fetch badge data
-  fetch(baseUrl + '/api/public/vendors/' + vendorId + '/badge')
+  // Fetch badge data from Spectral API (not vendor's domain)
+  fetch(spectralApiUrl + '/api/public/vendors/' + vendorId + '/badge')
     .then(response => response.json())
     .then(data => {
       const container = document.getElementById('spectral-badge');
@@ -7808,25 +7813,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
       
-      // Tier colors
+      // Tier colors (normalized to lowercase for database compatibility)
       const tierColors = {
-        'Trusted': { bg: '#9333ea', border: '#7c3aed', text: '#ffffff' },
-        'Certified': { bg: '#3b82f6', border: '#2563eb', text: '#ffffff' },
-        'Verified': { bg: '#10b981', border: '#059669', text: '#ffffff' }
+        'trusted': { bg: '#9333ea', border: '#7c3aed', text: '#ffffff' },
+        'certified': { bg: '#3b82f6', border: '#2563eb', text: '#ffffff' },
+        'verified': { bg: '#10b981', border: '#059669', text: '#ffffff' }
       };
       
-      const tier = data.certificationTier || 'Verified';
-      const colors = tierColors[tier] || tierColors['Verified'];
+      const tierLower = (data.certificationTier || 'verified').toLowerCase();
+      const displayTier = tierLower.charAt(0).toUpperCase() + tierLower.slice(1);
+      const colors = tierColors[tierLower] || tierColors['verified'];
       
       // Create badge HTML
       container.innerHTML = \`
-        <div style="font-family: system-ui, -apple-system, sans-serif; display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; background: \${colors.bg}; color: \${colors.text}; border: 2px solid \${colors.border}; border-radius: 8px; text-decoration: none; transition: all 0.2s; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'" onclick="window.open('\${baseUrl}\${data.trustPageUrl}', '_blank')">
+        <div style="font-family: system-ui, -apple-system, sans-serif; display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; background: \${colors.bg}; color: \${colors.text}; border: 2px solid \${colors.border}; border-radius: 8px; text-decoration: none; transition: all 0.2s; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'" onclick="window.open('\${spectralApiUrl}\${data.trustPageUrl}', '_blank')">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
             <path d="M9 12l2 2 4-4"/>
           </svg>
           <div style="display: flex; flex-direction: column; gap: 2px;">
-            <div style="font-weight: 600; font-size: 14px; line-height: 1;">\${tier} by Spectral</div>
+            <div style="font-weight: 600; font-size: 14px; line-height: 1;">\${displayTier} by Spectral</div>
             <div style="font-size: 11px; opacity: 0.9; line-height: 1;">Healthcare AI Governance</div>
           </div>
         </div>

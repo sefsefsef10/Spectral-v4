@@ -34,12 +34,13 @@ export default function VendorBadgeManager() {
   };
 
   const getTierColor = (tier: string) => {
-    switch (tier) {
-      case "Trusted":
+    const normalizedTier = tier?.toLowerCase();
+    switch (normalizedTier) {
+      case "trusted":
         return "bg-purple-500/10 text-purple-600 border-purple-500/20";
-      case "Certified":
+      case "certified":
         return "bg-blue-500/10 text-blue-600 border-blue-500/20";
-      case "Verified":
+      case "verified":
         return "bg-green-500/10 text-green-600 border-green-500/20";
       default:
         return "bg-muted text-muted-foreground";
@@ -74,15 +75,15 @@ export default function VendorBadgeManager() {
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 shadow-sm cursor-pointer hover:shadow-md transition-all"
                   style={{
                     backgroundColor:
-                      badgeData.certificationTier === "Trusted"
+                      badgeData.certificationTier?.toLowerCase() === "trusted"
                         ? "#9333ea"
-                        : badgeData.certificationTier === "Certified"
+                        : badgeData.certificationTier?.toLowerCase() === "certified"
                         ? "#3b82f6"
                         : "#10b981",
                     borderColor:
-                      badgeData.certificationTier === "Trusted"
+                      badgeData.certificationTier?.toLowerCase() === "trusted"
                         ? "#7c3aed"
-                        : badgeData.certificationTier === "Certified"
+                        : badgeData.certificationTier?.toLowerCase() === "certified"
                         ? "#2563eb"
                         : "#059669",
                     color: "#ffffff",
@@ -91,7 +92,7 @@ export default function VendorBadgeManager() {
                   <Shield className="w-5 h-5" />
                   <div className="flex flex-col gap-0.5">
                     <div className="font-semibold text-sm leading-none">
-                      {badgeData.certificationTier} by Spectral
+                      {badgeData.certificationTier ? (badgeData.certificationTier.charAt(0).toUpperCase() + badgeData.certificationTier.slice(1)) : 'Verified'} by Spectral
                     </div>
                     <div className="text-xs opacity-90 leading-none">
                       Healthcare AI Governance
@@ -108,8 +109,8 @@ export default function VendorBadgeManager() {
                       Your Current Certification
                     </div>
                     <div className="text-sm text-blue-700 dark:text-blue-300 mt-1">
-                      <Badge variant="outline" className={getTierColor(badgeData.certificationTier)}>
-                        {badgeData.certificationTier}
+                      <Badge variant="outline" className={getTierColor(badgeData.certificationTier || 'verified')}>
+                        {badgeData.certificationTier ? (badgeData.certificationTier.charAt(0).toUpperCase() + badgeData.certificationTier.slice(1)) : 'Verified'}
                       </Badge>
                       <span className="ml-2 text-xs">
                         {badgeData.verified ? "Verified ✓" : "Pending Verification"}
