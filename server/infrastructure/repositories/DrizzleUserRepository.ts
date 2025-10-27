@@ -105,9 +105,7 @@ export class DrizzleUserRepository implements UserRepository {
       createdBy: user.createdBy,
       failedLoginAttempts: user.failedLoginAttempts,
       accountLockedUntil: user.accountLockedUntil,
-      passwordExpiresAt: user.passwordExpiresAt,
       passwordChangedAt: user.passwordChangedAt,
-      deactivatedAt: user.deactivatedAt,
       createdAt: user.createdAt,
     };
   }
@@ -124,9 +122,7 @@ export class DrizzleUserRepository implements UserRepository {
       createdBy: row.createdBy,
       failedLoginAttempts: row.failedLoginAttempts,
       accountLockedUntil: row.accountLockedUntil,
-      passwordExpiresAt: row.passwordExpiresAt,
       passwordChangedAt: row.passwordChangedAt,
-      deactivatedAt: row.deactivatedAt,
       createdAt: row.createdAt,
     });
   }
