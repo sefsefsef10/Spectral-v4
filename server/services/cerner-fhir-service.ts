@@ -20,7 +20,7 @@ interface CernerDevice {
   modelNumber?: string;
 }
 
-export class CernerFHIRService {
+class CernerFHIRService {
   /**
    * Discover AI systems from Cerner FHIR Device API
    * Cerner FHIR R4 Device resource: https://fhir.cerner.com/millennium/r4/devices/device/
