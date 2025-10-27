@@ -39,7 +39,7 @@ import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
 
 // Middleware to require authentication
-async function requireAuth(req: Request, res: Response, next: () => void) {
+export async function requireAuth(req: Request, res: Response, next: () => void) {
   if (!req.session.userId) {
     return res.status(401).json({ error: "Not authenticated" });
   }
@@ -57,11 +57,14 @@ async function requireAuth(req: Request, res: Response, next: () => void) {
     });
   }
   
+  // Attach user to request for downstream handlers
+  req.user = user;
+  
   next();
 }
 
 // Middleware to require specific role
-function requireRole(role: "health_system" | "vendor") {
+export function requireRole(role: "health_system" | "vendor") {
   return async (req: Request, res: Response, next: () => void) => {
     if (!req.session.userId) {
       return res.status(401).json({ error: "Not authenticated" });
@@ -70,6 +73,10 @@ function requireRole(role: "health_system" | "vendor") {
     if (!user || user.role !== role) {
       return res.status(403).json({ error: "Insufficient permissions" });
     }
+    
+    // Attach user to request for downstream handlers
+    req.user = user;
+    
     next();
   };
 }
@@ -7995,6 +8002,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 🔄 Beacon Re-Verification Routes (Quarterly Certification)
   const { registerReVerificationRoutes } = await import("./routes/re-verification");
   registerReVerificationRoutes(app);
+
+  // 📡 Telemetry Polling Routes (Multi-Platform Integration)
+  const telemetryPollingRoutes = await import("./routes/telemetry-polling");
+  app.use("/api/telemetry-polling", telemetryPollingRoutes.default);
+
+  // 🔮 Predictive Analytics Routes (ML-Based Risk Prediction)
+  const predictiveAlertsRoutes = await import("./routes/predictive-alerts");
+  app.use("/api/predictive-alerts", predictiveAlertsRoutes.default);
+
+  // 🔐 Enterprise SSO Routes (WorkOS Integration)
+  const ssoRoutes = await import("./routes/sso");
+  app.use("/api/sso", ssoRoutes.default);
 
   // 🌐 Public API Routes (Network Effects - NO AUTH REQUIRED)
   const { publicRouter } = await import("./routes/public");

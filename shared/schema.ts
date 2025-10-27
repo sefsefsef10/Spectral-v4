@@ -595,7 +595,8 @@ export const aiTelemetryEvents = pgTable("ai_telemetry_events", {
 export const telemetryPollingConfigs = pgTable("telemetry_polling_configs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   aiSystemId: varchar("ai_system_id").notNull().references(() => aiSystems.id, { onDelete: "cascade" }),
-  projectName: text("project_name").notNull(), // LangSmith project/session name
+  platform: text("platform").notNull().default('langsmith'), // 'langsmith', 'arize', 'langfuse', 'wandb'
+  projectName: text("project_name").notNull(), // Project/session/model identifier for the platform
   pollIntervalMinutes: integer("poll_interval_minutes").notNull().default(15),
   lookbackMinutes: integer("lookback_minutes").notNull().default(15),
   enabled: boolean("enabled").notNull().default(true),

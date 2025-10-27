@@ -1,8 +1,11 @@
 /**
  * Telemetry Polling Workflow
  * 
- * Scheduled job to poll LangSmith API for AI telemetry data
- * Complements webhook-based ingestion with active polling
+ * Multi-platform scheduled polling for:
+ * - LangSmith (LLM traces)
+ * - Arize (Model monitoring)
+ * - LangFuse (Open-source LLM observability)
+ * - Weights & Biases (ML experiment tracking)
  */
 
 import { inngest } from "../client";
@@ -33,11 +36,32 @@ export const telemetryPollingJob = inngest.createFunction(
       return pollResults;
     });
 
+    // Step 2: Aggregate by platform
+    const platformStats = await step.run("aggregate-stats", async () => {
+      const stats: Record<string, { polled: number; successful: number; eventsIngested: number }> = {};
+
+      for (const result of results) {
+        if (!stats[result.platform]) {
+          stats[result.platform] = { polled: 0, successful: 0, eventsIngested: 0 };
+        }
+
+        stats[result.platform].polled++;
+        if (result.success) {
+          stats[result.platform].successful++;
+          stats[result.platform].eventsIngested += result.eventsIngested;
+        }
+      }
+
+      logger.info({ platformStats: stats }, "Platform statistics");
+      return stats;
+    });
+
     return {
       systemsPolled: results.length,
       totalEventsIngested: results.reduce((sum, r) => sum + r.eventsIngested, 0),
       successCount: results.filter(r => r.success).length,
       failureCount: results.filter(r => !r.success).length,
+      platformStats,
       results,
     };
   }
@@ -61,6 +85,7 @@ export const telemetryPollingOnDemand = inngest.createFunction(
       
       logger.info({
         aiSystemId,
+        platform: pollResult.platform,
         eventsIngested: pollResult.eventsIngested,
         success: pollResult.success,
       }, "On-demand telemetry polling complete");
@@ -68,6 +93,10 @@ export const telemetryPollingOnDemand = inngest.createFunction(
       return pollResult;
     });
 
-    return result;
+    return {
+      aiSystemId,
+      platform: result.platform,
+      ...result,
+    };
   }
 );
