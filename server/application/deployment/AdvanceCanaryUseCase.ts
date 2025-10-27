@@ -21,7 +21,7 @@ export class AdvanceCanaryUseCase {
       throw new Error(`Deployment not found: ${deploymentId}`);
     }
 
-    deployment.advanceCanary();
+    deployment.increaseCanaryPercentage();
     await this.deploymentRepository.save(deployment);
 
     return deployment;
