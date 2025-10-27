@@ -20,7 +20,7 @@ import type { BackgroundJob } from "@shared/schema";
 import { CacheService } from "../cache";
 import { logger } from "../logger";
 
-export type JobType = "certification_workflow" | "compliance_check" | "report_generation" | "email_notification" | "predictive_alerts" | "action_executor";
+export type JobType = "certification_workflow" | "compliance_check" | "report_generation" | "email_notification" | "predictive_alerts" | "action_executor" | "quarterly_reverification";
 
 export interface JobPayload {
   [key: string]: any;
@@ -312,6 +312,23 @@ export async function initializeJobHandlers(): Promise<void> {
       data: {
         executed: result.executed,
         failed: result.failed,
+        timestamp: new Date().toISOString()
+      }
+    };
+  });
+  
+  // Register quarterly re-verification processor
+  const { reVerificationService } = await import("./re-verification-service");
+  
+  registerJobHandler("quarterly_reverification", async (payload: JobPayload) => {
+    const results = await reVerificationService.processExpiredCertifications();
+    return {
+      success: true,
+      data: {
+        processed: results.length,
+        downgraded: results.filter(r => r.action === 'downgraded').length,
+        removed: results.filter(r => r.action === 'removed').length,
+        failed: results.filter(r => r.action === 'failed').length,
         timestamp: new Date().toISOString()
       }
     };

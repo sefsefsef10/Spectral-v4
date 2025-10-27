@@ -195,6 +195,15 @@ app.use(express.urlencoded({ extended: false }));
     }, "automated-action-executor");
     
     logger.info("Scheduled automated action executor (every 5 minutes)");
+    
+    // Schedule quarterly re-verification processor (runs daily)
+    scheduleRecurringJob({
+      jobType: "quarterly_reverification",
+      payload: {},
+      intervalMs: 24 * 60 * 60 * 1000, // 24 hours
+    }, "quarterly-reverification");
+    
+    logger.info("Scheduled quarterly re-verification processor (every 24 hours)");
   } catch (error: any) {
     logger.error({ err: error }, "Error starting background job worker");
   }
