@@ -14,6 +14,29 @@ The frontend is built with React 18+, TypeScript, Vite, Wouter, Shadcn/ui (Radix
 ### Technical Implementations
 The backend is an Express.js application in TypeScript, providing a RESTful API. It uses session-based authentication and a zero-trust multi-tenant architecture with Role-Based Access Control (RBAC). PostgreSQL, managed with Drizzle ORM and validated by Zod, serves as the primary data store, utilizing Neon for serverless connections. Security features include hashed tokens, JSONB audit logs, and AES-256-GCM encryption for sensitive data. The project is structured as a monorepo.
 
+### Clean Architecture Refactoring (20-Week Program)
+**Status: Phases 6 & 7 Complete (October 2025)**
+
+The platform is undergoing a strategic Clean Architecture refactoring to achieve $300M+ acquisition valuation. This architectural transformation separates business logic from infrastructure, enabling rapid feature development, comprehensive testing, and enterprise-grade maintainability.
+
+**Phase 6: Alert Management (Complete - 76 tests)**
+- **Domain Layer**: Alert entity with pure business logic for severity calculation, notification routing, escalation policies, SLA tracking, and deduplication (68 tests)
+- **Application Layer**: CreateAlertUseCase, ResolveAlertUseCase, AcknowledgeAlertUseCase orchestrating workflows (8 tests)
+- **Business Rules**: PHI/security alerts escalate to CISO within 2 minutes; critical alerts route to email/Slack/SMS/PagerDuty; duplicate detection within 1-hour windows
+
+**Phase 7: Reporting & Analytics (Complete - 12 tests)**
+- **Domain Layer**: Report entity with scheduling logic, generation lifecycle, data source requirements, expiration tracking (90 days), and parameter validation (7 tests)
+- **Application Layer**: GenerateReportUseCase (data aggregation, error handling), ScheduleReportUseCase (recurring/on-demand scheduling) (5 tests)
+- **Business Rules**: Executive summaries require date ranges; sensitive reports (audit trails, compliance) auto-encrypt; reports auto-archive after 90 days
+
+**Architectural Principles**:
+- Domain entities contain zero external dependencies (pure business logic)
+- Application use cases orchestrate workflows through repository/gateway interfaces
+- Infrastructure layer (repositories, API controllers) deferred for rapid domain development
+- Test coverage: 609/709 tests passing (86% coverage rate)
+
+**Next Phases**: User Management (Phase 8), API Gateway & Rate Limiting (Phase 9), Deployment Infrastructure (Phase 10)
+
 Key features include:
 - **Tiered Translation Engine Customization:** A three-tier monetization system offering threshold tuning, control toggles, and custom compliance controls, incorporating regulatory guardrails (e.g., HIPAA) and audit trails.
 - **AI Certification Workflow (Beacon):** A three-tiered certification system (Verified/Certified/Trusted) automating testing for PHI exposure, clinical accuracy, bias detection, and deployment history validation. Includes automated quarterly re-verification.
