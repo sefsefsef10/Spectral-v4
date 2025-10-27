@@ -13,6 +13,7 @@
 
 import { logger } from "../../logger";
 import type { VendorTestResult, InsertVendorTestResult } from "@shared/schema";
+import type { VendorAPICredentials } from "./live-vendor-api-client";
 import { phiExposureTest } from "./phi-exposure-test";
 import { clinicalAccuracyTest } from "./clinical-accuracy-test";
 import { biasDetectionTest } from "./bias-detection-test";
@@ -23,6 +24,7 @@ export interface TestSuiteConfig {
   vendorId: string;
   aiSystemEndpoint?: string; // Vendor's AI API endpoint
   apiKey?: string; // Vendor's API key for testing
+  vendorPlatformCredentials?: VendorAPICredentials; // Live vendor API integration (LangSmith, Arize, LangFuse, W&B)
 }
 
 export interface TestResult {

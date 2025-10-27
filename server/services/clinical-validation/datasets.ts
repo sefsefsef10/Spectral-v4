@@ -333,7 +333,158 @@ export const gastroenterologyDataset: ClinicalTestCase[] = [
 ];
 
 /**
- * Combined Dataset - 20 Clinical Scenarios Across 9 Specialties
+ * Psychiatry Test Cases
+ */
+export const psychiatryDataset: ClinicalTestCase[] = [
+  {
+    id: 'psych-001',
+    category: 'psychiatry',
+    specialty: 'Psychiatry',
+    difficulty: 'advanced',
+    scenario: '28-year-old male brought by police, agitated, delusional beliefs of being followed by FBI, auditory hallucinations commanding him to harm others, not eating for 3 days, no prior psychiatric history.',
+    groundTruth: {
+      diagnosis: 'First Episode Psychosis',
+      urgency: 'emergency',
+      recommendedAction: 'Involuntary psychiatric hold, safety assessment, rule out medical causes (toxicology, metabolic panel, brain imaging), antipsychotic medication, inpatient psychiatric admission',
+      reasoning: 'Acute psychosis with command hallucinations and potential danger to others requires immediate psychiatric intervention and medical clearance',
+    },
+    validationCriteria: {
+      mustInclude: ['psychosis', 'psychiatric hold', 'safety', 'antipsychotic', 'admission'],
+      mustNotInclude: ['outpatient therapy', 'discharge', 'observation only'],
+      conceptsRequired: ['psychiatric emergency', 'safety risk', 'involuntary treatment'],
+    },
+  },
+  {
+    id: 'psych-002',
+    category: 'psychiatry',
+    specialty: 'Psychiatry',
+    difficulty: 'intermediate',
+    scenario: '42-year-old female with 6-month history of depressed mood, anhedonia, weight loss of 15 pounds, insomnia, passive suicidal ideation without plan. Denies active intent, has family support.',
+    groundTruth: {
+      diagnosis: 'Major Depressive Disorder (Moderate)',
+      urgency: 'urgent',
+      recommendedAction: 'Initiate SSRI antidepressant, establish safety plan, outpatient psychiatry referral within 1 week, consider psychotherapy, follow-up in 2 weeks to assess treatment response',
+      reasoning: 'Moderate depression with passive SI requires prompt treatment initiation, but patient has protective factors allowing outpatient management with close follow-up',
+    },
+    validationCriteria: {
+      mustInclude: ['depression', 'antidepressant', 'safety plan', 'follow-up', 'psychiatry'],
+      mustNotInclude: ['emergency admission', 'immediate hospitalization'],
+      conceptsRequired: ['suicide risk assessment', 'pharmacotherapy', 'outpatient management'],
+    },
+  },
+];
+
+/**
+ * Dermatology Test Cases
+ */
+export const dermatologyDataset: ClinicalTestCase[] = [
+  {
+    id: 'derm-001',
+    category: 'dermatology',
+    specialty: 'Dermatology',
+    difficulty: 'advanced',
+    scenario: '62-year-old with new 1.2cm pigmented lesion on back. Asymmetric borders, multiple colors (black, brown, red), irregular edges, recent growth. Patient works outdoors, history of severe sunburns.',
+    groundTruth: {
+      diagnosis: 'Suspicious Melanoma',
+      urgency: 'urgent',
+      recommendedAction: 'Urgent excisional biopsy with margin, dermatopathology review, if confirmed melanoma proceed with sentinel lymph node biopsy and staging workup, dermatology/oncology referral',
+      reasoning: 'ABCDE criteria positive for melanoma - asymmetry, border irregularity, color variation, diameter >6mm, evolution. High-risk features require prompt biopsy',
+    },
+    validationCriteria: {
+      mustInclude: ['melanoma', 'biopsy', 'urgent', 'oncology', 'staging'],
+      mustNotInclude: ['benign', 'observation', 'routine follow-up'],
+      conceptsRequired: ['skin cancer', 'early intervention', 'malignancy risk'],
+    },
+  },
+  {
+    id: 'derm-002',
+    category: 'dermatology',
+    specialty: 'Dermatology',
+    difficulty: 'basic',
+    scenario: '25-year-old with painful red nodules on shins bilaterally, fever 100.8°F, recent strep throat infection 2 weeks ago, no other systemic symptoms.',
+    groundTruth: {
+      diagnosis: 'Erythema Nodosum (Post-Streptococcal)',
+      urgency: 'routine',
+      recommendedAction: 'NSAIDs for pain control, leg elevation, rest, rule out other causes (chest X-ray to exclude sarcoidosis), clinical follow-up in 2-4 weeks, should self-resolve',
+      reasoning: 'Erythema nodosum is often self-limited, commonly triggered by streptococcal infection, requires symptomatic treatment and workup for other causes',
+    },
+    validationCriteria: {
+      mustInclude: ['erythema nodosum', 'NSAIDs', 'self-limited', 'workup'],
+      mustNotInclude: ['emergency', 'admission', 'biopsy required'],
+      conceptsRequired: ['inflammatory condition', 'symptomatic treatment'],
+    },
+  },
+];
+
+/**
+ * Orthopedics Test Cases
+ */
+export const orthopedicsDataset: ClinicalTestCase[] = [
+  {
+    id: 'ortho-001',
+    category: 'orthopedics',
+    specialty: 'Orthopedics',
+    difficulty: 'advanced',
+    scenario: '75-year-old female fell from standing height, severe hip pain, unable to bear weight, externally rotated and shortened left leg, X-ray shows displaced femoral neck fracture.',
+    groundTruth: {
+      diagnosis: 'Displaced Femoral Neck Fracture',
+      urgency: 'emergency',
+      recommendedAction: 'NPO status, orthopedic surgery consultation for urgent operative fixation (likely hemiarthroplasty or total hip replacement), pain control, DVT prophylaxis, surgery within 24-48 hours to reduce complications',
+      reasoning: 'Displaced femoral neck fractures in elderly require surgical intervention within 24-48 hours to minimize complications (AVN, nonunion, mortality)',
+    },
+    validationCriteria: {
+      mustInclude: ['fracture', 'surgery', 'urgent', 'orthopedic', 'operative'],
+      mustNotInclude: ['conservative management', 'outpatient', 'observation'],
+      conceptsRequired: ['surgical emergency', 'hip fracture', 'geriatric trauma'],
+    },
+  },
+  {
+    id: 'ortho-002',
+    category: 'orthopedics',
+    specialty: 'Orthopedics',
+    difficulty: 'intermediate',
+    scenario: '35-year-old athlete with acute knee pain after twisting injury, positive Lachman test, positive anterior drawer, MRI shows complete ACL tear, no other ligament involvement.',
+    groundTruth: {
+      diagnosis: 'Complete Anterior Cruciate Ligament (ACL) Tear',
+      urgency: 'routine',
+      recommendedAction: 'Orthopedic surgery referral for ACL reconstruction discussion, initial RICE protocol (rest, ice, compression, elevation), physical therapy for pre-operative strengthening, elective surgery timing based on patient goals',
+      reasoning: 'Complete ACL tears in active patients typically require surgical reconstruction, but this is elective timing allowing for pre-hab and patient decision-making',
+    },
+    validationCriteria: {
+      mustInclude: ['ACL tear', 'reconstruction', 'orthopedic', 'physical therapy'],
+      mustNotInclude: ['emergency surgery', 'immediate', 'urgent'],
+      conceptsRequired: ['sports injury', 'elective surgery', 'rehabilitation'],
+    },
+  },
+];
+
+/**
+ * Pulmonology Test Cases
+ */
+export const pulmonologyDataset: ClinicalTestCase[] = [
+  {
+    id: 'pulm-001',
+    category: 'pulmonology',
+    specialty: 'Pulmonology',
+    difficulty: 'advanced',
+    scenario: '58-year-old with sudden onset severe dyspnea, unilateral absent breath sounds on right, hyperresonance to percussion, oxygen saturation 88%, tracheal deviation to left, recent thoracentesis 6 hours ago.',
+    groundTruth: {
+      diagnosis: 'Tension Pneumothorax (Iatrogenic)',
+      urgency: 'emergency',
+      recommendedAction: 'Immediate needle decompression (2nd intercostal space, midclavicular line), followed by chest tube placement, 100% oxygen, continuous monitoring, chest X-ray post-intervention',
+      reasoning: 'Tension pneumothorax with tracheal deviation and hemodynamic compromise is life-threatening emergency requiring immediate needle decompression',
+    },
+    validationCriteria: {
+      mustInclude: ['tension pneumothorax', 'emergency', 'needle decompression', 'chest tube'],
+      mustNotInclude: ['observation', 'oxygen alone', 'outpatient'],
+      conceptsRequired: ['life-threatening', 'immediate intervention', 'procedural complication'],
+    },
+  },
+];
+
+/**
+ * Combined Dataset - 21 Clinical Scenarios Across 13 Specialties
+ * Comprehensive coverage for AI system certification
  */
 export const clinicalValidationDataset: ClinicalTestCase[] = [
   ...cardiologyDataset,        // 2 scenarios
@@ -345,9 +496,13 @@ export const clinicalValidationDataset: ClinicalTestCase[] = [
   ...radiologyDataset,         // 2 scenarios
   ...oncologyDataset,          // 1 scenario
   ...gastroenterologyDataset,  // 1 scenario
+  ...psychiatryDataset,        // 2 scenarios
+  ...dermatologyDataset,       // 2 scenarios
+  ...orthopedicsDataset,       // 2 scenarios
+  ...pulmonologyDataset,       // 1 scenario
 ];
 
-// Total: 14 comprehensive clinical validation scenarios
+// Total: 21 comprehensive clinical validation scenarios across 13 medical specialties
 
 /**
  * Get dataset by specialty

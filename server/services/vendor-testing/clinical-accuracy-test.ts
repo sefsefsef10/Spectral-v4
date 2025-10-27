@@ -12,6 +12,7 @@ import { logger } from "../../logger";
 import { storage } from "../../storage";
 import { clinicalValidationDataset, getRandomSample } from "../clinical-validation/datasets";
 import { clinicalValidator } from "../clinical-validation/validator";
+import { VendorAPIClientFactory, type VendorAPICredentials } from "./live-vendor-api-client";
 import type { TestSuiteConfig } from "./testing-suite";
 
 interface ClinicalAccuracyTestResult {
@@ -75,7 +76,16 @@ class ClinicalAccuracyTest {
 
       // Use production clinical validation datasets (random sample of 10 cases)
       const testCases = getRandomSample(10);
-      const results = await this.runTestCases(testCases, config);
+      
+      // Try live vendor API integration if credentials provided
+      let results;
+      if (config.vendorPlatformCredentials) {
+        logger.info({ platform: config.vendorPlatformCredentials.platform }, 'Using live vendor API integration');
+        results = await this.runVendorAPITests(testCases, config);
+      } else {
+        logger.info('Using direct API endpoint testing');
+        results = await this.runTestCases(testCases, config);
+      }
 
       const correct = results.filter(r => r.correct).length;
       const incorrect = results.filter(r => !r.correct).length;
@@ -159,6 +169,54 @@ class ClinicalAccuracyTest {
     }
 
     return results;
+  }
+
+  /**
+   * Run tests using live vendor API integration (LangSmith, Arize, LangFuse, W&B)
+   */
+  private async runVendorAPITests(testCases: any[], config: TestSuiteConfig) {
+    const results: Array<{ scenario: string; expected: string; actual: string; correct: boolean }> = [];
+
+    if (!config.vendorPlatformCredentials) {
+      throw new Error('Vendor platform credentials required for live API testing');
+    }
+
+    try {
+      const vendorResults = await VendorAPIClientFactory.runBatchClinicalTests(
+        config.vendorPlatformCredentials,
+        testCases,
+        config.aiSystemEndpoint || 'default-model'
+      );
+
+      for (let i = 0; i < testCases.length; i++) {
+        const tc = testCases[i];
+        const vendorResult = vendorResults[i];
+
+        if (vendorResult.success && vendorResult.prediction) {
+          // Use clinical validator for evidence-based assessment
+          const validationResult = clinicalValidator.validateResponse(tc, vendorResult.prediction);
+          
+          results.push({
+            scenario: tc.scenario,
+            expected: tc.groundTruth.diagnosis + ': ' + tc.groundTruth.recommendedAction,
+            actual: vendorResult.prediction,
+            correct: validationResult.correct,
+          });
+        } else {
+          results.push({
+            scenario: tc.scenario,
+            expected: tc.groundTruth?.diagnosis || 'Unknown',
+            actual: vendorResult.error || "API call failed",
+            correct: false,
+          });
+        }
+      }
+
+      return results;
+    } catch (error) {
+      logger.error({ err: error }, "Failed to run vendor API tests");
+      throw error;
+    }
   }
 
   /**

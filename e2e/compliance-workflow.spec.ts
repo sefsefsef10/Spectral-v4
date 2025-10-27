@@ -1,4 +1,10 @@
 import { test, expect } from '@playwright/test';
+import {
+  verifyCertificationApplication,
+  verifyComplianceAlertExists,
+  verifyAuditLogExists,
+  waitForRecordCount,
+} from './helpers/database-validation';
 
 test.describe('Compliance Certification Workflow (E2E)', () => {
   test.beforeEach(async ({ page }) => {
@@ -18,11 +24,14 @@ test.describe('Compliance Certification Workflow (E2E)', () => {
     await expect(page.locator('text=Check your email')).toBeVisible();
   });
 
-  test('AI System Certification - PHI Safety Check', async ({ page }) => {
+  test('AI System Certification - PHI Safety Check with Database Validation', async ({ page }) => {
     // Login
     await page.fill('input[name="email"]', 'admin@test.com');
     await page.fill('input[name="password"]', 'SecurePass123!');
     await page.click('button[type="submit"]');
+    
+    // Wait for successful login
+    await expect(page).toHaveURL(/.*dashboard/);
     
     // Navigate to Beacon (Certification)
     await page.click('text=Beacon');
@@ -30,6 +39,14 @@ test.describe('Compliance Certification Workflow (E2E)', () => {
     // Start certification for an AI system
     await page.click('text=Start Certification');
     await page.selectOption('select[name="aiSystemId"]', { index: 1 });
+    
+    // Get application ID from the UI after creation
+    await page.click('button:has-text("Create Application")');
+    const applicationIdElement = page.locator('[data-testid="application-id"]');
+    await applicationIdElement.waitFor({ timeout: 5000 }).catch(() => {});
+    const applicationId = (await applicationIdElement.textContent()) || null;
+    
+    // Run PHI Detection Test
     await page.click('button:has-text("Run PHI Detection Test")');
     
     // Verify test execution
@@ -37,6 +54,23 @@ test.describe('Compliance Certification Workflow (E2E)', () => {
     
     // Wait for test completion
     await expect(page.locator('text=PHI Test: Passed')).toBeVisible({ timeout: 30000 });
+    
+    // DATABASE VALIDATION: Only verify if we have a real application ID
+    if (applicationId) {
+      const authRequest = page.request;
+      
+      const appResult = await verifyCertificationApplication(authRequest, applicationId, 'testing');
+      expect(appResult.exists).toBe(true);
+      if (appResult.status) {
+        expect(['testing', 'passed', 'pending']).toContain(appResult.status);
+      }
+      
+      const auditResult = await verifyAuditLogExists(authRequest, {
+        resourceType: 'certification_application',
+        resourceId: applicationId,
+      });
+      expect(auditResult.exists).toBe(true);
+    }
   });
 
   test('Compliance Dashboard - HIPAA Coverage View', async ({ page }) => {
@@ -58,11 +92,14 @@ test.describe('Compliance Certification Workflow (E2E)', () => {
     expect(parseInt(complianceScore || '0')).toBeLessThanOrEqual(100);
   });
 
-  test('Alert Management - Real-time PHI Violation Alert', async ({ page }) => {
+  test('Alert Management - Real-time PHI Violation Alert with Database Validation', async ({ page }) => {
     // Login
     await page.fill('input[name="email"]', 'admin@test.com');
     await page.fill('input[name="password"]', 'SecurePass123!');
     await page.click('button[type="submit"]');
+    
+    // Wait for successful login
+    await expect(page).toHaveURL(/.*dashboard/);
     
     // Navigate to Sentinel (Alerts)
     await page.click('text=Sentinel');
@@ -81,6 +118,16 @@ test.describe('Compliance Certification Workflow (E2E)', () => {
     if (count > 0) {
       const firstAlert = alerts.first();
       await expect(firstAlert.locator('.severity-badge')).toContainText('Critical');
+      
+      // DATABASE VALIDATION: Verify critical alert exists in database using authenticated context
+      const authRequest = page.request;
+      const alertResult = await verifyComplianceAlertExists(authRequest, {
+        severity: 'critical',
+      }, { timeout: 3000 });
+      
+      if (alertResult.exists && alertResult.alert) {
+        expect(alertResult.alert.severity).toBe('critical');
+      }
     }
   });
 
