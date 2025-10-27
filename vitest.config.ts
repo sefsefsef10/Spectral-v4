@@ -5,15 +5,21 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['server/**/*.test.ts', 'shared/**/*.test.ts'],
+    include: [
+      'server/**/*.test.ts',
+      'shared/**/*.test.ts',
+      'tests/**/*.test.ts'  // New Clean Architecture test structure
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
       include: ['server/**/*.ts', 'shared/**/*.ts'],
       exclude: [
         'server/**/*.test.ts',
+        'tests/**/*.test.ts',
         'server/db.ts',
         'server/index.ts',
+        'server/test/**',  // Legacy tests
         '**/node_modules/**',
       ],
       thresholds: {
@@ -23,7 +29,7 @@ export default defineConfig({
         statements: 80,
       },
     },
-    setupFiles: ['./server/test/setup.ts'],
+    setupFiles: ['./tests/setup.ts'],
   },
   resolve: {
     alias: {
