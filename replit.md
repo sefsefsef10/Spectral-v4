@@ -5,6 +5,25 @@ Spectral is a B2B SaaS platform for AI governance, monitoring, and compliance in
 
 ## Recent Changes
 
+### October 27, 2025 - Tiered Translation Engine Customization (Revenue Unlock)
+**ENTERPRISE TIER MONETIZATION STRATEGY IMPLEMENTED**
+
+Built tiered customization system to unlock Enterprise tier revenue ($400K/year ACV) through Translation Engine personalization while protecting IP moat. Creates switching costs via configuration debt and increases per-customer value by 2.7-5.3x.
+
+**Implementation:**
+- ✅ **Database Schema**: 5 new tables (thresholdOverrides, customComplianceControls, controlToggles, customizationApprovals, customizationAuditLog) with proper indexes and IS NULL semantics for nullable fields
+- ✅ **Tier Permissions**: Foundation ($75K - read-only), Growth ($200K - threshold tuning + control toggles), Enterprise ($400K - custom controls with approval workflow)
+- ✅ **Regulatory Guardrails**: HIPAA controls cannot be disabled, custom controls require Spectral admin approval, all customizations audited with full trail
+- ✅ **CustomizationService**: Tier-based permission checking, threshold override creation, control toggling with NULL handling, custom control creation, approval workflow, audit logging
+- ✅ **API Endpoints**: 7 production-ready routes (tier permissions, overview, threshold overrides, control toggles, custom controls, approval workflow, audit trail)
+
+**Critical Fixes (Architect Review):**
+- Fixed control toggles query to use `isNull()` instead of `eq('')` for nullable aiSystemId (prevents regulatory bypass via duplicate toggles)
+- Added Zod date transformation (.transform()) to parse string dates to Date objects (prevents Drizzle serialization errors)
+- Verified getCustomizations method returns complete overview (thresholds, toggles, custom controls)
+
+**Revenue Impact:** Projected $1.5-2.75M additional Year 1 revenue per monetization strategy document. Enables 2.7-5.3x ACV increase through tiered packaging.
+
 ### October 27, 2025 - Acquisition Readiness Audit (FINAL)
 **COMPREHENSIVE AUDIT COMPLETED - PLATFORM CONFIRMED ACQUISITION-READY**
 
@@ -52,6 +71,7 @@ The frontend uses React 18+, TypeScript, Vite, Wouter, Shadcn/ui (Radix UI), and
 The backend is an Express.js application in TypeScript with a RESTful API. It uses session-based authentication and a zero-trust multi-tenant architecture with RBAC. PostgreSQL with Drizzle ORM and Zod for validation is the primary data store, utilizing Neon for serverless connections. Security features include hashed tokens, JSONB audit logs, and AES-256-GCM encryption for sensitive data. The project is a monorepo structure.
 
 Key features include:
+- **Tiered Translation Engine Customization:** Three-tier monetization system (Foundation $75K/Growth $200K/Enterprise $400K) enabling threshold tuning, control toggles, and custom compliance controls. Features regulatory guardrails (HIPAA controls cannot be disabled), mandatory approval workflow for custom controls, and complete audit trail. Creates switching costs through configuration debt and increases ACV by 2.7-5.3x.
 - **AI Certification Workflow (Beacon):** A three-tiered system (Verified/Certified/Trusted) with automated testing for PHI exposure (using Presidio ML and regex fallbacks), clinical accuracy (MVP with clinician review, evidence-based datasets), and bias detection (using Microsoft Fairlearn and variance-based fallbacks). It also validates deployment history to prevent certification fraud.
 - **Telemetry Polling Infrastructure:** Production-ready polling from LangSmith via API, converting metrics to `aiTelemetryEvents` with PHI encryption. It features database persistence for configurations, deduplication, and a management API, integrated with Inngest for scheduled and on-demand polling.
 - **Epic EHR Integration Infrastructure:** Production-ready Epic FHIR adapter with credential encryption (AES-256-GCM), automated AI system discovery via Device API, and scheduled/on-demand syncing through Inngest workflows. Includes provider connection management API with ownership validation and credential redaction from all responses. Supports keyword-based AI discovery (MVP) with extensibility for FHIR type codes in production.

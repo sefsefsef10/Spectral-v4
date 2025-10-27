@@ -7970,6 +7970,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const { registerBillingRoutes } = await import("./routes/billing");
   registerBillingRoutes(app);
 
+  // 💰 Tiered Customization Routes (Revenue Unlock)
+  const { registerCustomizationRoutes } = await import("./routes/customization");
+  registerCustomizationRoutes(app);
+
   // Provider Connections API (Epic, Cerner, LangSmith integrations)
   const providerConnectionsRouter = (await import("./routes/provider-connections")).default;
   app.use("/api/provider-connections", requireAuth, providerConnectionsRouter);
