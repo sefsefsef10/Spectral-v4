@@ -181,14 +181,20 @@ export class Subscription {
   }
 
   /**
-   * Business Rules: Activate subscription (after payment)
+   * Business Rules: Set Stripe subscription ID (when subscription is created)
    */
-  activate(stripeSubscriptionId: string): void {
+  setStripeSubscriptionId(stripeSubscriptionId: string): void {
+    this._stripeSubscriptionId = stripeSubscriptionId;
+  }
+
+  /**
+   * Business Rules: Activate subscription (after payment - called from webhook)
+   */
+  activate(): void {
     if (this._status === SubscriptionStatus.CANCELED) {
       throw new Error('Cannot activate a canceled subscription');
     }
 
-    this._stripeSubscriptionId = stripeSubscriptionId;
     this._status = SubscriptionStatus.ACTIVE;
     this._trialEndsAt = null; // Clear trial when activated
   }

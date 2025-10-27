@@ -200,14 +200,15 @@ describe('Subscription Domain Entity', () => {
       expect(subscription.status).toBe(SubscriptionStatus.TRIALING);
     });
 
-    it('should activate subscription with Stripe ID', () => {
+    it('should activate subscription and clear trial', () => {
       const subscription = Subscription.create(
         'sub-1',
         'health-system-1',
         SubscriptionTier.STARTER
       );
 
-      subscription.activate('stripe_sub_123');
+      subscription.setStripeSubscriptionId('stripe_sub_123');
+      subscription.activate();
 
       expect(subscription.status).toBe(SubscriptionStatus.ACTIVE);
       expect(subscription.stripeSubscriptionId).toBe('stripe_sub_123');
@@ -228,7 +229,7 @@ describe('Subscription Domain Entity', () => {
       );
 
       expect(() => {
-        subscription.activate('stripe_sub_123');
+        subscription.activate();
       }).toThrow('Cannot activate a canceled subscription');
     });
 
@@ -430,7 +431,8 @@ describe('Subscription Domain Entity', () => {
         'health-system-1',
         SubscriptionTier.PROFESSIONAL
       );
-      subscription.activate('stripe_sub_123');
+      subscription.setStripeSubscriptionId('stripe_sub_123');
+      subscription.activate();
 
       subscription.cancel();
 
