@@ -7746,6 +7746,150 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get vendor badge data (public endpoint for embeddable widget)
+  app.get("/api/public/vendors/:vendorId/badge", async (req, res) => {
+    try {
+      const { vendorId } = req.params;
+      
+      // Get vendor details
+      const vendor = await storage.getVendor(vendorId);
+      if (!vendor) {
+        return res.status(404).json({ error: "Vendor not found" });
+      }
+      
+      // Get approved certification applications
+      const applications = await storage.getCertificationApplicationsByVendor(vendorId);
+      const approvedApplications = applications.filter(app => app.status === 'approved');
+      
+      // Determine highest certification tier
+      const tierHierarchy = { 'Trusted': 3, 'Certified': 2, 'Verified': 1 };
+      let highestTier = vendor.certificationTier || 'Verified';
+      
+      for (const app of approvedApplications) {
+        if (tierHierarchy[app.tierRequested as keyof typeof tierHierarchy] > tierHierarchy[highestTier as keyof typeof tierHierarchy]) {
+          highestTier = app.tierRequested;
+        }
+      }
+      
+      res.json({
+        vendorId: vendor.id,
+        vendorName: vendor.name,
+        certificationTier: highestTier,
+        verified: vendor.verified,
+        trustPageUrl: `/public/vendors/${vendor.id}/trust-page`,
+        logoUrl: vendor.logoUrl,
+      });
+    } catch (error) {
+      logger.error({ err: error }, "Badge data error");
+      res.status(500).json({ error: "Failed to load badge data" });
+    }
+  });
+  
+  // Get embeddable badge widget JavaScript (public endpoint)
+  app.get("/api/public/vendors/:vendorId/badge.js", async (req, res) => {
+    try {
+      const { vendorId } = req.params;
+      
+      // Serve JavaScript widget that vendors can embed on their sites
+      const widgetScript = `
+(function() {
+  'use strict';
+  
+  const vendorId = '${vendorId}';
+  const baseUrl = window.location.origin;
+  
+  // Fetch badge data
+  fetch(baseUrl + '/api/public/vendors/' + vendorId + '/badge')
+    .then(response => response.json())
+    .then(data => {
+      const container = document.getElementById('spectral-badge');
+      if (!container) {
+        console.error('Spectral Badge: Container element with id="spectral-badge" not found');
+        return;
+      }
+      
+      // Tier colors
+      const tierColors = {
+        'Trusted': { bg: '#9333ea', border: '#7c3aed', text: '#ffffff' },
+        'Certified': { bg: '#3b82f6', border: '#2563eb', text: '#ffffff' },
+        'Verified': { bg: '#10b981', border: '#059669', text: '#ffffff' }
+      };
+      
+      const tier = data.certificationTier || 'Verified';
+      const colors = tierColors[tier] || tierColors['Verified'];
+      
+      // Create badge HTML
+      container.innerHTML = \`
+        <div style="font-family: system-ui, -apple-system, sans-serif; display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; background: \${colors.bg}; color: \${colors.text}; border: 2px solid \${colors.border}; border-radius: 8px; text-decoration: none; transition: all 0.2s; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'" onclick="window.open('\${baseUrl}\${data.trustPageUrl}', '_blank')">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="M9 12l2 2 4-4"/>
+          </svg>
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <div style="font-weight: 600; font-size: 14px; line-height: 1;">\${tier} by Spectral</div>
+            <div style="font-size: 11px; opacity: 0.9; line-height: 1;">Healthcare AI Governance</div>
+          </div>
+        </div>
+      \`;
+    })
+    .catch(error => {
+      console.error('Spectral Badge: Failed to load badge data', error);
+    });
+})();
+`;
+      
+      res.setHeader('Content-Type', 'application/javascript');
+      res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+      res.send(widgetScript);
+    } catch (error) {
+      logger.error({ err: error }, "Badge widget error");
+      res.status(500).send('console.error("Spectral Badge: Failed to load widget");');
+    }
+  });
+
+  // 🗺️ ROSETTA STONE - Metric Translation & Gap Analysis
+  app.get("/api/rosetta-stone/analyze", requireAuth, requireRole('vendor'), async (req, res) => {
+    try {
+      const { rosettaStoneMapper } = await import('./services/rosetta-stone-mapper');
+      
+      // Get vendor's configured platforms
+      const user = req.user!;
+      if (!user.vendorId) {
+        return res.status(403).json({ error: 'Vendor access required' });
+      }
+
+      // Parse platforms from query param (comma-separated)
+      const platformsParam = (req.query.platforms as string) || '';
+      const platforms = platformsParam.split(',').filter(Boolean) as any[];
+
+      if (platforms.length === 0) {
+        return res.status(400).json({ error: 'At least one platform must be specified' });
+      }
+
+      // Analyze metrics and generate gap report
+      const analysis = rosettaStoneMapper.analyzeMetrics(platforms);
+
+      res.json(analysis);
+    } catch (error) {
+      logger.error({ err: error }, 'Rosetta Stone analysis error');
+      res.status(500).json({ error: 'Failed to analyze metrics' });
+    }
+  });
+
+  app.get("/api/rosetta-stone/platforms/:platform/metrics", requireAuth, requireRole('vendor'), async (req, res) => {
+    try {
+      const { rosettaStoneMapper } = await import('./services/rosetta-stone-mapper');
+      const { platform } = req.params;
+
+      const metrics = rosettaStoneMapper.getMetricsForPlatform(platform as any);
+
+      res.json({ platform, metrics });
+    } catch (error) {
+      logger.error({ err: error }, 'Failed to get platform metrics');
+      res.status(500).json({ error: 'Failed to load platform metrics' });
+    }
+  });
+
   // 💰 ROI Metrics API Endpoints
   app.get("/api/roi-metrics", requireAuth, async (req: Request, res: Response) => {
     try {

@@ -26,8 +26,11 @@ Key features include:
 - **Durable Workflows (Inngest):** Ensures zero data loss for critical processes through retries and cron scheduling.
 - **Billing Infrastructure:** Schema for Stripe integration, plan tiers, and usage metering.
 - **Enterprise SSO (WorkOS):** SAML/OAuth with auto-provisioning.
-- **Automated Rollback System (Sentinel):** Policy management, deployment history tracking, automated/manual rollback execution, and an approval workflow with audit trails and role-based authorization.
-- **Automated Quarterly Re-Verification (Beacon):** A 90-day certification cycle with 7-day cascade intervals for tier downgrades (trusted→certified→verified→null), expiry detection, and anti-spam logic.
+- **Automated Rollback System (Sentinel):** Policy management, deployment history tracking, automated/manual rollback execution, and an approval workflow with audit trails and role-based authorization. Full database schema includes deployment_history, rollback_executions, and rollback_policies tables with foreign key constraints.
+- **Automated Quarterly Re-Verification (Beacon):** A 90-day certification cycle with 7-day cascade intervals for tier downgrades (trusted→certified→verified→null), expiry detection, and anti-spam logic. AI systems track verificationTier, verificationDate, and verificationExpiry for automated lifecycle management.
+- **Embeddable Badge Widget:** JavaScript widget vendors can embed on their websites to display Beacon certification status. Includes /api/public/vendors/:vendorId/badge (JSON API) and /api/public/vendors/:vendorId/badge.js (embeddable script) with auto-updating tier display and trust page linking.
+- **Rosetta Stone Tool:** Metric translation tool mapping vendor observability platforms (LangSmith, Arize, LangFuse, W&B) to Spectral compliance frameworks (HIPAA, NIST AI RMF, FDA). Provides gap analysis, compliance scoring, and actionable setup recommendations. Reduces vendor onboarding friction by showing current coverage vs. missing metrics.
+- **Multi-Platform Telemetry Polling:** Production-ready polling from 4 observability platforms (LangSmith, Arize, LangFuse, W&B) with unified TelemetryPoller, platform-specific adapters, and 15-minute cron job via Inngest.
 
 ### Feature Specifications
 - **Executive Reporting (Constellation)**: Board-ready summaries of AI portfolios, risks, and compliance with narrative generation.
@@ -67,3 +70,19 @@ Key features include:
 ### Incident & Infrastructure Management
 - **PagerDuty**: Incident management integration.
 - **DataDog**: Infrastructure monitoring integration.
+
+## Recent Changes (October 27, 2025)
+
+### A++ Acquisition Readiness Features
+1. **Database Schema Synchronization**: All rollback tables (deployment_history, rollback_executions, rollback_policies) and Beacon verification columns (verification_tier, verification_date, verification_expiry) successfully synced to production database.
+
+2. **Marketplace Completion**:
+   - **Vendor Trust Pages**: Public vendor profiles at /public/vendors/:vendorId/trust-page showing certifications, partnerships, deployment stats (already existed, verified complete).
+   - **Embeddable Badge Widget**: Self-contained JavaScript widget for vendor websites with tier-specific colors (Trusted=purple, Certified=blue, Verified=green), auto-updates, and trust page linking. Vendor badge manager at /badge provides copy-paste embed code.
+   - **Rosetta Stone Tool**: Comprehensive metric mapping tool at /rosetta-stone analyzing vendor observability platforms against Spectral compliance frameworks. Shows compliance score, control coverage by framework, missing event types, and step-by-step setup recommendations.
+
+3. **Epic Sandbox Validation Documentation**: Complete 6-week testing protocol at docs/epic-sandbox-validation.md covering OAuth authentication, FHIR API testing, webhook configuration, AI system discovery, performance/load testing, and production readiness checklist.
+
+4. **Predictive Analytics API**: Complete API routes for ML-based predictive alerts with database-level tenant filtering using inArray() to prevent cross-tenant data leakage.
+
+5. **Enterprise SSO Auto-Provisioning**: WorkOS integration with automatic user/org creation, role mapping, and audit logging for SAML/OAuth flows.

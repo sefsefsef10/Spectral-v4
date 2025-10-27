@@ -22,6 +22,8 @@ import BeaconPage from "@/pages/products/Beacon";
 import VendorDirectoryPage from "@/pages/VendorDirectory";
 import VendorMarketplace from "@/pages/VendorMarketplace";
 import VendorTrustPage from "@/pages/vendor-trust-page";
+import VendorBadgeManager from "@/pages/VendorBadgeManager";
+import RosettaStone from "@/pages/RosettaStone";
 import BillingDashboard from "@/pages/BillingDashboard";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
@@ -84,6 +86,12 @@ function Router() {
       </Route>
       <Route path="/billing">
         {() => <ProtectedRoute component={BillingDashboard} />}
+      </Route>
+      <Route path="/badge">
+        {() => <ProtectedRoute component={VendorBadgeManager} />}
+      </Route>
+      <Route path="/rosetta-stone">
+        {() => <ProtectedRoute component={RosettaStone} />}
       </Route>
       <Route component={NotFound} />
     </Switch>
