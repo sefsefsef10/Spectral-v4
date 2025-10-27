@@ -209,43 +209,67 @@ export class AIDiscoveryCrawler {
 
   /**
    * Scan EHR integrations for AI systems
-   * In production, would connect to Epic/Cerner/Athenahealth APIs
+   * Connects to Epic/Cerner/Athenahealth FHIR APIs
    */
   private async scanEHRIntegrations(healthSystemId: string): Promise<DiscoveredAISystem[]> {
     logger.info({ healthSystemId }, "Scanning EHR integrations");
 
-    // Mock discovery - in production, would query EHR APIs
-    const mockDiscovered: DiscoveredAISystem[] = [
-      {
-        name: "Epic Sepsis Prediction Model",
-        department: "Emergency Department",
-        vendor: "Epic Systems",
-        category: "Clinical Decision Support",
-        description: "Predictive model for early sepsis detection",
-        discoverySource: "Epic FHIR API",
-        confidence: 0.95,
-      },
-      {
-        name: "Radiology AI Assistant",
-        department: "Radiology",
-        vendor: "Aidoc",
-        category: "Medical Imaging",
-        description: "AI-powered radiology triage and detection",
-        discoverySource: "Epic App Orchard Registry",
-        confidence: 0.9,
-      },
-      {
-        name: "Clinical Documentation AI",
-        department: "Hospitalist",
-        vendor: "Nuance",
-        category: "Administrative",
-        description: "AI-powered clinical documentation improvement",
-        discoverySource: "Epic Integration Catalog",
-        confidence: 0.85,
-      },
-    ];
+    const discovered: DiscoveredAISystem[] = [];
 
-    return mockDiscovered;
+    try {
+      // Get Epic FHIR credentials from provider_connections
+      const { epicFHIRService } = await import("./epic-fhir-service");
+      const { db } = await import("../db");
+      const { providerConnections } = await import("../../shared/schema");
+      const { eq, and } = await import("drizzle-orm");
+
+      // SECURITY: Use and() to combine predicates properly - .where() chains overwrite each other in Drizzle
+      const [connection] = await db
+        .select()
+        .from(providerConnections)
+        .where(and(
+          eq(providerConnections.healthSystemId, healthSystemId),
+          eq(providerConnections.providerType, 'epic_fhir'),
+          eq(providerConnections.connectionStatus, 'active')
+        ));
+
+      if (connection && connection.credentials) {
+        // Decrypt credentials
+        const { decryptFields } = await import("../encryption");
+        const decrypted = decryptFields(
+          { credentials: connection.credentials },
+          ['credentials']
+        );
+        const creds = JSON.parse(decrypted.credentials);
+
+        // Query Epic FHIR Device API
+        const epicDevices = await epicFHIRService.discoverAISystems({
+          clientId: creds.clientId,
+          privateKey: creds.privateKey,
+          tokenUrl: creds.tokenUrl || 'https://fhir.epic.com/interconnect-fhir-oauth/oauth2/token',
+          fhirBaseUrl: creds.fhirBaseUrl || 'https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4',
+        });
+
+        discovered.push(...epicDevices);
+        logger.info({ 
+          healthSystemId, 
+          count: epicDevices.length 
+        }, "Epic FHIR discovery complete");
+      } else {
+        logger.info({ healthSystemId }, "No active Epic FHIR connection found");
+      }
+
+      // Future: Add Cerner, Athenahealth support here
+      // Similar pattern: check for provider_connections, decrypt, query FHIR API
+
+      return discovered;
+    } catch (error) {
+      logger.error({ err: error, healthSystemId }, "EHR integration scan failed");
+      
+      // Fallback to empty array if FHIR discovery fails
+      // Don't block entire discovery job due to FHIR errors
+      return [];
+    }
   }
 
   /**

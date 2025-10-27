@@ -13,7 +13,7 @@ import { z } from "zod";
 
 const registerSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
   role: z.enum(["health_system", "vendor"]),
   organizationName: z.string().min(2, "Organization name must be at least 2 characters"),
 });

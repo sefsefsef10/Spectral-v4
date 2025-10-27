@@ -39,10 +39,24 @@ import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
 
 // Middleware to require authentication
-function requireAuth(req: Request, res: Response, next: () => void) {
+async function requireAuth(req: Request, res: Response, next: () => void) {
   if (!req.session.userId) {
     return res.status(401).json({ error: "Not authenticated" });
   }
+  
+  // Verify email is confirmed before allowing access
+  const user = await storage.getUser(req.session.userId);
+  if (!user) {
+    return res.status(401).json({ error: "User not found" });
+  }
+  
+  if (!user.emailVerified) {
+    return res.status(403).json({ 
+      error: "Email verification required",
+      message: "Please verify your email address before accessing the dashboard. Check your inbox for the verification link."
+    });
+  }
+  
   next();
 }
 
@@ -248,7 +262,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const schema = z.object({
         username: z.string().min(3),
-        password: z.string().min(6),
+        password: z.string().min(8),
         email: z.string().email(),
         role: z.enum(["health_system", "vendor"]),
         organizationName: z.string().min(2),
