@@ -19,6 +19,7 @@ import CertificationReviewView from "@/components/dashboard/views/CertificationR
 import NetworkEffectsView from "@/components/dashboard/views/NetworkEffectsView";
 import ProcurementLanguageGenerator from "@/components/procurement/ProcurementLanguageGenerator";
 import ProviderConnectionsView from "@/components/dashboard/views/ProviderConnectionsView";
+import { CustomizationView } from "@/components/dashboard/views/CustomizationView";
 
 export default function Dashboard() {
   const [selectedSystem, setSelectedSystem] = useState<string | null>(null);
@@ -79,6 +80,8 @@ export default function Dashboard() {
         return <BoardDashboardView />;
       case "certification-review":
         return <CertificationReviewView />;
+      case "customization":
+        return <CustomizationView />;
       default:
         return <DashboardView onNavigateToSystem={setSelectedSystem} />;
     }
