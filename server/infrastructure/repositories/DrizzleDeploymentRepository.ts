@@ -35,6 +35,15 @@ export class DrizzleDeploymentRepository implements DeploymentRepository {
     return row ? this.toDomain(row) : null;
   }
 
+  async findByAiSystemId(aiSystemId: string): Promise<Deployment[]> {
+    const rows = await db
+      .select()
+      .from(aiSystemDeployments)
+      .where(eq(aiSystemDeployments.aiSystemId, aiSystemId));
+
+    return rows.map(row => this.toDomain(row));
+  }
+
   private toDatabase(deployment: Deployment): any {
     return {
       id: deployment.id,

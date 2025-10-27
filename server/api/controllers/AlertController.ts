@@ -1,0 +1,225 @@
+/**
+ * API LAYER: Alert Controller
+ * RESTful endpoints for alert management with Clean Architecture integration
+ */
+
+import { Request, Response } from 'express';
+import { CreateAlertUseCase } from '../../application/alert-management/CreateAlertUseCase';
+import { AcknowledgeAlertUseCase } from '../../application/alert-management/AcknowledgeAlertUseCase';
+import { ResolveAlertUseCase } from '../../application/alert-management/ResolveAlertUseCase';
+import { DrizzleAlertRepository } from '../../infrastructure/repositories/DrizzleAlertRepository';
+import type { Severity } from '../../domain/entities/Alert';
+import { db } from '../../db';
+
+const alertRepository = DrizzleAlertRepository.getInstance(db);
+
+export class AlertController {
+  /**
+   * Create a new alert
+   * @route POST /api/alerts
+   */
+  static async createAlert(req: Request, res: Response): Promise<void> {
+    try {
+      const { aiSystemId, type, severity, message, details } = req.body;
+
+      if (!aiSystemId || !type || !severity || !message) {
+        res.status(400).json({
+          error: 'Missing required fields: aiSystemId, type, severity, message'
+        });
+        return;
+      }
+
+      const createAlertUseCase = new CreateAlertUseCase(alertRepository);
+      
+      const alert = await createAlertUseCase.execute({
+        aiSystemId,
+        type,
+        severity: severity as Severity,
+        message,
+        details
+      });
+
+      res.status(201).json({
+        id: alert.id,
+        aiSystemId: alert.aiSystemId,
+        type: alert.type,
+        severity: alert.severity,
+        message: alert.message,
+        status: alert.status,
+        slaDeadline: alert.slaDeadline?.toISOString(),
+        notificationsSent: alert.notificationsSent,
+        createdAt: alert.createdAt.toISOString(),
+        message_text: 'Alert created successfully'
+      });
+    } catch (error: any) {
+      if (error.message.includes('required') || error.message.includes('Invalid')) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
+      if (error.message.includes('duplicate')) {
+        res.status(409).json({ error: error.message });
+        return;
+      }
+
+      console.error('Create alert error:', error);
+      res.status(500).json({ error: 'Failed to create alert' });
+    }
+  }
+
+  /**
+   * List all alerts
+   * @route GET /api/alerts
+   */
+  static async listAlerts(req: Request, res: Response): Promise<void> {
+    try {
+      const { aiSystemId, severity, status } = req.query;
+
+      if (!aiSystemId) {
+        res.status(400).json({ error: 'aiSystemId query parameter is required' });
+        return;
+      }
+
+      let alerts = await alertRepository.findByAiSystemId(aiSystemId as string);
+
+      if (severity) {
+        alerts = alerts.filter(a => a.severity === severity);
+      }
+      if (status) {
+        alerts = alerts.filter(a => a.status === status);
+      }
+
+      res.status(200).json({
+        alerts: alerts.map(a => ({
+          id: a.id,
+          aiSystemId: a.aiSystemId,
+          type: a.type,
+          severity: a.severity,
+          message: a.message,
+          status: a.status,
+          slaDeadline: a.slaDeadline?.toISOString(),
+          acknowledgedAt: a.acknowledgedAt?.toISOString(),
+          resolvedAt: a.resolvedAt?.toISOString(),
+          createdAt: a.createdAt.toISOString()
+        })),
+        total: alerts.length
+      });
+    } catch (error: any) {
+      console.error('List alerts error:', error);
+      res.status(500).json({ error: 'Failed to list alerts' });
+    }
+  }
+
+  /**
+   * Get alert details
+   * @route GET /api/alerts/:id
+   */
+  static async getAlert(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+
+      const alert = await alertRepository.findById(id);
+
+      if (!alert) {
+        res.status(404).json({ error: 'Alert not found' });
+        return;
+      }
+
+      res.status(200).json({
+        id: alert.id,
+        aiSystemId: alert.aiSystemId,
+        type: alert.type,
+        severity: alert.severity,
+        message: alert.message,
+        details: alert.details,
+        status: alert.status,
+        acknowledgedAt: alert.acknowledgedAt?.toISOString(),
+        acknowledgedBy: alert.acknowledgedBy,
+        resolvedAt: alert.resolvedAt?.toISOString(),
+        resolvedBy: alert.resolvedBy,
+        slaDeadline: alert.slaDeadline?.toISOString(),
+        escalatedAt: alert.escalatedAt?.toISOString(),
+        notificationsSent: alert.notificationsSent,
+        createdAt: alert.createdAt.toISOString()
+      });
+    } catch (error: any) {
+      console.error('Get alert error:', error);
+      res.status(500).json({ error: 'Failed to retrieve alert' });
+    }
+  }
+
+  /**
+   * Acknowledge an alert
+   * @route PUT /api/alerts/:id/acknowledge
+   */
+  static async acknowledgeAlert(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const acknowledgedBy = req.user?.id || 'system';
+
+      const acknowledgeUseCase = new AcknowledgeAlertUseCase(alertRepository);
+      
+      const alert = await acknowledgeUseCase.execute({
+        alertId: id,
+        acknowledgedBy
+      });
+
+      res.status(200).json({
+        id: alert.id,
+        status: alert.status,
+        acknowledgedAt: alert.acknowledgedAt?.toISOString(),
+        acknowledgedBy: alert.acknowledgedBy,
+        message_text: 'Alert acknowledged successfully'
+      });
+    } catch (error: any) {
+      if (error.message.includes('not found')) {
+        res.status(404).json({ error: 'Alert not found' });
+        return;
+      }
+      if (error.message.includes('already')) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
+
+      console.error('Acknowledge alert error:', error);
+      res.status(500).json({ error: 'Failed to acknowledge alert' });
+    }
+  }
+
+  /**
+   * Resolve an alert
+   * @route PUT /api/alerts/:id/resolve
+   */
+  static async resolveAlert(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const resolvedBy = req.user?.id || 'system';
+
+      const resolveUseCase = new ResolveAlertUseCase(alertRepository);
+      
+      const alert = await resolveUseCase.execute({
+        alertId: id,
+        resolvedBy
+      });
+
+      res.status(200).json({
+        id: alert.id,
+        status: alert.status,
+        resolvedAt: alert.resolvedAt?.toISOString(),
+        resolvedBy: alert.resolvedBy,
+        message_text: 'Alert resolved successfully'
+      });
+    } catch (error: any) {
+      if (error.message.includes('not found')) {
+        res.status(404).json({ error: 'Alert not found' });
+        return;
+      }
+      if (error.message.includes('Cannot resolve')) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
+
+      console.error('Resolve alert error:', error);
+      res.status(500).json({ error: 'Failed to resolve alert' });
+    }
+  }
+}
