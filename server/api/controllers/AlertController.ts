@@ -20,6 +20,11 @@ const mockNotificationGateway = {
   send: async () => { /* no-op */ }
 };
 
+// Mock audit logger for now
+const mockAuditLogger = {
+  logAlertResolution: async () => { /* no-op */ }
+};
+
 export class AlertController {
   /**
    * Create a new alert
@@ -209,7 +214,7 @@ export class AlertController {
       const { id } = req.params;
       const userId = 'system'; // Default user ID
 
-      const resolveUseCase = new ResolveAlertUseCase(alertRepository);
+      const resolveUseCase = new ResolveAlertUseCase(alertRepository, mockAuditLogger);
       
       const result = await resolveUseCase.execute({
         alertId: id,
