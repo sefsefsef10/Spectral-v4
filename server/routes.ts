@@ -7813,6 +7813,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/network-metrics/viral-coefficient", async (req: Request, res: Response) => {
+    try {
+      const { networkMetricsCalculator } = await import("./services/network-metrics-calculator");
+      const viralCoefficient = await networkMetricsCalculator.calculateViralCoefficient();
+      res.json({ viralCoefficient, isViral: viralCoefficient > 1 });
+    } catch (error) {
+      logger.error({ err: error }, "Failed to calculate viral coefficient");
+      res.status(500).json({ error: "Failed to calculate viral coefficient" });
+    }
+  });
+
+  app.get("/api/network-metrics/cross-side-liquidity", async (req: Request, res: Response) => {
+    try {
+      const { networkMetricsCalculator } = await import("./services/network-metrics-calculator");
+      const liquidity = await networkMetricsCalculator.calculateCrossSideLiquidity();
+      res.json(liquidity);
+    } catch (error) {
+      logger.error({ err: error }, "Failed to calculate cross-side liquidity");
+      res.status(500).json({ error: "Failed to calculate cross-side liquidity" });
+    }
+  });
+
+  app.get("/api/network-metrics/vendor-acceptance-analytics", async (req: Request, res: Response) => {
+    try {
+      const { networkMetricsCalculator } = await import("./services/network-metrics-calculator");
+      const analytics = await networkMetricsCalculator.getVendorAcceptanceAnalytics();
+      res.json(analytics);
+    } catch (error) {
+      logger.error({ err: error }, "Failed to get vendor acceptance analytics");
+      res.status(500).json({ error: "Failed to load vendor acceptance analytics" });
+    }
+  });
+
+  app.get("/api/network-metrics/rfp-adoption", async (req: Request, res: Response) => {
+    try {
+      const { networkMetricsCalculator } = await import("./services/network-metrics-calculator");
+      const metrics = await networkMetricsCalculator.getRFPAdoptionMetrics();
+      res.json(metrics);
+    } catch (error) {
+      logger.error({ err: error }, "Failed to get RFP adoption metrics");
+      res.status(500).json({ error: "Failed to load RFP adoption metrics" });
+    }
+  });
+
   app.get("/api/spectral-standard/adopters", async (req: Request, res: Response) => {
     try {
       const { spectralStandardTracker } = await import("./services/spectral-standard-tracker");

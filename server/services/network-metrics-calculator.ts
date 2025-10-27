@@ -281,6 +281,165 @@ export class NetworkMetricsCalculator {
       },
     };
   }
+
+  /**
+   * Calculate viral coefficient - how many new vendors does each health system bring?
+   * Viral coefficient > 1 indicates viral growth
+   */
+  async calculateViralCoefficient(): Promise<number> {
+    const allAcceptances = await db.select().from(vendorAcceptances).where(eq(vendorAcceptances.status, 'accepted'));
+    const allHealthSystems = await db.select().from(healthSystems);
+    
+    if (allHealthSystems.length === 0) return 0;
+    
+    // Average vendor acceptances per health system
+    const avgAcceptancesPerHealthSystem = allAcceptances.length / allHealthSystems.length;
+    
+    // Viral coefficient = new customers brought in per existing customer
+    // Simplified calculation: acceptances per health system
+    const viralCoefficient = avgAcceptancesPerHealthSystem;
+    
+    logger.info({ viralCoefficient: viralCoefficient.toFixed(2) }, "Viral coefficient calculated");
+    
+    return viralCoefficient;
+  }
+
+  /**
+   * Calculate cross-side liquidity - ratio of vendors to health systems
+   * Higher ratio = more choice for health systems
+   */
+  async calculateCrossSideLiquidity(): Promise<{
+    vendorsPerHealthSystem: number;
+    healthSystemsPerVendor: number;
+    liquidity: number;
+  }> {
+    const healthSystemCount = (await db.select().from(healthSystems)).length;
+    const vendorCount = (await db.select().from(vendors)).length;
+    
+    if (healthSystemCount === 0 || vendorCount === 0) {
+      return { vendorsPerHealthSystem: 0, healthSystemsPerVendor: 0, liquidity: 0 };
+    }
+    
+    const vendorsPerHealthSystem = vendorCount / healthSystemCount;
+    const healthSystemsPerVendor = healthSystemCount / vendorCount;
+    
+    // Liquidity score: balanced marketplace has ratio close to 1
+    const liquidity = Math.min(vendorsPerHealthSystem, healthSystemsPerVendor) / Math.max(vendorsPerHealthSystem, healthSystemsPerVendor);
+    
+    logger.info({
+      vendorsPerHealthSystem: vendorsPerHealthSystem.toFixed(2),
+      healthSystemsPerVendor: healthSystemsPerVendor.toFixed(2),
+      liquidity: liquidity.toFixed(2),
+    }, "Cross-side liquidity calculated");
+    
+    return {
+      vendorsPerHealthSystem,
+      healthSystemsPerVendor,
+      liquidity,
+    };
+  }
+
+  /**
+   * Get vendor acceptance analytics - breakdown by health system
+   */
+  async getVendorAcceptanceAnalytics(): Promise<{
+    totalAcceptances: number;
+    acceptanceRate: number;
+    topHealthSystems: Array<{
+      id: string;
+      name: string;
+      acceptanceCount: number;
+      rfpRequirement: boolean;
+    }>;
+    acceptancesByMonth: Array<{
+      month: string;
+      count: number;
+    }>;
+  }> {
+    const allAcceptances = await db.select({
+      acceptance: vendorAcceptances,
+      healthSystem: healthSystems,
+    })
+      .from(vendorAcceptances)
+      .leftJoin(healthSystems, eq(vendorAcceptances.healthSystemId, healthSystems.id));
+    
+    const acceptedCount = allAcceptances.filter(a => a.acceptance.status === 'accepted').length;
+    const acceptanceRate = allAcceptances.length > 0 ? acceptedCount / allAcceptances.length : 0;
+    
+    // Group by health system
+    const byHealthSystem = new Map<string, { name: string; count: number; rfpRequired: boolean }>();
+    allAcceptances.forEach(a => {
+      if (a.acceptance.status === 'accepted' && a.healthSystem) {
+        const existing = byHealthSystem.get(a.healthSystem.id) || { name: a.healthSystem.name, count: 0, rfpRequired: false };
+        existing.count++;
+        if (a.acceptance.requiredInRFP) existing.rfpRequired = true;
+        byHealthSystem.set(a.healthSystem.id, existing);
+      }
+    });
+    
+    const topHealthSystems = Array.from(byHealthSystem.entries())
+      .map(([id, data]) => ({ id, name: data.name, acceptanceCount: data.count, rfpRequirement: data.rfpRequired }))
+      .sort((a, b) => b.acceptanceCount - a.acceptanceCount)
+      .slice(0, 10);
+    
+    // Group by month
+    const acceptancesByMonth = new Map<string, number>();
+    allAcceptances.forEach(a => {
+      if (a.acceptance.status === 'accepted' && a.acceptance.acceptedDate) {
+        const month = new Date(a.acceptance.acceptedDate).toISOString().slice(0, 7); // YYYY-MM
+        acceptancesByMonth.set(month, (acceptancesByMonth.get(month) || 0) + 1);
+      }
+    });
+    
+    return {
+      totalAcceptances: acceptedCount,
+      acceptanceRate,
+      topHealthSystems,
+      acceptancesByMonth: Array.from(acceptancesByMonth.entries())
+        .map(([month, count]) => ({ month, count }))
+        .sort((a, b) => a.month.localeCompare(b.month)),
+    };
+  }
+
+  /**
+   * Get RFP adoption tracking - how many health systems require Spectral in RFPs
+   */
+  async getRFPAdoptionMetrics(): Promise<{
+    totalHealthSystems: number;
+    healthSystemsRequiringSpectral: number;
+    rfpAdoptionRate: number;
+    spectralStandardAdopters: number;
+    recentAdoptions: Array<{
+      healthSystemName: string;
+      adoptedDate: Date;
+      publiclyAnnounced: boolean;
+    }>;
+  }> {
+    const allHealthSystems = await db.select().from(healthSystems);
+    const acceptancesWithRFP = await db.select().from(vendorAcceptances).where(eq(vendorAcceptances.requiredInRFP, true));
+    const healthSystemsWithRFPRequirement = new Set(acceptancesWithRFP.map(a => a.healthSystemId));
+    
+    const spectralAdoptions = await db.select({
+      adoption: spectralStandardAdoptions,
+      healthSystem: healthSystems,
+    })
+      .from(spectralStandardAdoptions)
+      .leftJoin(healthSystems, eq(spectralStandardAdoptions.healthSystemId, healthSystems.id))
+      .orderBy(desc(spectralStandardAdoptions.announcedDate))
+      .limit(10);
+    
+    return {
+      totalHealthSystems: allHealthSystems.length,
+      healthSystemsRequiringSpectral: healthSystemsWithRFPRequirement.size,
+      rfpAdoptionRate: allHealthSystems.length > 0 ? healthSystemsWithRFPRequirement.size / allHealthSystems.length : 0,
+      spectralStandardAdopters: spectralAdoptions.length,
+      recentAdoptions: spectralAdoptions.map(a => ({
+        healthSystemName: a.healthSystem?.name || 'Unknown',
+        adoptedDate: a.adoption.announcedDate,
+        publiclyAnnounced: a.adoption.publiclyAnnounced || false,
+      })),
+    };
+  }
 }
 
 export const networkMetricsCalculator = new NetworkMetricsCalculator();
