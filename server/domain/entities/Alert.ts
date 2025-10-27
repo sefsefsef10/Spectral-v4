@@ -38,6 +38,7 @@ export interface AlertProps {
   resolvedAt?: Date;
   resolvedBy?: string;
   responseTimeSeconds?: number;
+  slaDeadline?: Date;
   createdAt?: Date;
 }
 
@@ -52,13 +53,14 @@ export interface AlertProps {
  * 5. Deduplication by type + aiSystemId + similar message
  */
 export class Alert {
-  private constructor(private props: Required<Omit<AlertProps, 'id' | 'acknowledgedAt' | 'acknowledgedBy' | 'resolvedAt' | 'resolvedBy' | 'responseTimeSeconds' | 'metadata'>> & {
+  private constructor(private props: Required<Omit<AlertProps, 'id' | 'acknowledgedAt' | 'acknowledgedBy' | 'resolvedAt' | 'resolvedBy' | 'responseTimeSeconds' | 'metadata' | 'slaDeadline'>> & {
     id?: string;
     acknowledgedAt?: Date;
     acknowledgedBy?: string;
     resolvedAt?: Date;
     resolvedBy?: string;
     responseTimeSeconds?: number;
+    slaDeadline?: Date;
     metadata?: Record<string, unknown>;
   }) {}
 
@@ -106,10 +108,14 @@ export class Alert {
       throw new Error(`Invalid severity: ${props.severity}`);
     }
 
+    const createdAt = new Date();
+    const slaDeadline = Alert.calculateSLADeadline(props.severity, createdAt);
+
     return new Alert({
       ...props,
       status: 'active',
-      createdAt: new Date(),
+      createdAt,
+      slaDeadline,
     });
   }
 
@@ -136,6 +142,31 @@ export class Alert {
   // ============================================================
 
   /**
+   * Calculate SLA deadline based on severity
+   * Business Rule: Critical (2 min), High (4 hours), Medium (24 hours), Low (72 hours)
+   */
+  static calculateSLADeadline(severity: AlertSeverity, createdAt: Date): Date {
+    const deadline = new Date(createdAt);
+    
+    switch (severity) {
+      case 'critical':
+        deadline.setMinutes(deadline.getMinutes() + 2);
+        break;
+      case 'high':
+        deadline.setHours(deadline.getHours() + 4);
+        break;
+      case 'medium':
+        deadline.setHours(deadline.getHours() + 24);
+        break;
+      case 'low':
+        deadline.setHours(deadline.getHours() + 72);
+        break;
+    }
+    
+    return deadline;
+  }
+
+  /**
    * Calculate alert severity based on type and metadata
    * Business Rule: PHI/security breaches are always critical, compliance violations vary by impact
    */
@@ -155,13 +186,16 @@ export class Alert {
       return 'high';
     }
 
-    // Medium to High: Performance issues based on impact
+    // Low to High: Performance issues based on impact
     if (type === 'performance_degradation' || type === 'latency_degradation') {
       const percentDegraded = metadata?.percentDegraded as number;
       if (percentDegraded && percentDegraded > 50) {
         return 'high';
       }
-      return 'medium';
+      if (percentDegraded && percentDegraded > 10) {
+        return 'medium';
+      }
+      return 'low';
     }
 
     // Medium to High: Error spikes based on rate
@@ -259,8 +293,8 @@ export class Alert {
    * Acknowledge the alert (someone is working on it)
    */
   acknowledge(userId: string): void {
-    if (this.props.status === 'resolved' || this.props.status === 'dismissed') {
-      throw new Error('Cannot acknowledge a resolved or dismissed alert');
+    if (this.props.status !== 'active') {
+      throw new Error('Cannot acknowledge alert that is not active');
     }
 
     this.props.status = 'acknowledged';
@@ -272,8 +306,8 @@ export class Alert {
    * Resolve the alert (issue is fixed)
    */
   resolve(userId: string): void {
-    if (this.props.status === 'dismissed') {
-      throw new Error('Cannot resolve a dismissed alert');
+    if (this.props.status !== 'active' && this.props.status !== 'acknowledged') {
+      throw new Error('Alert must be in active or acknowledged state to resolve');
     }
 
     this.props.status = 'resolved';
@@ -461,6 +495,10 @@ export class Alert {
 
   get responseTimeSeconds(): number | undefined {
     return this.props.responseTimeSeconds;
+  }
+
+  get slaDeadline(): Date | undefined {
+    return this.props.slaDeadline;
   }
 
   get createdAt(): Date {

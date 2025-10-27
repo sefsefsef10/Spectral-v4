@@ -9,6 +9,10 @@ export interface HealthCheckExecutor {
   execute(endpoint: string, expectedStatus: number, timeout: number): Promise<{ success: boolean; error?: string }>;
 }
 
+export interface RollbackExecutor {
+  execute(deploymentId: string, reason: string): Promise<void>;
+}
+
 export interface ExecuteHealthCheckInput {
   deploymentId: string;
 }
@@ -23,7 +27,8 @@ export interface ExecuteHealthCheckResult {
 export class ExecuteHealthCheckUseCase {
   constructor(
     private deploymentRepository: IDeploymentRepository,
-    private healthCheckExecutor: HealthCheckExecutor
+    private healthCheckExecutor: HealthCheckExecutor,
+    private rollbackExecutor?: RollbackExecutor
   ) {}
 
   async execute(input: ExecuteHealthCheckInput): Promise<ExecuteHealthCheckResult> {
@@ -41,13 +46,21 @@ export class ExecuteHealthCheckUseCase {
       deployment.recordHealthCheckResult(check.endpoint, result.success, result.error);
     }
 
+    const shouldRollback = deployment.shouldTriggerAutoRollback();
+    
+    // Trigger auto-rollback if threshold exceeded
+    if (shouldRollback && this.rollbackExecutor) {
+      deployment.rollback('Auto-rollback triggered due to health check failures');
+      await this.rollbackExecutor.execute(deployment.id!, 'Auto-rollback triggered due to health check failures');
+    }
+    
     await this.deploymentRepository.save(deployment);
 
     return {
       deploymentId: deployment.id!,
       allHealthy: deployment.areAllHealthChecksPassing(),
       unhealthyCount: deployment.getUnhealthyCheckCount(),
-      shouldRollback: deployment.shouldTriggerAutoRollback(),
+      shouldRollback,
     };
   }
 }

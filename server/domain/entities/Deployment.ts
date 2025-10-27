@@ -23,8 +23,8 @@ export interface HealthCheck {
 export interface RollbackPolicy {
   autoRollback: boolean;
   errorThreshold: number; // Percentage of failed requests to trigger rollback
-  healthCheckFailures: number; // Consecutive failures to trigger rollback
-  timeWindow: number; // Minutes to monitor
+  healthCheckFailureThreshold: number; // Consecutive failures to trigger rollback
+  timeWindow?: number; // Minutes to monitor
 }
 
 export interface DeploymentProps {
@@ -237,7 +237,7 @@ export class Deployment {
     }
 
     const errorThresholdExceeded = (this.props.errorRate || 0) >= this.props.rollbackPolicy.errorThreshold;
-    const healthCheckFailuresExceeded = (this.props.consecutiveHealthCheckFailures || 0) >= this.props.rollbackPolicy.healthCheckFailures;
+    const healthCheckFailuresExceeded = (this.props.consecutiveHealthCheckFailures || 0) >= this.props.rollbackPolicy.healthCheckFailureThreshold;
 
     return errorThresholdExceeded || healthCheckFailuresExceeded;
   }

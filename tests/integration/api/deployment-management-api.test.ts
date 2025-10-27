@@ -196,7 +196,7 @@ describe('Deployment Management API Integration Tests', () => {
       const createUseCase = new CreateDeploymentUseCase(deploymentRepository);
       const listUseCase = new ListDeploymentsUseCase(deploymentRepository);
 
-      const deployment1 = await createUseCase.execute({
+      const result1 = await createUseCase.execute({
         aiSystemId: 'ai-system-1',
         version: 'v1.0.0',
         strategy: 'blue_green',
@@ -206,8 +206,10 @@ describe('Deployment Management API Integration Tests', () => {
       });
 
       // Simulate deployment completion
-      deployment1.complete();
-      await deploymentRepository.save(deployment1);
+      const deployment1 = await deploymentRepository.findById(result1.id!);
+      deployment1!.start();
+      deployment1!.markHealthy();
+      await deploymentRepository.save(deployment1!);
 
       await createUseCase.execute({
         aiSystemId: 'ai-system-2',
@@ -219,10 +221,10 @@ describe('Deployment Management API Integration Tests', () => {
         createdBy: 'admin',
       });
 
-      const result = await listUseCase.execute({ status: 'deployed' });
+      const result = await listUseCase.execute({ status: 'healthy' });
 
       expect(result).toHaveLength(1);
-      expect(result[0].status).toBe('deployed');
+      expect(result[0].status).toBe('healthy');
     });
   });
 
@@ -243,7 +245,7 @@ describe('Deployment Management API Integration Tests', () => {
 
       // Transition to in_progress to allow canary advancement
       const fetched = await deploymentRepository.findById(deployment.id!);
-      fetched!.startDeployment();
+      fetched!.start();
       await deploymentRepository.save(fetched!);
 
       const result = await advanceUseCase.execute({ deploymentId: deployment.id! });
@@ -267,13 +269,13 @@ describe('Deployment Management API Integration Tests', () => {
 
       // Transition to in_progress to allow canary advancement
       const fetched = await deploymentRepository.findById(deployment.id!);
-      fetched!.startDeployment();
+      fetched!.start();
       await deploymentRepository.save(fetched!);
 
       const result = await advanceUseCase.execute({ deploymentId: deployment.id! });
 
       expect(result.canaryPercentage).toBe(100);
-      expect(result.status).toBe('deployed');
+      expect(result.status).toBe('healthy');
     });
 
     it('should reject advancing non-canary deployment', async () => {
@@ -351,7 +353,7 @@ describe('Deployment Management API Integration Tests', () => {
 
     it('should trigger auto-rollback on health check failures', async () => {
       const createUseCase = new CreateDeploymentUseCase(deploymentRepository);
-      const healthCheckUseCase = new ExecuteHealthCheckUseCase(deploymentRepository, healthCheckExecutor);
+      const healthCheckUseCase = new ExecuteHealthCheckUseCase(deploymentRepository, healthCheckExecutor, rollbackExecutor);
 
       // Configure mock to return failures
       healthCheckExecutor.setResult('/health', false, 'Connection timeout');
@@ -364,6 +366,11 @@ describe('Deployment Management API Integration Tests', () => {
         rollbackPolicy: { autoRollback: true, errorThreshold: 0.05, healthCheckFailureThreshold: 3 },
         createdBy: 'admin',
       });
+
+      // Start deployment first
+      const fetched = await deploymentRepository.findById(deployment.id!);
+      fetched!.start();
+      await deploymentRepository.save(fetched!);
 
       // Fail health checks 3 times
       for (let i = 0; i < 3; i++) {

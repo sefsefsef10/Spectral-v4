@@ -122,16 +122,12 @@ export class MockAlertRepository implements IAlertRepository {
   async findByDeduplicationKey(key: string, withinHours: number): Promise<Alert | null> {
     const timeThreshold = new Date(Date.now() - withinHours * 60 * 60 * 1000);
     
-    // Parse the deduplication key: "aiSystemId:type:severity"
-    const [aiSystemId, type, severity] = key.split(':');
-    
+    // Find alerts with matching deduplication key within time window
     for (const alert of this.alerts.values()) {
       if (
-        alert.aiSystemId === aiSystemId &&
-        alert.type === type &&
-        alert.severity === severity &&
+        alert.getDeduplicationKey() === key &&
         alert.createdAt >= timeThreshold &&
-        alert.status === 'open'
+        alert.status === 'active'
       ) {
         return alert;
       }
@@ -148,8 +144,32 @@ export class MockAlertRepository implements IAlertRepository {
         a.type === alert.type &&
         a.severity === alert.severity &&
         a.createdAt >= oneHourAgo &&
-        a.status === 'open'
+        a.status === 'active'
     );
+  }
+
+  async findAll(filters?: {
+    healthSystemId?: string;
+    aiSystemId?: string;
+    status?: string;
+    severity?: string;
+  }): Promise<Alert[]> {
+    let results = Array.from(this.alerts.values());
+
+    if (filters?.healthSystemId) {
+      results = results.filter(a => a.healthSystemId === filters.healthSystemId);
+    }
+    if (filters?.aiSystemId) {
+      results = results.filter(a => a.aiSystemId === filters.aiSystemId);
+    }
+    if (filters?.status) {
+      results = results.filter(a => a.status === filters.status);
+    }
+    if (filters?.severity) {
+      results = results.filter(a => a.severity === filters.severity);
+    }
+
+    return results;
   }
 
   async exists(id: string): Promise<boolean> {

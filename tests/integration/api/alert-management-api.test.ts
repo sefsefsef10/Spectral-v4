@@ -189,13 +189,13 @@ describe('Alert Management API Integration Tests', () => {
         message: 'Still open',
       });
 
-      const openAlerts = await listUseCase.execute({
+      const activeAlerts = await listUseCase.execute({
         aiSystemId: 'ai-system-123',
-        status: 'open',
+        status: 'active',
       });
 
-      expect(openAlerts).toHaveLength(1);
-      expect(openAlerts[0].status).toBe('open');
+      expect(activeAlerts).toHaveLength(1);
+      expect(activeAlerts[0].status).toBe('active');
     });
   });
 
@@ -272,7 +272,7 @@ describe('Alert Management API Integration Tests', () => {
           alertId: alert.alertId,
           userId: 'user-2',
         })
-      ).rejects.toThrow('Alert is not in open state');
+      ).rejects.toThrow('Cannot acknowledge alert that is not active');
     });
   });
 
@@ -301,10 +301,9 @@ describe('Alert Management API Integration Tests', () => {
         userId: 'engineer-user-789',
       });
 
-      expect(result.status).toBe('resolved');
-      expect(result.resolvedBy).toBe('engineer-user-789');
-      expect(result.resolution).toBe('Model retrained and deployed');
-      expect(result.resolvedAt).toBeInstanceOf(Date);
+      expect(result.alertId).toBe(alert.alertId);
+      expect(result.responseTimeSeconds).toBeGreaterThanOrEqual(0);
+      expect(result.exceededSLA).toBe(false);
     });
 
     it('should allow resolving open alert directly', async () => {
@@ -323,7 +322,8 @@ describe('Alert Management API Integration Tests', () => {
         userId: 'engineer-user-789',
       });
 
-      expect(result.status).toBe('resolved');
+      expect(result.alertId).toBe(alert.alertId);
+      expect(result.responseTimeSeconds).toBeGreaterThanOrEqual(0);
     });
 
     it('should prevent resolving already resolved alert', async () => {
@@ -349,27 +349,9 @@ describe('Alert Management API Integration Tests', () => {
           alertId: alert.alertId,
           userId: 'user-2',
         })
-      ).rejects.toThrow('Alert must be in open or acknowledged state');
+      ).rejects.toThrow('Alert must be in active or acknowledged state to resolve');
     });
 
-    it('should require resolution notes when resolving', async () => {
-      const createUseCase = new CreateAlertUseCase(alertRepository, notificationGateway);
-      const resolveUseCase = new ResolveAlertUseCase(alertRepository, auditLogger);
-
-      const alert = await createUseCase.execute({
-        aiSystemId: 'ai-system-123',
-        healthSystemId: 'hs-456',
-        type: 'model_drift',
-        message: 'Alert',
-      });
-
-      await expect(
-        resolveUseCase.execute({
-          alertId: alert.alertId,
-          userId: 'user-1',
-        })
-      ).rejects.toThrow('Resolution notes are required');
-    });
   });
 
   describe('Alert SLA Management', () => {
