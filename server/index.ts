@@ -209,6 +209,10 @@ app.use(express.urlencoded({ extended: false }));
   }
 
   const server = await registerRoutes(app);
+  
+  // Register Clean Architecture routes
+  const { registerCleanArchitectureRoutes } = await import("./api/register-routes");
+  registerCleanArchitectureRoutes(app);
 
   app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

@@ -5,7 +5,7 @@
 import { eq } from 'drizzle-orm';
 import { Deployment, type DeploymentStrategy } from '../../domain/entities/Deployment';
 import type { DeploymentRepository } from '../../application/deployment/ValidateDeploymentUseCase';
-import { db } from '../../storage';
+import { db } from '../../db';
 import { aiSystemDeployments } from '../../../shared/schema';
 
 export class DrizzleDeploymentRepository implements DeploymentRepository {

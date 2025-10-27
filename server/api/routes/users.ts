@@ -6,16 +6,20 @@
 import { Router } from 'express';
 import { UserController } from '../controllers/UserController';
 import { rateLimitMiddleware } from '../middleware/rateLimitMiddleware';
+import { requireAuth } from '../../routes';
 
 const router = Router();
 
 // Apply rate limiting to all user routes
 router.use(rateLimitMiddleware);
 
+// Apply authentication to all user routes
+router.use(requireAuth);
+
 /**
  * @route   POST /api/users/register
  * @desc    Register a new user
- * @access  Public
+ * @access  Protected (Admin only)
  */
 router.post('/register', UserController.register);
 

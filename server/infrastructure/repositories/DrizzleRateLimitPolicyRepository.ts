@@ -5,7 +5,7 @@
 import { eq } from 'drizzle-orm';
 import { RateLimitPolicy, type RateLimitTier } from '../../domain/entities/RateLimitPolicy';
 import type { RateLimitPolicyRepository } from '../../application/rate-limiting/CheckRateLimitUseCase';
-import { db } from '../../storage';
+import { db } from '../../db';
 import { rateLimitPolicies } from '../../../shared/schema';
 
 export class DrizzleRateLimitPolicyRepository implements RateLimitPolicyRepository {
