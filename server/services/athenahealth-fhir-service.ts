@@ -9,6 +9,25 @@ interface AthenahealthFHIRConfig {
   practiceId: string;
 }
 
+interface TokenCache {
+  accessToken: string;
+  expiresAt: number;
+}
+
+// Retry configuration
+const RETRY_CONFIG = {
+  maxRetries: 3,
+  initialDelayMs: 1000,
+  maxDelayMs: 10000,
+  backoffMultiplier: 2,
+};
+
+// Rate limiting
+const RATE_LIMIT = {
+  requestsPerSecond: 10,
+  lastRequestTime: 0,
+};
+
 interface AthenaDevice {
   resourceType: 'Device';
   id: string;
@@ -22,19 +41,21 @@ interface AthenaDevice {
 }
 
 export class AthenahealthFHIRService {
+  private tokenCache: Map<string, TokenCache> = new Map();
+
   /**
-   * Discover AI systems from athenahealth FHIR Device API
+   * Discover AI systems from athenahealth FHIR Device API with retry logic
    * Athenahealth FHIR R4 Device resource: https://docs.athenahealth.com/api/fhir/device
    */
   async discoverAISystems(config: AthenahealthFHIRConfig): Promise<DiscoveredAISystem[]> {
     try {
       logger.info({ fhirBaseUrl: config.fhirBaseUrl }, 'Athenahealth FHIR AI discovery started');
 
-      // Step 1: Authenticate using Athenahealth OAuth 2.0
-      const accessToken = await this.authenticate(config);
+      // Step 1: Authenticate using Athenahealth OAuth 2.0 (with token caching)
+      const accessToken = await this.getValidToken(config);
 
-      // Step 2: Query Device resources
-      const devices = await this.queryDevices(config.fhirBaseUrl, accessToken, config.practiceId);
+      // Step 2: Query Device resources with retry logic
+      const devices = await this.queryDevicesWithRetry(config.fhirBaseUrl, accessToken, config.practiceId);
 
       // Step 3: Transform Athenahealth Device resources to DiscoveredAISystem format
       const aiSystems = this.transformDevicesToAISystems(devices);
@@ -42,36 +63,129 @@ export class AthenahealthFHIRService {
       logger.info({ count: aiSystems.length }, 'Athenahealth FHIR AI discovery complete');
       return aiSystems;
     } catch (error) {
-      logger.error({ err: error }, 'Athenahealth FHIR discovery failed');
-      throw error;
+      logger.error({ err: error }, 'Athenahealth FHIR discovery failed - returning empty array');
+      // Graceful degradation: return empty array instead of crashing discovery job
+      return [];
     }
+  }
+
+  /**
+   * Get valid access token (from cache or authenticate)
+   */
+  private async getValidToken(config: AthenahealthFHIRConfig): Promise<string> {
+    const cacheKey = `${config.clientId}:${config.tokenUrl}`;
+    const cached = this.tokenCache.get(cacheKey);
+
+    // Check if cached token is still valid (with 5 minute buffer)
+    if (cached && Date.now() < cached.expiresAt - 5 * 60 * 1000) {
+      logger.debug('Using cached Athenahealth access token');
+      return cached.accessToken;
+    }
+
+    // Authenticate and cache new token
+    const { accessToken, expiresIn } = await this.authenticate(config);
+    this.tokenCache.set(cacheKey, {
+      accessToken,
+      expiresAt: Date.now() + expiresIn * 1000,
+    });
+
+    return accessToken;
+  }
+
+  /**
+   * Rate limit API requests
+   */
+  private async rateLimit(): Promise<void> {
+    const now = Date.now();
+    const timeSinceLastRequest = now - RATE_LIMIT.lastRequestTime;
+    const minInterval = 1000 / RATE_LIMIT.requestsPerSecond;
+
+    if (timeSinceLastRequest < minInterval) {
+      const delay = minInterval - timeSinceLastRequest;
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+
+    RATE_LIMIT.lastRequestTime = Date.now();
+  }
+
+  /**
+   * Query devices with exponential backoff retry
+   */
+  private async queryDevicesWithRetry(fhirBaseUrl: string, accessToken: string, practiceId: string): Promise<AthenaDevice[]> {
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
+      try {
+        if (attempt > 0) {
+          const delay = Math.min(
+            RETRY_CONFIG.initialDelayMs * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt - 1),
+            RETRY_CONFIG.maxDelayMs
+          );
+          logger.info({ attempt, delayMs: delay }, 'Retrying Athenahealth FHIR request');
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+
+        await this.rateLimit();
+        return await this.queryDevices(fhirBaseUrl, accessToken, practiceId);
+      } catch (error: any) {
+        lastError = error;
+        
+        // Don't retry on authentication errors (4xx), but invalidate cached token on 401
+        if (error.status >= 400 && error.status < 500) {
+          if (error.status === 401) {
+            // Invalidate cached token on auth failure
+            const cacheKey = Object.keys(Object.fromEntries(this.tokenCache))[0];
+            if (cacheKey) this.tokenCache.delete(cacheKey);
+            logger.warn('Athenahealth FHIR 401 - invalidated cached token');
+          }
+          logger.warn({ status: error.status }, 'Athenahealth FHIR client error - not retrying');
+          throw error;
+        }
+
+        // Retry on 5xx and network errors
+        logger.warn({ attempt, error: error.message }, 'Athenahealth FHIR request failed');
+      }
+    }
+
+    throw lastError || new Error('Athenahealth FHIR request failed after retries');
   }
 
   /**
    * Authenticate with Athenahealth using OAuth 2.0 Client Credentials
    * Athenahealth OAuth: https://docs.athenahealth.com/api/guides/authentication
    */
-  private async authenticate(config: AthenahealthFHIRConfig): Promise<string> {
-    const response = await fetch(config.tokenUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        grant_type: 'client_credentials',
-        client_id: config.clientId,
-        client_secret: config.clientSecret,
-        scope: 'system/Device.read',
-      }),
-    });
+  private async authenticate(config: AthenahealthFHIRConfig): Promise<{ accessToken: string; expiresIn: number }> {
+    try {
+      const response = await fetch(config.tokenUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          grant_type: 'client_credentials',
+          client_id: config.clientId,
+          client_secret: config.clientSecret,
+          scope: 'system/Device.read',
+        }),
+      });
 
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Athenahealth authentication failed: ${error}`);
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw Object.assign(
+          new Error(`Athenahealth OAuth failed: ${response.status} ${response.statusText}`),
+          { status: response.status, body: errorText }
+        );
+      }
+
+      const tokenData = await response.json();
+      return {
+        accessToken: tokenData.access_token,
+        expiresIn: tokenData.expires_in || 3600, // Default to 1 hour if not provided
+      };
+    } catch (error: any) {
+      logger.error({ err: error }, 'Athenahealth authentication failed');
+      throw error;
     }
-
-    const tokenData = await response.json();
-    return tokenData.access_token;
   }
 
   /**
@@ -90,8 +204,11 @@ export class AthenahealthFHIRService {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Athenahealth Device query failed: ${error}`);
+      const errorText = await response.text().catch(() => 'Unknown error');
+      throw Object.assign(
+        new Error(`Athenahealth Device query failed: ${response.status} ${response.statusText}`),
+        { status: response.status, body: errorText }
+      );
     }
 
     const bundle = await response.json();
