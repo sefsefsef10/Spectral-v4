@@ -14,6 +14,8 @@ import Stripe from 'stripe';
 import { stripeBillingService, HEALTH_SYSTEM_PRICING, VENDOR_PRICING } from '../services/stripe-billing';
 import { storage } from '../storage';
 import { logger } from '../logger';
+import { isFeatureEnabled } from '../config/feature-flags';
+import { billingController } from '../api-adapters/BillingController';
 
 if (!process.env.STRIPE_SECRET_KEY) {
   logger.warn('STRIPE_SECRET_KEY not set - billing routes will not function');
@@ -53,8 +55,16 @@ export function registerBillingRoutes(app: Express) {
   /**
    * POST /api/billing/subscriptions/health-system
    * Create subscription for health system
+   * 
+   * ⚡ FEATURE FLAG: Uses Clean Architecture implementation when enabled
    */
   app.post('/api/billing/subscriptions/health-system', requireAuth, async (req, res) => {
+    // Feature flag: Use Clean Architecture or legacy implementation
+    if (isFeatureEnabled('useCleanArchitectureBilling')) {
+      return billingController.createHealthSystemSubscription(req, res);
+    }
+    
+    // Legacy implementation (to be deprecated)
     try {
       const user = await storage.getUser(req.session.userId!);
       if (!user) {
@@ -72,7 +82,7 @@ export function registerBillingRoutes(app: Express) {
         tier
       );
       
-      logger.info({ healthSystemId: user.healthSystemId, tier }, 'Health system subscription created');
+      logger.info({ healthSystemId: user.healthSystemId, tier }, 'Health system subscription created (legacy)');
       
       res.json(result);
     } catch (error) {
@@ -143,8 +153,16 @@ export function registerBillingRoutes(app: Express) {
   /**
    * GET /api/billing/usage/ai-systems
    * Check usage limits for AI systems
+   * 
+   * ⚡ FEATURE FLAG: Uses Clean Architecture implementation when enabled
    */
   app.get('/api/billing/usage/ai-systems', requireAuth, async (req, res) => {
+    // Feature flag: Use Clean Architecture or legacy implementation
+    if (isFeatureEnabled('useCleanArchitectureBilling')) {
+      return billingController.checkAISystemUsageLimits(req, res);
+    }
+    
+    // Legacy implementation (to be deprecated)
     try {
       const user = await storage.getUser(req.session.userId!);
       if (!user) {
