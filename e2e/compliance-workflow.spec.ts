@@ -2,7 +2,6 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Compliance Certification Workflow (E2E)', () => {
   test.beforeEach(async ({ page }) => {
-    // Navigate to login page
     await page.goto('/');
   });
 
