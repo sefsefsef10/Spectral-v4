@@ -1,0 +1,65 @@
+{
+  "rules": {
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": ["../../infrastructure/*"],
+            "message": "Domain layer cannot import from infrastructure layer. Use dependency injection instead."
+          },
+          {
+            "group": ["../../application/*"],
+            "message": "Domain layer cannot import from application layer. Domain is the core."
+          },
+          {
+            "group": ["express", "drizzle-orm", "@neondatabase/*"],
+            "message": "Domain layer must be framework-agnostic. No infrastructure dependencies allowed."
+          }
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["server/domain/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["**/infrastructure/**"],
+                "message": "Domain cannot depend on infrastructure"
+              },
+              {
+                "group": ["**/application/**"],
+                "message": "Domain cannot depend on application layer"
+              },
+              {
+                "group": ["express", "drizzle-orm", "@neondatabase/*", "stripe"],
+                "message": "Domain must be framework-agnostic"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["server/application/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["express", "fastify"],
+                "message": "Application layer should not know about HTTP frameworks"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
