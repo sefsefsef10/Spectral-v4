@@ -7988,6 +7988,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const { registerCustomizationRoutes } = await import("./routes/customization");
   registerCustomizationRoutes(app);
 
+  // 🔄 Sentinel Rollback Routes (Automated Reliability)
+  const { registerRollbackRoutes } = await import("./routes/rollback");
+  registerRollbackRoutes(app);
+
   // 🌐 Public API Routes (Network Effects - NO AUTH REQUIRED)
   const { publicRouter } = await import("./routes/public");
   app.use("/api/public", publicRouter);

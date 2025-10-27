@@ -5,6 +5,23 @@ Spectral is a B2B SaaS platform for AI governance, monitoring, and compliance in
 
 ## Recent Changes
 
+### October 27, 2025 - Sentinel Rollback Infrastructure (IN PROGRESS)
+**Gap Remediation: Building Production-Ready Rollback Automation**
+
+Implementing automated rollback infrastructure for AI system deployments to achieve reliability goals for acquisition readiness.
+
+**Completed Components:**
+- ✅ **Rollback Service** (server/services/rollback-service.ts): Policy management, deployment tracking, automated/manual rollback execution, approval workflows, cooldown enforcement
+- ✅ **Rollback API Routes** (server/routes/rollback.ts): RESTful endpoints for policy CRUD, deployment history, rollback execution, and approvals
+- ✅ **Database Schema**: rollbackPolicies, deploymentHistory, rollbackExecutions tables with audit trail
+- ✅ **Server Integration**: Routes wired into main server application
+- ✅ **Regulatory Guardrails Complete**: All customization vectors (threshold, toggle, custom control) now validated
+- ✅ **Public Vendor Marketplace**: Server + client routing for network effects distribution
+
+**In Progress:**
+- ⏳ Action executor integration for automatic rollback triggers
+- ⏳ Database schema push (connection issues during migration)
+
 ### October 27, 2025 - A+ Production Readiness Achievement (COMPLETE)
 **PLATFORM STATUS: A+ (98/100) → Enterprise-Grade Production Ready**
 
