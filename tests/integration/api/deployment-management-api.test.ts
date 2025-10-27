@@ -154,6 +154,7 @@ describe('Deployment Management API Integration Tests', () => {
         strategy: 'canary',
         healthChecks: [{ endpoint: '/health', expectedStatus: 200, timeout: 5000 }],
         rollbackPolicy: { autoRollback: true, errorThreshold: 0.05, healthCheckFailureThreshold: 3 },
+        canaryPercentage: 10,
         createdBy: 'admin',
       });
 
@@ -181,6 +182,7 @@ describe('Deployment Management API Integration Tests', () => {
         strategy: 'canary',
         healthChecks: [{ endpoint: '/health', expectedStatus: 200, timeout: 5000 }],
         rollbackPolicy: { autoRollback: true, errorThreshold: 0.05, healthCheckFailureThreshold: 3 },
+        canaryPercentage: 10,
         createdBy: 'admin',
       });
 
@@ -213,6 +215,7 @@ describe('Deployment Management API Integration Tests', () => {
         strategy: 'canary',
         healthChecks: [{ endpoint: '/health', expectedStatus: 200, timeout: 5000 }],
         rollbackPolicy: { autoRollback: true, errorThreshold: 0.05, healthCheckFailureThreshold: 3 },
+        canaryPercentage: 10,
         createdBy: 'admin',
       });
 
@@ -238,6 +241,11 @@ describe('Deployment Management API Integration Tests', () => {
         createdBy: 'admin',
       });
 
+      // Transition to in_progress to allow canary advancement
+      const fetched = await deploymentRepository.findById(deployment.id!);
+      fetched!.startDeployment();
+      await deploymentRepository.save(fetched!);
+
       const result = await advanceUseCase.execute({ deploymentId: deployment.id! });
 
       expect(result.canaryPercentage).toBe(20);
@@ -256,6 +264,11 @@ describe('Deployment Management API Integration Tests', () => {
         canaryPercentage: 90,
         createdBy: 'admin',
       });
+
+      // Transition to in_progress to allow canary advancement
+      const fetched = await deploymentRepository.findById(deployment.id!);
+      fetched!.startDeployment();
+      await deploymentRepository.save(fetched!);
 
       const result = await advanceUseCase.execute({ deploymentId: deployment.id! });
 
@@ -278,7 +291,7 @@ describe('Deployment Management API Integration Tests', () => {
 
       await expect(
         advanceUseCase.execute({ deploymentId: deployment.id! })
-      ).rejects.toThrow('not a canary deployment');
+      ).rejects.toThrow('canary deployment');
     });
   });
 

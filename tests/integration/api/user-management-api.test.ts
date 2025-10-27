@@ -218,7 +218,7 @@ describe('User Management API Integration Tests', () => {
         deactivatedBy: admin.id!,
       });
 
-      expect(result.status).toBe('deactivated');
+      expect(result.status).toBe('inactive');
     });
 
     it('should reject deactivation of non-existent user', async () => {

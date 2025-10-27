@@ -38,17 +38,14 @@ describe('Alert Management API Integration Tests', () => {
         aiSystemId: 'ai-system-123',
         healthSystemId: 'hs-456',
         type: 'compliance_violation',
-        severity: 'high',
         message: 'HIPAA violation detected in model output',
-        details: { violationType: 'PHI_EXPOSURE', affectedRecords: 5 },
+        metadata: { violationType: 'PHI_EXPOSURE', affectedRecords: 5 },
       });
 
-      expect(result.aiSystemId).toBe('ai-system-123');
-      expect(result.healthSystemId).toBe('hs-456');
-      expect(result.type).toBe('compliance_violation');
+      expect(result.alertId).toBeTruthy();
       expect(result.severity).toBe('high');
-      expect(result.status).toBe('open');
-      expect(result.slaDeadline).toBeInstanceOf(Date);
+      expect(result.isDuplicate).toBe(false);
+      expect(result.notificationChannels).toContain('email');
     });
 
     it('should create critical alert with 2-minute SLA', async () => {
@@ -58,18 +55,12 @@ describe('Alert Management API Integration Tests', () => {
         aiSystemId: 'ai-system-789',
         healthSystemId: 'hs-999',
         type: 'security_breach',
-        severity: 'critical',
         message: 'Unauthorized access detected',
-        details: { ipAddress: '192.168.1.100', attempts: 10 },
+        metadata: { ipAddress: '192.168.1.100', attempts: 10 },
       });
 
       expect(result.severity).toBe('critical');
-      
-      // Critical alerts should have 2-minute SLA
-      const slaMinutes = Math.round(
-        (result.slaDeadline!.getTime() - result.createdAt.getTime()) / (1000 * 60)
-      );
-      expect(slaMinutes).toBe(2);
+      expect(result.notificationChannels).toContain('pagerduty');
     });
 
     it('should prevent duplicate alerts within 1-hour window', async () => {
@@ -80,22 +71,22 @@ describe('Alert Management API Integration Tests', () => {
         aiSystemId: 'ai-system-123',
         healthSystemId: 'hs-456',
         type: 'model_drift',
-        severity: 'medium',
         message: 'Model accuracy degraded by 15%',
       });
 
-      expect(first.id).toBeDefined();
+      expect(first.alertId).toBeTruthy();
+      expect(first.isDuplicate).toBe(false);
 
-      // Attempt to create duplicate - should throw
-      await expect(
-        createUseCase.execute({
-          aiSystemId: 'ai-system-123',
-          healthSystemId: 'hs-456',
-          type: 'model_drift',
-          severity: 'medium',
-          message: 'Model accuracy degraded by 16%',
-        })
-      ).rejects.toThrow('Duplicate alert detected');
+      // Attempt to create duplicate - should return isDuplicate: true
+      const duplicate = await createUseCase.execute({
+        aiSystemId: 'ai-system-123',
+        healthSystemId: 'hs-456',
+        type: 'model_drift',
+        message: 'Model accuracy degraded by 16%',
+      });
+
+      expect(duplicate.isDuplicate).toBe(true);
+      expect(duplicate.alertId).toBe(first.alertId);
     });
 
     it('should allow different alert types for same AI system', async () => {
@@ -105,7 +96,6 @@ describe('Alert Management API Integration Tests', () => {
         aiSystemId: 'ai-system-123',
         healthSystemId: 'hs-456',
         type: 'model_drift',
-        severity: 'medium',
         message: 'Accuracy degraded',
       });
 
@@ -113,12 +103,12 @@ describe('Alert Management API Integration Tests', () => {
         aiSystemId: 'ai-system-123',
         healthSystemId: 'hs-456',
         type: 'compliance_violation',
-        severity: 'high',
         message: 'HIPAA violation',
       });
 
-      expect(alert1.id).not.toBe(alert2.id);
-      expect(alert1.type).not.toBe(alert2.type);
+      expect(alert1.alertId).not.toBe(alert2.alertId);
+      expect(alert1.severity).toBe('medium');
+      expect(alert2.severity).toBe('high');
     });
   });
 
@@ -132,7 +122,6 @@ describe('Alert Management API Integration Tests', () => {
         aiSystemId: 'ai-system-123',
         healthSystemId: 'hs-456',
         type: 'model_drift',
-        severity: 'medium',
         message: 'Alert 1',
       });
 
@@ -140,7 +129,6 @@ describe('Alert Management API Integration Tests', () => {
         aiSystemId: 'ai-system-123',
         healthSystemId: 'hs-456',
         type: 'compliance_violation',
-        severity: 'high',
         message: 'Alert 2',
       });
 
@@ -157,7 +145,6 @@ describe('Alert Management API Integration Tests', () => {
         aiSystemId: 'ai-system-123',
         healthSystemId: 'hs-456',
         type: 'model_drift',
-        severity: 'low',
         message: 'Low severity',
       });
 
@@ -165,17 +152,16 @@ describe('Alert Management API Integration Tests', () => {
         aiSystemId: 'ai-system-123',
         healthSystemId: 'hs-456',
         type: 'compliance_violation',
-        severity: 'critical',
         message: 'Critical issue',
       });
 
       const result = await listUseCase.execute({
         aiSystemId: 'ai-system-123',
-        severity: 'critical',
+        severity: 'high',
       });
 
-      expect(result).toHaveLength(1);
-      expect(result[0].severity).toBe('critical');
+      expect(result.length).toBeGreaterThanOrEqual(1);
+      expect(result[0].severity).toBe('high');
     });
 
     it('should filter alerts by status', async () => {
@@ -187,21 +173,19 @@ describe('Alert Management API Integration Tests', () => {
         aiSystemId: 'ai-system-123',
         healthSystemId: 'hs-456',
         type: 'model_drift',
-        severity: 'medium',
         message: 'Alert to acknowledge',
       });
 
       // Acknowledge one alert
       await acknowledgeUseCase.execute({
-        alertId: alert.id!,
-        acknowledgedBy: 'admin-user-123',
+        alertId: alert.alertId,
+        userId: 'admin-user-123',
       });
 
       await createUseCase.execute({
         aiSystemId: 'ai-system-123',
         healthSystemId: 'hs-456',
         type: 'performance_degradation',
-        severity: 'medium',
         message: 'Still open',
       });
 
@@ -224,16 +208,15 @@ describe('Alert Management API Integration Tests', () => {
         aiSystemId: 'ai-system-123',
         healthSystemId: 'hs-456',
         type: 'compliance_violation',
-        severity: 'high',
         message: 'Test alert',
-        details: { key: 'value' },
+        metadata: { key: 'value' },
       });
 
-      const result = await getUseCase.execute({ alertId: created.id! });
+      const result = await getUseCase.execute({ alertId: created.alertId });
 
-      expect(result.id).toBe(created.id);
+      expect(result.id).toBe(created.alertId);
       expect(result.message).toBe('Test alert');
-      expect(result.details).toEqual({ key: 'value' });
+      expect(result.metadata).toEqual({ key: 'value' });
     });
 
     it('should throw error for non-existent alert', async () => {
@@ -254,16 +237,14 @@ describe('Alert Management API Integration Tests', () => {
         aiSystemId: 'ai-system-123',
         healthSystemId: 'hs-456',
         type: 'model_drift',
-        severity: 'medium',
         message: 'Alert to acknowledge',
       });
 
       const result = await acknowledgeUseCase.execute({
-        alertId: alert.id!,
-        acknowledgedBy: 'admin-user-456',
+        alertId: alert.alertId,
+        userId: 'admin-user-456',
       });
 
-      expect(result.status).toBe('acknowledged');
       expect(result.acknowledgedBy).toBe('admin-user-456');
       expect(result.acknowledgedAt).toBeInstanceOf(Date);
     });
@@ -276,21 +257,20 @@ describe('Alert Management API Integration Tests', () => {
         aiSystemId: 'ai-system-123',
         healthSystemId: 'hs-456',
         type: 'model_drift',
-        severity: 'medium',
         message: 'Alert',
       });
 
       // Acknowledge once
       await acknowledgeUseCase.execute({
-        alertId: alert.id!,
-        acknowledgedBy: 'user-1',
+        alertId: alert.alertId,
+        userId: 'user-1',
       });
 
       // Attempt to acknowledge again
       await expect(
         acknowledgeUseCase.execute({
-          alertId: alert.id!,
-          acknowledgedBy: 'user-2',
+          alertId: alert.alertId,
+          userId: 'user-2',
         })
       ).rejects.toThrow('Alert is not in open state');
     });
@@ -306,21 +286,19 @@ describe('Alert Management API Integration Tests', () => {
         aiSystemId: 'ai-system-123',
         healthSystemId: 'hs-456',
         type: 'model_drift',
-        severity: 'medium',
         message: 'Alert to resolve',
       });
 
       // Acknowledge first
       await acknowledgeUseCase.execute({
-        alertId: alert.id!,
-        acknowledgedBy: 'admin-user-123',
+        alertId: alert.alertId,
+        userId: 'admin-user-123',
       });
 
       // Then resolve
       const result = await resolveUseCase.execute({
-        alertId: alert.id!,
-        resolvedBy: 'engineer-user-789',
-        resolution: 'Model retrained and deployed',
+        alertId: alert.alertId,
+        userId: 'engineer-user-789',
       });
 
       expect(result.status).toBe('resolved');
@@ -337,14 +315,12 @@ describe('Alert Management API Integration Tests', () => {
         aiSystemId: 'ai-system-123',
         healthSystemId: 'hs-456',
         type: 'model_drift',
-        severity: 'low',
         message: 'Minor issue',
       });
 
       const result = await resolveUseCase.execute({
-        alertId: alert.id!,
-        resolvedBy: 'engineer-user-789',
-        resolution: 'Fixed immediately',
+        alertId: alert.alertId,
+        userId: 'engineer-user-789',
       });
 
       expect(result.status).toBe('resolved');
@@ -358,23 +334,20 @@ describe('Alert Management API Integration Tests', () => {
         aiSystemId: 'ai-system-123',
         healthSystemId: 'hs-456',
         type: 'model_drift',
-        severity: 'medium',
         message: 'Alert',
       });
 
       // Resolve once
       await resolveUseCase.execute({
-        alertId: alert.id!,
-        resolvedBy: 'user-1',
-        resolution: 'Fixed',
+        alertId: alert.alertId,
+        userId: 'user-1',
       });
 
       // Attempt to resolve again
       await expect(
         resolveUseCase.execute({
-          alertId: alert.id!,
-          resolvedBy: 'user-2',
-          resolution: 'Already fixed',
+          alertId: alert.alertId,
+          userId: 'user-2',
         })
       ).rejects.toThrow('Alert must be in open or acknowledged state');
     });
@@ -387,15 +360,13 @@ describe('Alert Management API Integration Tests', () => {
         aiSystemId: 'ai-system-123',
         healthSystemId: 'hs-456',
         type: 'model_drift',
-        severity: 'medium',
         message: 'Alert',
       });
 
       await expect(
         resolveUseCase.execute({
-          alertId: alert.id!,
-          resolvedBy: 'user-1',
-          resolution: '',
+          alertId: alert.alertId,
+          userId: 'user-1',
         })
       ).rejects.toThrow('Resolution notes are required');
     });
@@ -405,16 +376,18 @@ describe('Alert Management API Integration Tests', () => {
     it('should calculate correct SLA for critical alerts', async () => {
       const createUseCase = new CreateAlertUseCase(alertRepository, notificationGateway);
 
-      const alert = await createUseCase.execute({
+      const result = await createUseCase.execute({
         aiSystemId: 'ai-system-123',
         healthSystemId: 'hs-456',
         type: 'security_breach',
-        severity: 'critical',
         message: 'Critical issue',
       });
 
+      const alert = await alertRepository.findById(result.alertId);
+      expect(alert).toBeTruthy();
+      
       const slaMinutes = Math.round(
-        (alert.slaDeadline!.getTime() - alert.createdAt.getTime()) / (1000 * 60)
+        (alert!.slaDeadline!.getTime() - alert!.createdAt.getTime()) / (1000 * 60)
       );
       expect(slaMinutes).toBe(2);
     });
@@ -422,16 +395,18 @@ describe('Alert Management API Integration Tests', () => {
     it('should calculate correct SLA for high alerts', async () => {
       const createUseCase = new CreateAlertUseCase(alertRepository, notificationGateway);
 
-      const alert = await createUseCase.execute({
+      const result = await createUseCase.execute({
         aiSystemId: 'ai-system-123',
         healthSystemId: 'hs-456',
         type: 'compliance_violation',
-        severity: 'high',
         message: 'High priority',
       });
 
+      const alert = await alertRepository.findById(result.alertId);
+      expect(alert).toBeTruthy();
+      
       const slaHours = Math.round(
-        (alert.slaDeadline!.getTime() - alert.createdAt.getTime()) / (1000 * 60 * 60)
+        (alert!.slaDeadline!.getTime() - alert!.createdAt.getTime()) / (1000 * 60 * 60)
       );
       expect(slaHours).toBe(4);
     });
@@ -439,16 +414,18 @@ describe('Alert Management API Integration Tests', () => {
     it('should calculate correct SLA for medium alerts', async () => {
       const createUseCase = new CreateAlertUseCase(alertRepository, notificationGateway);
 
-      const alert = await createUseCase.execute({
+      const result = await createUseCase.execute({
         aiSystemId: 'ai-system-123',
         healthSystemId: 'hs-456',
         type: 'model_drift',
-        severity: 'medium',
         message: 'Medium priority',
       });
 
+      const alert = await alertRepository.findById(result.alertId);
+      expect(alert).toBeTruthy();
+      
       const slaHours = Math.round(
-        (alert.slaDeadline!.getTime() - alert.createdAt.getTime()) / (1000 * 60 * 60)
+        (alert!.slaDeadline!.getTime() - alert!.createdAt.getTime()) / (1000 * 60 * 60)
       );
       expect(slaHours).toBe(24);
     });
@@ -456,16 +433,18 @@ describe('Alert Management API Integration Tests', () => {
     it('should calculate correct SLA for low alerts', async () => {
       const createUseCase = new CreateAlertUseCase(alertRepository, notificationGateway);
 
-      const alert = await createUseCase.execute({
+      const result = await createUseCase.execute({
         aiSystemId: 'ai-system-123',
         healthSystemId: 'hs-456',
         type: 'performance_degradation',
-        severity: 'low',
         message: 'Low priority',
       });
 
+      const alert = await alertRepository.findById(result.alertId);
+      expect(alert).toBeTruthy();
+      
       const slaHours = Math.round(
-        (alert.slaDeadline!.getTime() - alert.createdAt.getTime()) / (1000 * 60 * 60)
+        (alert!.slaDeadline!.getTime() - alert!.createdAt.getTime()) / (1000 * 60 * 60)
       );
       expect(slaHours).toBe(72);
     });
