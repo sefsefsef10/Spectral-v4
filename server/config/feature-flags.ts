@@ -13,9 +13,12 @@ export interface FeatureFlags {
   // Phase 3: Refactored subscription management with domain-driven design
   useCleanArchitectureBilling: boolean;
   
+  // Clean Architecture AI Systems
+  // Phase 4: Refactored AI system management (create, update, delete)
+  useCleanArchitectureAISystems: boolean;
+  
   // Future flags:
   // useCleanArchitecturePolicies: boolean;
-  // useCleanArchitectureAISystems: boolean;
 }
 
 /**
@@ -24,6 +27,9 @@ export interface FeatureFlags {
 const defaultFlags: FeatureFlags = {
   // Temporarily disabled until import paths are fixed
   useCleanArchitectureBilling: false,
+  
+  // Temporarily disabled for safe rollout
+  useCleanArchitectureAISystems: false,
 };
 
 /**
@@ -31,6 +37,7 @@ const defaultFlags: FeatureFlags = {
  */
 const productionFlags: FeatureFlags = {
   useCleanArchitectureBilling: process.env.FEATURE_CLEAN_BILLING === 'true',
+  useCleanArchitectureAISystems: process.env.FEATURE_CLEAN_AI_SYSTEMS === 'true',
 };
 
 /**
