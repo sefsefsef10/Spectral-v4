@@ -12,6 +12,11 @@ import {
   auditLogs
 } from '../../shared/schema';
 import { eq, and, desc } from 'drizzle-orm';
+import { 
+  validateThresholdOverride,
+  validateCustomControl,
+  logGuardrailViolation
+} from '../services/regulatory-guardrails';
 
 export const customizationsRouter = Router();
 
@@ -127,9 +132,28 @@ customizationsRouter.post('/threshold-override', requireEnterpriseTier, async (r
       newThreshold: z.string(),
       justification: z.string(),
       regulatoryContext: z.string().optional(),
+      controlId: z.string().optional(),
     });
 
     const data = schema.parse(req.body);
+
+    // 🔒 REGULATORY GUARDRAILS: Validate threshold override
+    try {
+      validateThresholdOverride(data.eventType, data.newThreshold, data.controlId);
+    } catch (error) {
+      // Log guardrail violation
+      logGuardrailViolation(user.id, healthSystemId, 'threshold_override', {
+        eventType: data.eventType,
+        newThreshold: data.newThreshold,
+        controlId: data.controlId,
+        reason: error instanceof Error ? error.message : 'Unknown error',
+      });
+      
+      return res.status(403).json({ 
+        error: 'Regulatory guardrail violation',
+        message: error instanceof Error ? error.message : 'This customization violates mandatory regulatory requirements'
+      });
+    }
 
     // Create the threshold override (pending approval)
     const [override] = await db.insert(thresholdOverrides).values({
@@ -204,6 +228,22 @@ customizationsRouter.post('/custom-control', requireEnterpriseTier, async (req: 
     });
 
     const data = schema.parse(req.body);
+
+    // 🔒 REGULATORY GUARDRAILS: Validate custom control
+    try {
+      validateCustomControl(data.controlId, data.mappedEventTypes);
+    } catch (error) {
+      // Log guardrail violation
+      logGuardrailViolation(user.id, healthSystemId, 'custom_control', {
+        controlId: data.controlId,
+        reason: error instanceof Error ? error.message : 'Unknown error',
+      });
+      
+      return res.status(403).json({ 
+        error: 'Regulatory guardrail violation',
+        message: error instanceof Error ? error.message : 'This customization violates mandatory regulatory requirements'
+      });
+    }
 
     // Create custom control (pending review)
     const [control] = await db.insert(customComplianceControls).values({

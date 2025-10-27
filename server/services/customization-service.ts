@@ -24,6 +24,12 @@ import {
 } from '../../shared/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { logger } from '../logger';
+import { 
+  validateControlToggle, 
+  validateThresholdOverride,
+  validateCustomControl,
+  logGuardrailViolation
+} from './regulatory-guardrails';
 
 // Tier permissions
 export const TIER_PERMISSIONS = {
@@ -86,20 +92,17 @@ export class CustomizationService {
       throw new Error('Threshold customization requires Growth or Enterprise tier');
     }
 
-    // Validate regulatory guardrails
-    if (data.controlId) {
-      const control = await db.select()
-        .from(complianceControls)
-        .where(eq(complianceControls.id, data.controlId))
-        .limit(1);
-
-      if (control.length > 0 && control[0].framework === 'HIPAA') {
-        // HIPAA controls have minimum thresholds
-        const minThreshold = this.getMinimumThreshold(control[0].controlId);
-        if (parseFloat(data.customThreshold) < minThreshold) {
-          throw new Error(`Cannot set threshold below regulatory minimum of ${minThreshold}`);
-        }
-      }
+    // 🔒 REGULATORY GUARDRAILS: Validate threshold override
+    try {
+      validateThresholdOverride(data.eventType, data.customThreshold, data.controlId || undefined);
+    } catch (error) {
+      logGuardrailViolation(userId, healthSystemId, 'threshold_override', {
+        eventType: data.eventType,
+        newThreshold: data.customThreshold,
+        controlId: data.controlId || undefined,
+        reason: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error; // Re-throw to block the action
     }
 
     // Create override
@@ -148,7 +151,7 @@ export class CustomizationService {
       throw new Error('Control toggling requires Growth or Enterprise tier');
     }
 
-    // Check if control has regulatory guardrail
+    // Check if control exists
     const control = await db.select()
       .from(complianceControls)
       .where(eq(complianceControls.id, controlId))
@@ -158,9 +161,15 @@ export class CustomizationService {
       throw new Error('Control not found');
     }
 
-    const isHIPAA = control[0].framework === 'HIPAA';
-    if (isHIPAA && !enabled) {
-      throw new Error('HIPAA controls cannot be disabled (regulatory guardrail)');
+    // 🔒 REGULATORY GUARDRAILS: Validate control toggle
+    try {
+      validateControlToggle(control[0].controlId, enabled);
+    } catch (error) {
+      logGuardrailViolation(userId, healthSystemId, 'control_toggle', {
+        controlId: control[0].controlId,
+        reason: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error; // Re-throw to block the action
     }
 
     // Check if toggle already exists (use IS NULL semantics for nullable aiSystemId)
@@ -197,7 +206,7 @@ export class CustomizationService {
         disableReason: reason,
         disabledBy: !enabled ? userId : null,
         disabledAt: !enabled ? new Date() : null,
-        regulatoryGuardrail: isHIPAA,
+        regulatoryGuardrail: control[0].framework === 'HIPAA',
       }).returning();
     }
 
@@ -238,6 +247,19 @@ export class CustomizationService {
     const limit = TIER_PERMISSIONS.enterprise.maxCustomControls;
     if (existingCount.length >= limit) {
       throw new Error(`Maximum custom controls limit reached (${limit})`);
+    }
+
+    // 🛡️ REGULATORY GUARDRAILS: Validate custom control
+    const validation = await validateCustomControl(data.controlId, data.framework);
+    if (!validation.allowed) {
+      await logGuardrailViolation(
+        healthSystemId,
+        'custom_control',
+        data.controlId,
+        validation.reason!,
+        userId
+      );
+      throw new Error(validation.reason);
     }
 
     // Create custom control (pending review)

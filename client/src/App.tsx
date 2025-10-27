@@ -20,6 +20,7 @@ import SentinelPage from "@/pages/products/Sentinel";
 import WatchtowerPage from "@/pages/products/Watchtower";
 import BeaconPage from "@/pages/products/Beacon";
 import VendorDirectoryPage from "@/pages/VendorDirectory";
+import VendorMarketplace from "@/pages/VendorMarketplace";
 import VendorTrustPage from "@/pages/vendor-trust-page";
 import BillingDashboard from "@/pages/BillingDashboard";
 import NotFound from "@/pages/not-found";
@@ -58,6 +59,7 @@ function Router() {
       <Route path="/products/watchtower" component={WatchtowerPage} />
       <Route path="/products/beacon" component={BeaconPage} />
       <Route path="/vendors" component={VendorDirectoryPage} />
+      <Route path="/marketplace" component={VendorMarketplace} />
       <Route path="/trust/:vendorId" component={VendorTrustPage} />
       <Route path="/dashboard">
         {() => <ProtectedRoute component={Dashboard} />}

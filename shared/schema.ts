@@ -1116,6 +1116,59 @@ export const requiredActionsRelations = relations(requiredActions, ({ one }) => 
   }),
 }));
 
+// 🔄 AUTOMATED ROLLBACK POLICIES
+export const rollbackPolicies = pgTable("rollback_policies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  aiSystemId: varchar("ai_system_id").notNull().references(() => aiSystems.id, { onDelete: "cascade" }),
+  healthSystemId: varchar("health_system_id").notNull().references(() => healthSystems.id, { onDelete: "cascade" }),
+  enabled: boolean("enabled").notNull().default(false),
+  autoRollbackOnCritical: boolean("auto_rollback_on_critical").notNull().default(false), // Auto-rollback for critical violations
+  requiresApproval: boolean("requires_approval").notNull().default(true), // Require manual approval
+  approvers: text("approvers").array(), // ['ciso', 'clinical_owner', 'it_owner']
+  rollbackTriggers: jsonb("rollback_triggers"), // Violation types/severities that trigger rollback
+  maxAutoRollbacks: integer("max_auto_rollbacks").default(3), // Max auto-rollbacks per day
+  cooldownMinutes: integer("cooldown_minutes").default(60), // Cooldown between rollbacks
+  notificationChannels: text("notification_channels").array().default(sql`ARRAY['email', 'slack']`), // Notification channels
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// 📦 DEPLOYMENT HISTORY (for rollback capability)
+export const deploymentHistory = pgTable("deployment_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  aiSystemId: varchar("ai_system_id").notNull().references(() => aiSystems.id, { onDelete: "cascade" }),
+  version: text("version").notNull(), // Deployment version/tag
+  deployedAt: timestamp("deployed_at").notNull(),
+  deployedBy: varchar("deployed_by").references(() => users.id, { onDelete: "set null" }),
+  status: text("status").notNull().default("active"), // 'active', 'rolled_back', 'deprecated'
+  deploymentType: text("deployment_type").notNull(), // 'initial', 'update', 'rollback', 'hotfix'
+  rollbackFromVersion: text("rollback_from_version"), // If this is a rollback, what version was rolled back
+  metadata: jsonb("metadata"), // Deployment details (commit SHA, build info, etc.)
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  // Index for finding active deployment by AI system
+  aiSystemStatusIdx: sql`CREATE INDEX IF NOT EXISTS idx_deployment_history_system_status ON ${table} (ai_system_id, status)`,
+}));
+
+// 🔄 ROLLBACK EXECUTIONS (audit trail)
+export const rollbackExecutions = pgTable("rollback_executions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  aiSystemId: varchar("ai_system_id").notNull().references(() => aiSystems.id, { onDelete: "cascade" }),
+  actionId: varchar("action_id").references(() => requiredActions.id, { onDelete: "set null" }), // Related required action
+  fromVersion: text("from_version").notNull(), // Version being rolled back
+  toVersion: text("to_version").notNull(), // Version rolling back to
+  trigger: text("trigger").notNull(), // 'automated', 'manual', 'policy'
+  triggeredBy: varchar("triggered_by").references(() => users.id, { onDelete: "set null" }),
+  approvedBy: varchar("approved_by").references(() => users.id, { onDelete: "set null" }),
+  status: text("status").notNull().default("pending"), // 'pending', 'approved', 'in_progress', 'completed', 'failed', 'cancelled'
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  error: text("error"),
+  metadata: jsonb("metadata"), // Rollback details and logs
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, lastLogin: true });
 export const insertUserInvitationSchema = createInsertSchema(userInvitations).omit({ id: true, createdAt: true, acceptedAt: true });
@@ -1136,6 +1189,9 @@ export const insertComplianceTemplateSchema = createInsertSchema(complianceTempl
 export const insertAITelemetryEventSchema = createInsertSchema(aiTelemetryEvents).omit({ id: true, createdAt: true });
 export const insertComplianceViolationSchema = createInsertSchema(complianceViolations).omit({ id: true, createdAt: true });
 export const insertRequiredActionSchema = createInsertSchema(requiredActions).omit({ id: true, createdAt: true });
+export const insertRollbackPolicySchema = createInsertSchema(rollbackPolicies).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertDeploymentHistorySchema = createInsertSchema(deploymentHistory).omit({ id: true, createdAt: true });
+export const insertRollbackExecutionSchema = createInsertSchema(rollbackExecutions).omit({ id: true, createdAt: true });
 export const insertBackgroundJobSchema = createInsertSchema(backgroundJobs).omit({ id: true, createdAt: true, startedAt: true, completedAt: true });
 export const insertCertificationApplicationSchema = createInsertSchema(certificationApplications).omit({ id: true, createdAt: true, submittedAt: true });
 export const insertVendorTestResultSchema = createInsertSchema(vendorTestResults).omit({ id: true, createdAt: true });
@@ -1205,6 +1261,15 @@ export type InsertComplianceViolation = z.infer<typeof insertComplianceViolation
 
 export type RequiredAction = typeof requiredActions.$inferSelect;
 export type InsertRequiredAction = z.infer<typeof insertRequiredActionSchema>;
+
+export type RollbackPolicy = typeof rollbackPolicies.$inferSelect;
+export type InsertRollbackPolicy = z.infer<typeof insertRollbackPolicySchema>;
+
+export type DeploymentHistory = typeof deploymentHistory.$inferSelect;
+export type InsertDeploymentHistory = z.infer<typeof insertDeploymentHistorySchema>;
+
+export type RollbackExecution = typeof rollbackExecutions.$inferSelect;
+export type InsertRollbackExecution = z.infer<typeof insertRollbackExecutionSchema>;
 
 export type BackgroundJob = typeof backgroundJobs.$inferSelect;
 export type InsertBackgroundJob = z.infer<typeof insertBackgroundJobSchema>;

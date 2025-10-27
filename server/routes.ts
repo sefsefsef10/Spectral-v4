@@ -7988,6 +7988,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const { registerCustomizationRoutes } = await import("./routes/customization");
   registerCustomizationRoutes(app);
 
+  // 🌐 Public API Routes (Network Effects - NO AUTH REQUIRED)
+  const { publicRouter } = await import("./routes/public");
+  app.use("/api/public", publicRouter);
+
   // Provider Connections API (Epic, Cerner, LangSmith integrations)
   const providerConnectionsRouter = (await import("./routes/provider-connections")).default;
   app.use("/api/provider-connections", requireAuth, providerConnectionsRouter);
