@@ -3,60 +3,27 @@
  * Tests the full HTTP stack including authentication, rate limiting, and use cases
  */
 
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { RegisterUserUseCase } from '../../../server/application/user-management/RegisterUserUseCase';
 import { UpdateUserRoleUseCase } from '../../../server/application/user-management/UpdateUserRoleUseCase';
 import { DeactivateUserUseCase } from '../../../server/application/user-management/DeactivateUserUseCase';
 import { ValidatePermissionsUseCase } from '../../../server/application/user-management/ValidatePermissionsUseCase';
 import { User } from '../../../server/domain/entities/User';
-import type { UserRole } from '../../../server/domain/entities/User';
-
-// Mock repository
-class InMemoryUserRepository {
-  private users: Map<string, User> = new Map();
-  private passwords: Map<string, string> = new Map();
-
-  async save(user: User): Promise<void> {
-    this.users.set(user.id!, user);
-  }
-
-  async saveWithPassword(user: User, hashedPassword: string): Promise<void> {
-    this.users.set(user.id!, user);
-    this.passwords.set(user.id!, hashedPassword);
-  }
-
-  async findById(id: string): Promise<User | null> {
-    return this.users.get(id) || null;
-  }
-
-  async findByEmail(email: string): Promise<User | null> {
-    for (const user of this.users.values()) {
-      if (user.email === email) {
-        return user;
-      }
-    }
-    return null;
-  }
-
-  clear() {
-    this.users.clear();
-    this.passwords.clear();
-  }
-}
+import { MockUserRepository, MockPasswordHasher } from '../../mocks';
 
 describe('User Management API Integration Tests', () => {
-  let userRepository: InMemoryUserRepository;
-  let mockPasswordHasher: any;
+  let userRepository: MockUserRepository;
+  let mockPasswordHasher: MockPasswordHasher;
 
   beforeEach(() => {
-    userRepository = new InMemoryUserRepository();
-    mockPasswordHasher = {
-      hash: vi.fn().mockResolvedValue('hashed-password-123'),
-    };
+    console.log('🧪 Test environment initialized');
+    userRepository = new MockUserRepository();
+    mockPasswordHasher = new MockPasswordHasher();
   });
 
   afterEach(() => {
     userRepository.clear();
+    console.log('✅ Test environment cleaned up');
   });
 
   describe('POST /api/users/register', () => {

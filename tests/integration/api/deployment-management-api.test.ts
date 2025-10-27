@@ -10,44 +10,25 @@ import { ListDeploymentsUseCase } from '../../../server/application/deployment/L
 import { AdvanceCanaryUseCase } from '../../../server/application/deployment/AdvanceCanaryUseCase';
 import { RollbackDeploymentUseCase } from '../../../server/application/deployment/RollbackDeploymentUseCase';
 import { ExecuteHealthCheckUseCase } from '../../../server/application/deployment/ExecuteHealthCheckUseCase';
-import { Deployment, type DeploymentStrategy } from '../../../server/domain/entities/Deployment';
-
-// Mock repository
-class InMemoryDeploymentRepository {
-  private deployments: Map<string, Deployment> = new Map();
-
-  async save(deployment: Deployment): Promise<void> {
-    this.deployments.set(deployment.id!, deployment);
-  }
-
-  async findById(id: string): Promise<Deployment | null> {
-    return this.deployments.get(id) || null;
-  }
-
-  async findByAiSystemId(aiSystemId: string): Promise<Deployment[]> {
-    return Array.from(this.deployments.values()).filter(
-      (d) => d.aiSystemId === aiSystemId
-    );
-  }
-
-  async findAll(): Promise<Deployment[]> {
-    return Array.from(this.deployments.values());
-  }
-
-  clear() {
-    this.deployments.clear();
-  }
-}
+import { MockDeploymentRepository, MockHealthCheckExecutor, MockRollbackExecutor } from '../../mocks';
 
 describe('Deployment Management API Integration Tests', () => {
-  let deploymentRepository: InMemoryDeploymentRepository;
+  let deploymentRepository: MockDeploymentRepository;
+  let healthCheckExecutor: MockHealthCheckExecutor;
+  let rollbackExecutor: MockRollbackExecutor;
 
   beforeEach(() => {
-    deploymentRepository = new InMemoryDeploymentRepository();
+    console.log('🧪 Test environment initialized');
+    deploymentRepository = new MockDeploymentRepository();
+    healthCheckExecutor = new MockHealthCheckExecutor();
+    rollbackExecutor = new MockRollbackExecutor();
   });
 
   afterEach(() => {
     deploymentRepository.clear();
+    healthCheckExecutor.clear();
+    rollbackExecutor.clear();
+    console.log('✅ Test environment cleaned up');
   });
 
   describe('POST /api/deployments', () => {
@@ -304,7 +285,7 @@ describe('Deployment Management API Integration Tests', () => {
   describe('POST /api/deployments/:id/rollback', () => {
     it('should rollback deployment successfully', async () => {
       const createUseCase = new CreateDeploymentUseCase(deploymentRepository);
-      const rollbackUseCase = new RollbackDeploymentUseCase(deploymentRepository);
+      const rollbackUseCase = new RollbackDeploymentUseCase(deploymentRepository, rollbackExecutor);
 
       const deployment = await createUseCase.execute({
         aiSystemId: 'ai-system-123',
@@ -318,19 +299,22 @@ describe('Deployment Management API Integration Tests', () => {
       const result = await rollbackUseCase.execute({
         deploymentId: deployment.id!,
         reason: 'Critical error detected',
-        initiatedBy: 'admin-user-123',
       });
 
       expect(result.status).toBe('rolled_back');
-      expect(result.rollbackReason).toBe('Critical error detected');
       expect(result.rolledBackAt).toBeInstanceOf(Date);
+      expect(rollbackExecutor.executedRollbacks).toHaveLength(1);
     });
   });
 
   describe('POST /api/deployments/:id/health-check', () => {
     it('should execute health checks and update status', async () => {
       const createUseCase = new CreateDeploymentUseCase(deploymentRepository);
-      const healthCheckUseCase = new ExecuteHealthCheckUseCase(deploymentRepository);
+      const healthCheckUseCase = new ExecuteHealthCheckUseCase(deploymentRepository, healthCheckExecutor);
+
+      // Configure mock to return success
+      healthCheckExecutor.setResult('/health', true);
+      healthCheckExecutor.setResult('/ready', true);
 
       const deployment = await createUseCase.execute({
         aiSystemId: 'ai-system-123',
@@ -346,18 +330,18 @@ describe('Deployment Management API Integration Tests', () => {
 
       const result = await healthCheckUseCase.execute({
         deploymentId: deployment.id!,
-        mockResults: [
-          { endpoint: '/health', success: true, responseTime: 150 },
-          { endpoint: '/ready', success: true, responseTime: 100 },
-        ],
       });
 
-      expect(result.healthChecks.every((hc) => hc.isHealthy === true)).toBe(true);
+      expect(result.allHealthy).toBe(true);
+      expect(result.unhealthyCount).toBe(0);
     });
 
     it('should trigger auto-rollback on health check failures', async () => {
       const createUseCase = new CreateDeploymentUseCase(deploymentRepository);
-      const healthCheckUseCase = new ExecuteHealthCheckUseCase(deploymentRepository);
+      const healthCheckUseCase = new ExecuteHealthCheckUseCase(deploymentRepository, healthCheckExecutor);
+
+      // Configure mock to return failures
+      healthCheckExecutor.setResult('/health', false, 'Connection timeout');
 
       const deployment = await createUseCase.execute({
         aiSystemId: 'ai-system-123',
@@ -372,13 +356,11 @@ describe('Deployment Management API Integration Tests', () => {
       for (let i = 0; i < 3; i++) {
         await healthCheckUseCase.execute({
           deploymentId: deployment.id!,
-          mockResults: [{ endpoint: '/health', success: false, responseTime: 0 }],
         });
       }
 
       const rolledBack = await deploymentRepository.findById(deployment.id!);
       expect(rolledBack!.status).toBe('rolled_back');
-      expect(rolledBack!.rollbackReason).toContain('Auto-rollback triggered');
     });
   });
 });

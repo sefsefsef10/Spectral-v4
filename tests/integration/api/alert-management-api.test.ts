@@ -9,57 +9,30 @@ import { ListAlertsUseCase } from '../../../server/application/alert-management/
 import { GetAlertUseCase } from '../../../server/application/alert-management/GetAlertUseCase';
 import { AcknowledgeAlertUseCase } from '../../../server/application/alert-management/AcknowledgeAlertUseCase';
 import { ResolveAlertUseCase } from '../../../server/application/alert-management/ResolveAlertUseCase';
-import { Alert, type Severity, type AlertType } from '../../../server/domain/entities/Alert';
-
-// Mock repository
-class InMemoryAlertRepository {
-  private alerts: Map<string, Alert> = new Map();
-
-  async save(alert: Alert): Promise<void> {
-    this.alerts.set(alert.id!, alert);
-  }
-
-  async findById(id: string): Promise<Alert | null> {
-    return this.alerts.get(id) || null;
-  }
-
-  async findByAiSystemId(aiSystemId: string): Promise<Alert[]> {
-    return Array.from(this.alerts.values()).filter(
-      (a) => a.aiSystemId === aiSystemId
-    );
-  }
-
-  async findDuplicates(alert: Alert): Promise<Alert[]> {
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-    return Array.from(this.alerts.values()).filter(
-      (a) =>
-        a.aiSystemId === alert.aiSystemId &&
-        a.type === alert.type &&
-        a.severity === alert.severity &&
-        a.createdAt >= oneHourAgo &&
-        a.status === 'open'
-    );
-  }
-
-  clear() {
-    this.alerts.clear();
-  }
-}
+import { MockAlertRepository, MockNotificationGateway, MockAuditLogger } from '../../mocks';
 
 describe('Alert Management API Integration Tests', () => {
-  let alertRepository: InMemoryAlertRepository;
+  let alertRepository: MockAlertRepository;
+  let notificationGateway: MockNotificationGateway;
+  let auditLogger: MockAuditLogger;
 
   beforeEach(() => {
-    alertRepository = new InMemoryAlertRepository();
+    console.log('🧪 Test environment initialized');
+    alertRepository = new MockAlertRepository();
+    notificationGateway = new MockNotificationGateway();
+    auditLogger = new MockAuditLogger();
   });
 
   afterEach(() => {
     alertRepository.clear();
+    notificationGateway.clear();
+    auditLogger.clear();
+    console.log('✅ Test environment cleaned up');
   });
 
   describe('POST /api/alerts', () => {
     it('should create high severity alert successfully', async () => {
-      const createUseCase = new CreateAlertUseCase(alertRepository);
+      const createUseCase = new CreateAlertUseCase(alertRepository, notificationGateway);
 
       const result = await createUseCase.execute({
         aiSystemId: 'ai-system-123',
@@ -79,7 +52,7 @@ describe('Alert Management API Integration Tests', () => {
     });
 
     it('should create critical alert with 2-minute SLA', async () => {
-      const createUseCase = new CreateAlertUseCase(alertRepository);
+      const createUseCase = new CreateAlertUseCase(alertRepository, notificationGateway);
 
       const result = await createUseCase.execute({
         aiSystemId: 'ai-system-789',
@@ -100,7 +73,7 @@ describe('Alert Management API Integration Tests', () => {
     });
 
     it('should prevent duplicate alerts within 1-hour window', async () => {
-      const createUseCase = new CreateAlertUseCase(alertRepository);
+      const createUseCase = new CreateAlertUseCase(alertRepository, notificationGateway);
 
       // Create first alert
       const first = await createUseCase.execute({
@@ -126,7 +99,7 @@ describe('Alert Management API Integration Tests', () => {
     });
 
     it('should allow different alert types for same AI system', async () => {
-      const createUseCase = new CreateAlertUseCase(alertRepository);
+      const createUseCase = new CreateAlertUseCase(alertRepository, notificationGateway);
 
       const alert1 = await createUseCase.execute({
         aiSystemId: 'ai-system-123',
@@ -151,7 +124,7 @@ describe('Alert Management API Integration Tests', () => {
 
   describe('GET /api/alerts', () => {
     it('should list all alerts for AI system', async () => {
-      const createUseCase = new CreateAlertUseCase(alertRepository);
+      const createUseCase = new CreateAlertUseCase(alertRepository, notificationGateway);
       const listUseCase = new ListAlertsUseCase(alertRepository);
 
       // Create multiple alerts
@@ -177,7 +150,7 @@ describe('Alert Management API Integration Tests', () => {
     });
 
     it('should filter alerts by severity', async () => {
-      const createUseCase = new CreateAlertUseCase(alertRepository);
+      const createUseCase = new CreateAlertUseCase(alertRepository, notificationGateway);
       const listUseCase = new ListAlertsUseCase(alertRepository);
 
       await createUseCase.execute({
@@ -206,7 +179,7 @@ describe('Alert Management API Integration Tests', () => {
     });
 
     it('should filter alerts by status', async () => {
-      const createUseCase = new CreateAlertUseCase(alertRepository);
+      const createUseCase = new CreateAlertUseCase(alertRepository, notificationGateway);
       const acknowledgeUseCase = new AcknowledgeAlertUseCase(alertRepository);
       const listUseCase = new ListAlertsUseCase(alertRepository);
 
@@ -244,7 +217,7 @@ describe('Alert Management API Integration Tests', () => {
 
   describe('GET /api/alerts/:id', () => {
     it('should retrieve alert by ID', async () => {
-      const createUseCase = new CreateAlertUseCase(alertRepository);
+      const createUseCase = new CreateAlertUseCase(alertRepository, notificationGateway);
       const getUseCase = new GetAlertUseCase(alertRepository);
 
       const created = await createUseCase.execute({
@@ -274,7 +247,7 @@ describe('Alert Management API Integration Tests', () => {
 
   describe('PUT /api/alerts/:id/acknowledge', () => {
     it('should acknowledge alert successfully', async () => {
-      const createUseCase = new CreateAlertUseCase(alertRepository);
+      const createUseCase = new CreateAlertUseCase(alertRepository, notificationGateway);
       const acknowledgeUseCase = new AcknowledgeAlertUseCase(alertRepository);
 
       const alert = await createUseCase.execute({
@@ -296,7 +269,7 @@ describe('Alert Management API Integration Tests', () => {
     });
 
     it('should prevent acknowledging already acknowledged alert', async () => {
-      const createUseCase = new CreateAlertUseCase(alertRepository);
+      const createUseCase = new CreateAlertUseCase(alertRepository, notificationGateway);
       const acknowledgeUseCase = new AcknowledgeAlertUseCase(alertRepository);
 
       const alert = await createUseCase.execute({
@@ -325,9 +298,9 @@ describe('Alert Management API Integration Tests', () => {
 
   describe('PUT /api/alerts/:id/resolve', () => {
     it('should resolve acknowledged alert successfully', async () => {
-      const createUseCase = new CreateAlertUseCase(alertRepository);
+      const createUseCase = new CreateAlertUseCase(alertRepository, notificationGateway);
       const acknowledgeUseCase = new AcknowledgeAlertUseCase(alertRepository);
-      const resolveUseCase = new ResolveAlertUseCase(alertRepository);
+      const resolveUseCase = new ResolveAlertUseCase(alertRepository, auditLogger);
 
       const alert = await createUseCase.execute({
         aiSystemId: 'ai-system-123',
@@ -357,8 +330,8 @@ describe('Alert Management API Integration Tests', () => {
     });
 
     it('should allow resolving open alert directly', async () => {
-      const createUseCase = new CreateAlertUseCase(alertRepository);
-      const resolveUseCase = new ResolveAlertUseCase(alertRepository);
+      const createUseCase = new CreateAlertUseCase(alertRepository, notificationGateway);
+      const resolveUseCase = new ResolveAlertUseCase(alertRepository, auditLogger);
 
       const alert = await createUseCase.execute({
         aiSystemId: 'ai-system-123',
@@ -378,8 +351,8 @@ describe('Alert Management API Integration Tests', () => {
     });
 
     it('should prevent resolving already resolved alert', async () => {
-      const createUseCase = new CreateAlertUseCase(alertRepository);
-      const resolveUseCase = new ResolveAlertUseCase(alertRepository);
+      const createUseCase = new CreateAlertUseCase(alertRepository, notificationGateway);
+      const resolveUseCase = new ResolveAlertUseCase(alertRepository, auditLogger);
 
       const alert = await createUseCase.execute({
         aiSystemId: 'ai-system-123',
@@ -407,8 +380,8 @@ describe('Alert Management API Integration Tests', () => {
     });
 
     it('should require resolution notes when resolving', async () => {
-      const createUseCase = new CreateAlertUseCase(alertRepository);
-      const resolveUseCase = new ResolveAlertUseCase(alertRepository);
+      const createUseCase = new CreateAlertUseCase(alertRepository, notificationGateway);
+      const resolveUseCase = new ResolveAlertUseCase(alertRepository, auditLogger);
 
       const alert = await createUseCase.execute({
         aiSystemId: 'ai-system-123',
@@ -430,7 +403,7 @@ describe('Alert Management API Integration Tests', () => {
 
   describe('Alert SLA Management', () => {
     it('should calculate correct SLA for critical alerts', async () => {
-      const createUseCase = new CreateAlertUseCase(alertRepository);
+      const createUseCase = new CreateAlertUseCase(alertRepository, notificationGateway);
 
       const alert = await createUseCase.execute({
         aiSystemId: 'ai-system-123',
@@ -447,7 +420,7 @@ describe('Alert Management API Integration Tests', () => {
     });
 
     it('should calculate correct SLA for high alerts', async () => {
-      const createUseCase = new CreateAlertUseCase(alertRepository);
+      const createUseCase = new CreateAlertUseCase(alertRepository, notificationGateway);
 
       const alert = await createUseCase.execute({
         aiSystemId: 'ai-system-123',
@@ -464,7 +437,7 @@ describe('Alert Management API Integration Tests', () => {
     });
 
     it('should calculate correct SLA for medium alerts', async () => {
-      const createUseCase = new CreateAlertUseCase(alertRepository);
+      const createUseCase = new CreateAlertUseCase(alertRepository, notificationGateway);
 
       const alert = await createUseCase.execute({
         aiSystemId: 'ai-system-123',
@@ -481,7 +454,7 @@ describe('Alert Management API Integration Tests', () => {
     });
 
     it('should calculate correct SLA for low alerts', async () => {
-      const createUseCase = new CreateAlertUseCase(alertRepository);
+      const createUseCase = new CreateAlertUseCase(alertRepository, notificationGateway);
 
       const alert = await createUseCase.execute({
         aiSystemId: 'ai-system-123',
