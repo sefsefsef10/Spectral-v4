@@ -19,6 +19,7 @@ export type AlertType =
   | 'data_quality';
 
 export type AlertSeverity = 'low' | 'medium' | 'high' | 'critical';
+export type Severity = AlertSeverity; // Alias for convenience
 
 export type NotificationChannel = 'email' | 'sms' | 'slack' | 'pagerduty' | 'dashboard';
 

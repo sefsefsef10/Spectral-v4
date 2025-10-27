@@ -15,6 +15,11 @@ import { db } from '../../db';
 
 const alertRepository = DrizzleAlertRepository.getInstance(db);
 
+// Mock notification gateway for now
+const mockNotificationGateway = {
+  send: async () => { /* no-op */ }
+};
+
 export class AlertController {
   /**
    * Create a new alert
@@ -22,24 +27,28 @@ export class AlertController {
    */
   static async createAlert(req: Request, res: Response): Promise<void> {
     try {
-      const { aiSystemId, type, severity, message, details } = req.body;
+      const { aiSystemId, type, message, details, severity } = req.body;
 
-      if (!aiSystemId || !type || !severity || !message) {
+      if (!aiSystemId || !type || !message) {
         res.status(400).json({
-          error: 'Missing required fields: aiSystemId, type, severity, message'
+          error: 'Missing required fields: aiSystemId, type, message'
         });
         return;
       }
 
-      const createAlertUseCase = new CreateAlertUseCase(alertRepository);
+      const createAlertUseCase = new CreateAlertUseCase(alertRepository, mockNotificationGateway);
       
-      const alert = await createAlertUseCase.execute({
+      const result = await createAlertUseCase.execute({
         aiSystemId,
+        healthSystemId: 'default-health-system',
         type,
-        severity: severity as Severity,
         message,
-        details
+        metadata: details ? { details } : undefined
       });
+
+      // Fetch the created alert to return full details
+      const getAlertUseCase = new GetAlertUseCase(alertRepository);
+      const alert = await getAlertUseCase.execute({ alertId: result.alertId });
 
       res.status(201).json({
         id: alert.id,
@@ -49,9 +58,9 @@ export class AlertController {
         message: alert.message,
         status: alert.status,
         slaDeadline: alert.slaDeadline?.toISOString(),
-        notificationsSent: alert.notificationsSent,
+        notificationsSent: result.notificationChannels,
         createdAt: alert.createdAt.toISOString(),
-        message_text: 'Alert created successfully'
+        message_text: result.isDuplicate ? 'Duplicate alert detected' : 'Alert created successfully'
       });
     } catch (error: any) {
       if (error.message.includes('required') || error.message.includes('Invalid')) {
@@ -99,7 +108,9 @@ export class AlertController {
           status: a.status,
           slaDeadline: a.slaDeadline?.toISOString(),
           acknowledgedAt: a.acknowledgedAt?.toISOString(),
+          acknowledgedBy: a.acknowledgedBy,
           resolvedAt: a.resolvedAt?.toISOString(),
+          resolvedBy: a.resolvedBy,
           createdAt: a.createdAt.toISOString()
         })),
         total: alerts.length
@@ -128,15 +139,12 @@ export class AlertController {
         type: alert.type,
         severity: alert.severity,
         message: alert.message,
-        details: alert.details,
         status: alert.status,
         acknowledgedAt: alert.acknowledgedAt?.toISOString(),
         acknowledgedBy: alert.acknowledgedBy,
         resolvedAt: alert.resolvedAt?.toISOString(),
         resolvedBy: alert.resolvedBy,
         slaDeadline: alert.slaDeadline?.toISOString(),
-        escalatedAt: alert.escalatedAt?.toISOString(),
-        notificationsSent: alert.notificationsSent,
         createdAt: alert.createdAt.toISOString()
       });
     } catch (error: any) {
@@ -157,14 +165,18 @@ export class AlertController {
   static async acknowledgeAlert(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const acknowledgedBy = req.user?.id || 'system';
+      const userId = 'system'; // Default user ID
 
       const acknowledgeUseCase = new AcknowledgeAlertUseCase(alertRepository);
       
-      const alert = await acknowledgeUseCase.execute({
+      const result = await acknowledgeUseCase.execute({
         alertId: id,
-        acknowledgedBy
+        userId
       });
+
+      // Fetch updated alert to return full details
+      const getAlertUseCase = new GetAlertUseCase(alertRepository);
+      const alert = await getAlertUseCase.execute({ alertId: id });
 
       res.status(200).json({
         id: alert.id,
@@ -195,14 +207,18 @@ export class AlertController {
   static async resolveAlert(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const resolvedBy = req.user?.id || 'system';
+      const userId = 'system'; // Default user ID
 
       const resolveUseCase = new ResolveAlertUseCase(alertRepository);
       
-      const alert = await resolveUseCase.execute({
+      const result = await resolveUseCase.execute({
         alertId: id,
-        resolvedBy
+        userId
       });
+
+      // Fetch updated alert to return full details
+      const getAlertUseCase = new GetAlertUseCase(alertRepository);
+      const alert = await getAlertUseCase.execute({ alertId: id });
 
       res.status(200).json({
         id: alert.id,

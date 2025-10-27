@@ -46,8 +46,11 @@ export default function UserManagementCA() {
   const { data: users = [], isLoading, refetch } = useQuery<User[]>({
     queryKey: ["ca-users"],
     queryFn: async () => {
-      const response = await apiRequest("GET", "/api/users");
-      return response;
+      const response = await fetch("/api/users");
+      if (!response.ok) {
+        throw new Error("Failed to fetch users");
+      }
+      return response.json();
     },
   });
 
@@ -244,7 +247,7 @@ export default function UserManagementCA() {
           <p className="text-muted-foreground">No users found</p>
         ) : (
           <div className="space-y-3">
-            {users.map((user) => (
+            {users.map((user: User) => (
               <div
                 key={user.id}
                 className="flex items-center justify-between p-4 border rounded-lg"
