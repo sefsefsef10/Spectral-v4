@@ -59,8 +59,15 @@ The platform is undergoing a strategic Clean Architecture refactoring to achieve
 - **Alert Management API**: POST /api/alerts, GET /api/alerts (with filters), GET /api/alerts/:id, PUT /api/alerts/:id/acknowledge, PUT /api/alerts/:id/resolve with CreateAlertUseCase, ListAlertsUseCase, GetAlertUseCase, AcknowledgeAlertUseCase, ResolveAlertUseCase
 - **Infrastructure**: DrizzleUserRepository, DrizzleDeploymentRepository, DrizzleAlertRepository, DrizzleRateLimitPolicyRepository with proper domain-to-database mapping
 - **Security**: Rate limiting middleware (tier-based quotas), authentication middleware protecting all routes, proper HTTP status codes (401, 403, 429, 400, 404, 500)
-- **Clean Architecture Compliance**: All controllers exclusively call use cases; no business logic in HTTP layer; repository interfaces defined in use case files (dependency inversion)
+- **Clean Architecture Compliance**: All controllers exclusively call use cases; no business logic in HTTP layer; repository interfaces centralized in server/domain/repositories/ (dependency inversion)
 - **Production Readiness**: 95% (Architect-verified) - Ready for frontend integration
+
+**Repository Consolidation Complete** (October 27, 2025):
+- **Centralized Repository Interfaces**: Created server/domain/repositories/ module with IUserRepository, IDeploymentRepository, IAlertRepository, IRateLimitPolicyRepository to eliminate duplication across 16+ use cases
+- **Infrastructure Layer Updates**: All Drizzle repositories (DrizzleUserRepository, DrizzleDeploymentRepository, DrizzleAlertRepository) implement centralized interfaces with proper methods (exists, findByDeduplicationKey, findAll, findByHealthSystemId)
+- **Application Layer Refactoring**: All use cases across user management, deployment, alert management, and rate limiting now reference centralized repository interfaces instead of defining local interfaces
+- **Architectural Benefits**: Eliminates code duplication, improves maintainability, enforces consistent persistence contracts, and strengthens dependency inversion principle
+- **Architect Verification**: Repository consolidation passed review - "cleanly centralizes persistence contracts without breaking existing use-case behavior or leaking business logic into infrastructure layer"
 
 **Next Phases**: Frontend Integration, Production Deployment
 
