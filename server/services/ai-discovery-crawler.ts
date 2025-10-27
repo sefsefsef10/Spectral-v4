@@ -259,8 +259,66 @@ export class AIDiscoveryCrawler {
         logger.info({ healthSystemId }, "No active Epic FHIR connection found");
       }
 
-      // Future: Add Cerner, Athenahealth support here
-      // Similar pattern: check for provider_connections, decrypt, query FHIR API
+      // Cerner FHIR Integration
+      const [cernerConnection] = await db
+        .select()
+        .from(providerConnections)
+        .where(and(
+          eq(providerConnections.healthSystemId, healthSystemId),
+          eq(providerConnections.providerType, 'cerner_fhir'),
+          eq(providerConnections.connectionStatus, 'active')
+        ));
+
+      if (cernerConnection && cernerConnection.credentials) {
+        const { cernerFHIRService } = await import("./cerner-fhir-service");
+        const { decryptFields } = await import("../encryption");
+        const decrypted = decryptFields(
+          { credentials: cernerConnection.credentials },
+          ['credentials']
+        );
+        const creds = JSON.parse(decrypted.credentials);
+
+        const cernerDevices = await cernerFHIRService.discoverAISystems({
+          clientId: creds.clientId,
+          clientSecret: creds.clientSecret,
+          tokenUrl: creds.tokenUrl,
+          fhirBaseUrl: creds.fhirBaseUrl,
+        });
+
+        discovered.push(...cernerDevices);
+        logger.info({ healthSystemId, count: cernerDevices.length }, "Cerner FHIR discovery complete");
+      }
+
+      // Athenahealth FHIR Integration
+      const [athenaConnection] = await db
+        .select()
+        .from(providerConnections)
+        .where(and(
+          eq(providerConnections.healthSystemId, healthSystemId),
+          eq(providerConnections.providerType, 'athenahealth_fhir'),
+          eq(providerConnections.connectionStatus, 'active')
+        ));
+
+      if (athenaConnection && athenaConnection.credentials) {
+        const { athenahealthFHIRService } = await import("./athenahealth-fhir-service");
+        const { decryptFields } = await import("../encryption");
+        const decrypted = decryptFields(
+          { credentials: athenaConnection.credentials },
+          ['credentials']
+        );
+        const creds = JSON.parse(decrypted.credentials);
+
+        const athenaDevices = await athenahealthFHIRService.discoverAISystems({
+          clientId: creds.clientId,
+          clientSecret: creds.clientSecret,
+          tokenUrl: creds.tokenUrl,
+          fhirBaseUrl: creds.fhirBaseUrl,
+          practiceId: creds.practiceId,
+        });
+
+        discovered.push(...athenaDevices);
+        logger.info({ healthSystemId, count: athenaDevices.length }, "Athenahealth FHIR discovery complete");
+      }
 
       return discovered;
     } catch (error) {

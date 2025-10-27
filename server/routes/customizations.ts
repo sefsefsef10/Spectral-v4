@@ -1,7 +1,4 @@
 import { Router } from 'express';
-import { db } from '../db';
-import { customizationRequests } from '../../shared/schema';
-import { eq, and } from 'drizzle-orm';
 import { logger } from '../logger';
 import { z } from 'zod';
 

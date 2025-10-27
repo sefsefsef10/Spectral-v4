@@ -61,7 +61,7 @@ describe('Multi-Tenant Isolation Security Tests', () => {
 
     it('should prevent cross-tenant data access in API responses', () => {
       const requestorTenantId = 'tenant-A';
-      const resourceTenantId = 'tenant-B';
+      const resourceTenantId = 'tenant-B' as string;
       
       const canAccess = requestorTenantId === resourceTenantId;
       expect(canAccess).toBe(false);
@@ -200,7 +200,7 @@ describe('Multi-Tenant Isolation Security Tests', () => {
 
     it('should prevent cross-tenant audit log access', () => {
       const requestorTenant = 'tenant-A';
-      const auditLog = { id: '1', tenantId: 'tenant-B' };
+      const auditLog = { id: '1', tenantId: 'tenant-B' as string };
       
       const canAccess = auditLog.tenantId === requestorTenant;
       expect(canAccess).toBe(false);

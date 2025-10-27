@@ -21,19 +21,19 @@ export default function TranslationEngineCustomization() {
   const queryClient = useQueryClient();
 
   // Fetch user plan tier to determine customization access
-  const { data: userProfile } = useQuery({
+  const { data: userProfile } = useQuery<any>({
     queryKey: ['/api/auth/me'],
   });
 
   const isEnterpriseTier = userProfile?.organization?.planTier === 'enterprise';
 
   // Fetch existing customizations
-  const { data: customizations, isLoading } = useQuery({
+  const { data: customizations } = useQuery<any>({
     queryKey: ['/api/customizations'],
     enabled: isEnterpriseTier,
   });
 
-  const { data: pendingApprovals } = useQuery({
+  const { data: pendingApprovals } = useQuery<any[]>({
     queryKey: ['/api/customizations/pending'],
     enabled: userProfile?.role === 'super_admin',
   });
@@ -145,7 +145,7 @@ export default function TranslationEngineCustomization() {
           {userProfile?.role === 'super_admin' && (
             <TabsTrigger value="approvals">
               Pending Approvals
-              {pendingApprovals?.length > 0 && (
+              {pendingApprovals && pendingApprovals.length > 0 && (
                 <Badge variant="destructive" className="ml-2">{pendingApprovals.length}</Badge>
               )}
             </TabsTrigger>
@@ -272,7 +272,7 @@ export default function TranslationEngineCustomization() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {pendingApprovals?.map((request: any) => (
+                  {pendingApprovals && pendingApprovals.map((request: any) => (
                     <CustomizationApprovalCard
                       key={request.id}
                       request={request}
@@ -342,7 +342,7 @@ export default function TranslationEngineCustomization() {
 }
 
 // Threshold Override Dialog Component
-function ThresholdOverrideDialog({ open, onClose, onSubmit }: any) {
+function ThresholdOverrideDialog({ open, onClose, onSubmit }: { open: boolean; onClose: () => void; onSubmit: (data: any) => void }) {
   const [formData, setFormData] = useState({
     eventType: '',
     newThreshold: '',
@@ -412,7 +412,7 @@ function ThresholdOverrideDialog({ open, onClose, onSubmit }: any) {
 }
 
 // Custom Control Dialog Component
-function CustomControlDialog({ open, onClose, onSubmit }: any) {
+function CustomControlDialog({ open, onClose, onSubmit }: { open: boolean; onClose: () => void; onSubmit: (data: any) => void }) {
   const [formData, setFormData] = useState({
     controlName: '',
     description: '',
@@ -494,7 +494,7 @@ function CustomControlDialog({ open, onClose, onSubmit }: any) {
 }
 
 // Approval Card Component (Admin View)
-function CustomizationApprovalCard({ request, onReview }: any) {
+function CustomizationApprovalCard({ request, onReview }: { request: any; onReview: (id: string, action: 'approve' | 'reject', notes: string) => void }) {
   const [showReviewDialog, setShowReviewDialog] = useState(false);
   const [reviewNotes, setReviewNotes] = useState('');
   const [reviewAction, setReviewAction] = useState<'approve' | 'reject'>('approve');

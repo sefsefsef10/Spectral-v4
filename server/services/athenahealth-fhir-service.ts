@@ -1,7 +1,7 @@
 import { logger } from '../logger';
 import type { DiscoveredAISystem } from './ai-discovery-crawler';
 
-interface AthenaDHIRConfig {
+interface AthenahealthFHIRConfig {
   clientId: string;
   clientSecret: string;
   tokenUrl: string;
@@ -119,8 +119,8 @@ export class AthenahealthFHIRService {
         department,
         vendor,
         category,
-        source: 'athenahealth_fhir',
-        confidence: 0.87, // High confidence for Athenahealth FHIR-registered devices
+        discoverySource: 'Athenahealth FHIR Device API',
+        confidence: 0.87,
         metadata: {
           fhirId: device.id,
           deviceType: device.type?.coding?.[0]?.display,

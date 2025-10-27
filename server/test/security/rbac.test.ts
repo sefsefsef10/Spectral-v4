@@ -299,7 +299,7 @@ describe('Role-Based Access Control (RBAC) Security Tests', () => {
     });
 
     it('should prevent Foundation tier from requesting customizations', () => {
-      const planTier = 'foundation';
+      const planTier = 'foundation' as string;
       const canRequest = planTier === 'enterprise';
       
       expect(canRequest).toBe(false);

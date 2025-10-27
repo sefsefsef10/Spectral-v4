@@ -117,8 +117,8 @@ export class CernerFHIRService {
         department,
         vendor,
         category,
-        source: 'cerner_fhir',
-        confidence: 0.88, // High confidence for Cerner FHIR-registered devices
+        discoverySource: 'Cerner FHIR Device API',
+        confidence: 0.88,
         metadata: {
           fhirId: device.id,
           deviceType: device.type?.coding?.[0]?.display,
