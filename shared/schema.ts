@@ -266,12 +266,14 @@ export const certificationApplications = pgTable("certification_applications", {
   complianceStatements: text("compliance_statements"), // JSON: {hipaa: boolean, nist: boolean, fda: boolean}
   automatedChecksPassed: boolean("automated_checks_passed"),
   automatedChecksResult: text("automated_checks_result"), // JSON with check details
+  score: integer("score").default(0), // Certification score 0-100
   reviewedBy: varchar("reviewed_by").references(() => users.id, { onDelete: "set null" }),
   reviewedAt: timestamp("reviewed_at"),
   rejectionReason: text("rejection_reason"),
   notes: text("notes"),
   submittedAt: timestamp("submitted_at").notNull().defaultNow(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 // 🧪 VENDOR TESTING SUITE - Makes Beacon certifications meaningful
