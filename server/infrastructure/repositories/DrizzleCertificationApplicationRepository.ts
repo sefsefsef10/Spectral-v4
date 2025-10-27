@@ -5,16 +5,16 @@
  * This is the infrastructure layer - it knows about Drizzle, PostgreSQL, and database models.
  */
 
-import { db } from '@server/db';
-import { certificationApplications } from '@shared/schema';
+import { db } from '../../db';
+import { certificationApplications } from '../../../shared/schema';
 import { eq, desc } from 'drizzle-orm';
 import {
   CertificationApplication,
   CertificationTier,
   ApplicationStatus,
   type ComplianceStatements
-} from '@server/domain/entities/CertificationApplication';
-import type { CertificationApplicationRepository } from '@server/domain/repositories/CertificationApplicationRepository';
+} from '../../domain/entities/CertificationApplication';
+import type { CertificationApplicationRepository } from '../../domain/repositories/CertificationApplicationRepository';
 
 export class DrizzleCertificationApplicationRepository implements CertificationApplicationRepository {
   async findById(id: string): Promise<CertificationApplication | null> {

@@ -20,7 +20,7 @@ import {
   CertificationApplicationRepository, 
   DeploymentRepository 
 } from '../../domain/repositories/CertificationApplicationRepository';
-import { Logger } from '../../logger';
+import { logger } from '../../logger';
 
 // Request/Response DTOs (Data Transfer Objects)
 
@@ -68,13 +68,13 @@ export class ProcessCertificationApplicationUseCase {
     private readonly applicationRepository: CertificationApplicationRepository,
     private readonly deploymentRepository: DeploymentRepository,
     private readonly vendorTestingSuite: VendorTestingSuite,
-    private readonly logger: Logger
+    private readonly loggerInstance: typeof logger
   ) {}
 
   async execute(request: ProcessCertificationRequest): Promise<ProcessCertificationResponse> {
     const { applicationId } = request;
 
-    this.logger.info({ applicationId }, `Processing certification application: ${applicationId}`);
+    this.loggerInstance.info({ applicationId }, `Processing certification application: ${applicationId}`);
 
     // 1. Load application
     const application = await this.applicationRepository.findById(applicationId);
@@ -115,7 +115,7 @@ export class ProcessCertificationApplicationUseCase {
       await this.applicationRepository.save(application);
 
       // 9. Log completion
-      this.logger.info(
+      this.loggerInstance.info(
         { applicationId, passed: application.automatedChecksPassed, score: application.score },
         `Certification application ${applicationId}: ${application.automatedChecksPassed ? 'PASSED' : 'FAILED'} automated checks (score: ${application.score})`
       );
@@ -133,7 +133,7 @@ export class ProcessCertificationApplicationUseCase {
       };
 
     } catch (error) {
-      this.logger.error({ applicationId, error }, 'Failed to process certification application');
+      this.loggerInstance.error({ applicationId, error }, 'Failed to process certification application');
       
       return {
         success: false,
@@ -215,7 +215,7 @@ export class ProcessCertificationApplicationUseCase {
   private async runVendorTests(
     application: CertificationApplication
   ): Promise<VendorTestResult[]> {
-    this.logger.info({ applicationId: application.id }, 'Running vendor testing suite...');
+    this.loggerInstance.info({ applicationId: application.id }, 'Running vendor testing suite...');
 
     try {
       const testConfig: VendorTestConfig = {
@@ -226,7 +226,7 @@ export class ProcessCertificationApplicationUseCase {
 
       const results = await this.vendorTestingSuite.runAllTests(testConfig);
 
-      this.logger.info(
+      this.loggerInstance.info(
         { applicationId: application.id, testResults: this.formatTestResults(results) },
         'Vendor testing suite completed'
       );
@@ -234,7 +234,7 @@ export class ProcessCertificationApplicationUseCase {
       return results;
 
     } catch (error) {
-      this.logger.error(
+      this.loggerInstance.error(
         { applicationId: application.id, error },
         'Vendor testing suite failed'
       );

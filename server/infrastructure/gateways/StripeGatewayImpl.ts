@@ -5,11 +5,11 @@
  * Isolates external Stripe API calls from domain logic.
  */
 
-import { StripeGateway, StripeSubscriptionResult } from '@server/domain/gateways/StripeGateway';
-import { SubscriptionTier } from '@server/domain/entities/Subscription';
-import { stripe, HEALTH_SYSTEM_PRICING } from '@server/services/stripe-billing';
-import { storage } from '@server/storage';
-import { logger } from '@server/logger';
+import { StripeGateway, StripeSubscriptionResult } from '../../domain/gateways/StripeGateway';
+import { SubscriptionTier } from '../../domain/entities/Subscription';
+import { stripe, HEALTH_SYSTEM_PRICING } from '../../services/stripe-billing';
+import { storage } from '../../storage';
+import { logger } from '../../logger';
 import Stripe from 'stripe';
 
 export class StripeGatewayImpl implements StripeGateway {

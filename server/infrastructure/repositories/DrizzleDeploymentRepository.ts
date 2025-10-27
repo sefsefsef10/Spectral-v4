@@ -4,10 +4,10 @@
  * Provides access to vendor deployment data for certification validation.
  */
 
-import { db } from '@server/db';
-import { deployments } from '@shared/schema';
+import { db } from '../../db';
+import { deployments } from '../../../shared/schema';
 import { eq, and } from 'drizzle-orm';
-import type { DeploymentRepository, Deployment } from '@server/domain/repositories/CertificationApplicationRepository';
+import type { DeploymentRepository, Deployment } from '../../domain/repositories/CertificationApplicationRepository';
 
 export class DrizzleDeploymentRepository implements DeploymentRepository {
   async findByVendorId(vendorId: string): Promise<Deployment[]> {

@@ -5,11 +5,11 @@
  * Maps between Subscription domain entities and database persistence.
  */
 
-import { db } from '@server/db';
-import { healthSystems } from '@shared/schema';
+import { db } from '../../db';
+import { healthSystems } from '../../../shared/schema';
 import { eq } from 'drizzle-orm';
-import { Subscription, SubscriptionTier, SubscriptionStatus } from '@server/domain/entities/Subscription';
-import { SubscriptionRepository } from '@server/domain/repositories/SubscriptionRepository';
+import { Subscription, SubscriptionTier, SubscriptionStatus } from '../../domain/entities/Subscription';
+import { SubscriptionRepository } from '../../domain/repositories/SubscriptionRepository';
 
 export class DrizzleSubscriptionRepository implements SubscriptionRepository {
   async findById(id: string): Promise<Subscription | null> {
