@@ -124,7 +124,7 @@ def calculate_bias_metrics(predictions: List[int], labels: List[int], sensitive_
         positive_rates = {str(k): (0.0 if math.isnan(v) else float(v)) for k, v in positive_rates.items()}
         
         return {
-            "bias_detected": bias_detected,
+            "bias_detected": bool(bias_detected),
             "severity": severity,
             "metrics": {
                 "demographic_parity_difference": float(dp_diff),
