@@ -15,10 +15,15 @@ export const users = pgTable("users", {
   passwordResetTokenExpiry: timestamp("password_reset_token_expiry"), // Reset token expiration
   firstName: text("first_name"),
   lastName: text("last_name"),
-  role: text("role").notNull().default("health_system"), // 'health_system', 'vendor', 'admin'
+  role: text("role").notNull().default("health_system"), // 'health_system', 'vendor', 'admin', 'viewer', 'analyst', 'auditor', 'executive', 'super_admin'
   permissions: text("permissions").notNull().default("user"), // 'admin', 'user', 'viewer'
-  status: text("status").notNull().default("active"), // 'active', 'inactive', 'invited'
+  status: text("status").notNull().default("active"), // 'active', 'inactive', 'invited', 'pending_verification', 'locked', 'deactivated'
   lastLogin: timestamp("last_login"),
+  // Clean Architecture: Password policy enforcement
+  passwordExpiresAt: timestamp("password_expires_at"), // 90-day password expiration
+  passwordChangedAt: timestamp("password_changed_at"), // Track last password change
+  failedLoginAttempts: integer("failed_login_attempts").notNull().default(0), // Track failed logins
+  accountLockedUntil: timestamp("account_locked_until"), // Auto-unlock after 30 min
   // MFA/2FA support
   mfaEnabled: boolean("mfa_enabled").notNull().default(false),
   mfaSecret: text("mfa_secret"), // Encrypted TOTP secret
@@ -32,7 +37,10 @@ export const users = pgTable("users", {
   stripeSubscriptionId: text("stripe_subscription_id"), // Stripe subscription ID
   healthSystemId: varchar("health_system_id").references(() => healthSystems.id, { onDelete: "set null" }),
   vendorId: varchar("vendor_id").references(() => vendors.id, { onDelete: "set null" }),
+  createdBy: varchar("created_by"), // User who created this account
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  deactivatedAt: timestamp("deactivated_at"), // Soft delete timestamp
 }, (table) => ({
   // Index for email lookups during authentication
   emailIdx: sql`CREATE INDEX IF NOT EXISTS idx_users_email ON ${table} (email)`,
@@ -1565,3 +1573,60 @@ export type InsertPolicyChangeLog = z.infer<typeof insertPolicyChangeLogSchema>;
 
 export type RoiMetric = typeof roiMetrics.$inferSelect;
 export type InsertRoiMetric = z.infer<typeof insertRoiMetricSchema>;
+
+// ============================================================
+// CLEAN ARCHITECTURE: Rate Limiting (Phase 9)
+// ============================================================
+export const rateLimitPolicies = pgTable("rate_limit_policies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: text("client_id").notNull().unique(), // User ID, API key, or IP address
+  tier: text("tier").notNull().default("free"), // 'free', 'starter', 'professional', 'enterprise'
+  hourlyLimit: integer("hourly_limit").notNull().default(100),
+  dailyLimit: integer("daily_limit").notNull().default(1000),
+  hourlyUsage: integer("hourly_usage").notNull().default(0),
+  dailyUsage: integer("daily_usage").notNull().default(0),
+  hourlyResetAt: timestamp("hourly_reset_at").notNull().defaultNow(),
+  dailyResetAt: timestamp("daily_reset_at").notNull().defaultNow(),
+  violations: integer("violations").notNull().default(0),
+  blockedUntil: timestamp("blocked_until"), // Temporary block after 3 violations
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  clientIdIdx: sql`CREATE INDEX IF NOT EXISTS idx_rate_limit_policies_client_id ON ${table} (client_id)`,
+}));
+
+// ============================================================
+// CLEAN ARCHITECTURE: Deployment Infrastructure (Phase 10)
+// ============================================================
+export const deployments = pgTable("deployments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  aiSystemId: varchar("ai_system_id").notNull().references(() => aiSystems.id, { onDelete: "cascade" }),
+  version: text("version").notNull(),
+  strategy: text("strategy").notNull(), // 'rolling', 'blue_green', 'canary'
+  status: text("status").notNull().default("pending"), // 'pending', 'in_progress', 'healthy', 'unhealthy', 'rolled_back'
+  canaryPercentage: integer("canary_percentage"), // For canary deployments
+  healthChecks: jsonb("health_checks").notNull(), // Array of health check configs
+  healthCheckResults: jsonb("health_check_results").notNull().default('{}'), // Latest results
+  consecutiveHealthCheckFailures: integer("consecutive_health_check_failures").notNull().default(0),
+  rollbackPolicy: jsonb("rollback_policy").notNull(), // Auto-rollback configuration
+  errorRate: integer("error_rate").notNull().default(0),
+  deployedAt: timestamp("deployed_at"),
+  completedAt: timestamp("completed_at"),
+  rolledBackAt: timestamp("rolled_back_at"),
+  rollbackReason: text("rollback_reason"),
+  createdBy: varchar("created_by").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  aiSystemIdIdx: sql`CREATE INDEX IF NOT EXISTS idx_deployments_ai_system_id ON ${table} (ai_system_id)`,
+  statusIdx: sql`CREATE INDEX IF NOT EXISTS idx_deployments_status ON ${table} (status)`,
+}));
+
+export const insertRateLimitPolicySchema = createInsertSchema(rateLimitPolicies);
+export const insertDeploymentSchema = createInsertSchema(deployments);
+
+export type RateLimitPolicy = typeof rateLimitPolicies.$inferSelect;
+export type InsertRateLimitPolicy = z.infer<typeof insertRateLimitPolicySchema>;
+
+export type Deployment = typeof deployments.$inferSelect;
+export type InsertDeployment = z.infer<typeof insertDeploymentSchema>;
