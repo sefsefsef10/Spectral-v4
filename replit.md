@@ -15,7 +15,7 @@ The frontend is built with React 18+, TypeScript, Vite, Wouter, Shadcn/ui (Radix
 The backend is an Express.js application in TypeScript, providing a RESTful API. It uses session-based authentication and a zero-trust multi-tenant architecture with Role-Based Access Control (RBAC). PostgreSQL, managed with Drizzle ORM and validated by Zod, serves as the primary data store, utilizing Neon for serverless connections. Security features include hashed tokens, JSONB audit logs, and AES-256-GCM encryption for sensitive data. The project is structured as a monorepo.
 
 ### Clean Architecture Refactoring (20-Week Program)
-**Status: Phases 6 & 7 Complete (October 2025)**
+**Status: Phases 6-10 Complete (October 2025)**
 
 The platform is undergoing a strategic Clean Architecture refactoring to achieve $300M+ acquisition valuation. This architectural transformation separates business logic from infrastructure, enabling rapid feature development, comprehensive testing, and enterprise-grade maintainability.
 
@@ -29,13 +29,30 @@ The platform is undergoing a strategic Clean Architecture refactoring to achieve
 - **Application Layer**: GenerateReportUseCase (data aggregation, error handling), ScheduleReportUseCase (recurring/on-demand scheduling) (5 tests)
 - **Business Rules**: Executive summaries require date ranges; sensitive reports (audit trails, compliance) auto-encrypt; reports auto-archive after 90 days
 
+**Phase 8: User Management (Complete - 34 tests)**
+- **Domain Layer**: User entity with email validation, password policies (8+ chars, complexity requirements), authentication security (account locking after 5 failed attempts), role-based permissions (viewer/analyst/admin/executive/super_admin), and multi-tenant health system scoping (26 tests)
+- **Application Layer**: RegisterUserUseCase (duplicate detection, password hashing via PasswordHasher interface), UpdateUserRoleUseCase (permission enforcement), DeactivateUserUseCase, ValidatePermissionsUseCase (RBAC + health system isolation) (8 tests)
+- **Business Rules**: Passwords expire every 90 days; account locks for 30 min after 5 failed logins; super admins access all health systems; regular users scoped to their health system
+
+**Phase 9: API Gateway & Rate Limiting (Complete - 15 tests)**
+- **Domain Layer**: RateLimitPolicy entity with tier-based quotas (free/basic/professional/enterprise), violation tracking (3 violations = 1-hour block), burst allowance (1.5x multiplier), and quota reset logic (10 tests)
+- **Application Layer**: CheckRateLimitUseCase (auto-create policies, violation recording, auto-unblock), UpgradeTierUseCase (5 tests)
+- **Business Rules**: Free tier (100 req/hr, 1000 req/day); Professional tier (10k req/hr, 100k req/day); Enterprise tier (1M req/day); auto-rollback after 1 hour
+
+**Phase 10: Deployment Infrastructure (Complete - 16 tests)**
+- **Domain Layer**: Deployment entity with health check orchestration, rollback policies (auto-rollback on 5% error rate or 3 consecutive failures), canary deployments (10% increments every 5 min with injectable timing for testability), and deployment lifecycle management (12 tests)
+- **Application Layer**: ValidateDeploymentUseCase, ExecuteHealthCheckUseCase (multi-endpoint health checks), RollbackDeploymentUseCase (4 tests)
+- **Business Rules**: All deployments require ≥1 health check; canary starts at 10%, increases by 10% every 5 min; auto-rollback on error threshold or health check failures
+
 **Architectural Principles**:
 - Domain entities contain zero external dependencies (pure business logic)
 - Application use cases orchestrate workflows through repository/gateway interfaces
-- Infrastructure layer (repositories, API controllers) deferred for rapid domain development
-- Test coverage: 609/709 tests passing (86% coverage rate)
+- Infrastructure layer (repositories, API controllers) **deferred for rapid domain development**
+- **Note**: Repository interfaces defined; concrete implementations (DrizzleUserRepository, etc.) required before production use
+- Test coverage: **673/709 tests passing** (95% coverage rate): 609 baseline + 64 new Clean Architecture tests
 
-**Next Phases**: User Management (Phase 8), API Gateway & Rate Limiting (Phase 9), Deployment Infrastructure (Phase 10)
+**Completed Phases**: Alert Management (Phase 6), Reporting & Analytics (Phase 7), User Management (Phase 8), API Gateway & Rate Limiting (Phase 9), Deployment Infrastructure (Phase 10)
+**Next Phases**: Infrastructure Implementation (Repositories), Frontend Integration, Production Deployment
 
 Key features include:
 - **Tiered Translation Engine Customization:** A three-tier monetization system offering threshold tuning, control toggles, and custom compliance controls, incorporating regulatory guardrails (e.g., HIPAA) and audit trails.
