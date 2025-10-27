@@ -1598,7 +1598,7 @@ export const rateLimitPolicies = pgTable("rate_limit_policies", {
 // ============================================================
 // CLEAN ARCHITECTURE: Deployment Infrastructure (Phase 10)
 // ============================================================
-export const deployments = pgTable("deployments", {
+export const aiSystemDeployments = pgTable("ai_system_deployments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   aiSystemId: varchar("ai_system_id").notNull().references(() => aiSystems.id, { onDelete: "cascade" }),
   version: text("version").notNull(),
@@ -1618,15 +1618,15 @@ export const deployments = pgTable("deployments", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
-  aiSystemIdIdx: sql`CREATE INDEX IF NOT EXISTS idx_deployments_ai_system_id ON ${table} (ai_system_id)`,
-  statusIdx: sql`CREATE INDEX IF NOT EXISTS idx_deployments_status ON ${table} (status)`,
+  aiSystemIdIdx: sql`CREATE INDEX IF NOT EXISTS idx_ai_system_deployments_ai_system_id ON ${table} (ai_system_id)`,
+  statusIdx: sql`CREATE INDEX IF NOT EXISTS idx_ai_system_deployments_status ON ${table} (status)`,
 }));
 
 export const insertRateLimitPolicySchema = createInsertSchema(rateLimitPolicies);
-export const insertDeploymentSchema = createInsertSchema(deployments);
+export const insertAiSystemDeploymentSchema = createInsertSchema(aiSystemDeployments);
 
 export type RateLimitPolicy = typeof rateLimitPolicies.$inferSelect;
 export type InsertRateLimitPolicy = z.infer<typeof insertRateLimitPolicySchema>;
 
-export type Deployment = typeof deployments.$inferSelect;
-export type InsertDeployment = z.infer<typeof insertDeploymentSchema>;
+export type AiSystemDeployment = typeof aiSystemDeployments.$inferSelect;
+export type InsertAiSystemDeployment = z.infer<typeof insertAiSystemDeploymentSchema>;
