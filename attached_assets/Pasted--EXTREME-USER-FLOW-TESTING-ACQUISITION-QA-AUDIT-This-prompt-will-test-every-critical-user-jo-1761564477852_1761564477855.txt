@@ -1,0 +1,1929 @@
+**🔥 EXTREME USER FLOW TESTING: ACQUISITION QA AUDIT**
+
+This prompt will test every critical user journey like Epic's QA team would during acquisition due diligence. Paste into Replit for comprehensive testing.
+
+---
+
+```markdown
+# COMPREHENSIVE USER FLOW TESTING PROTOCOL
+## Acquisition-Grade QA Audit for Production Readiness
+
+## MISSION CONTEXT
+
+You are Epic Systems' Senior QA Engineer conducting due diligence for a $300M acquisition of Spectral.
+
+**Your job:** Find every bug, break every flow, identify every edge case that would:
+- Cause customer churn
+- Create security vulnerabilities
+- Block enterprise adoption
+- Reduce acquisition value
+
+**Testing standard:** Would I approve this in Epic's production environment?
+
+**Failure criteria:** 
+- Any critical bug = BLOCK acquisition
+- Any security hole = BLOCK acquisition  
+- Any data loss scenario = BLOCK acquisition
+- 3+ major bugs = Reduce valuation 30%
+- 5+ UX issues = Product not enterprise-ready
+
+---
+
+## TESTING FRAMEWORK
+
+Test ALL flows for these 5 user personas:
+
+### PERSONA 1: Health System Admin (Primary User)
+**Profile:** Sarah Chen, IT Director at Mid-Size Regional Hospital (300 beds)
+**Goals:** Deploy Spectral, onboard AI systems, get compliance visibility
+**Pain Points:** Limited time, needs simple workflows, board reporting pressure
+**Success Criteria:** Can onboard 5 AI systems and generate board report in < 1 hour
+
+### PERSONA 2: Health System CISO (Decision Maker)
+**Profile:** Dr. James Rodriguez, CISO at Large Academic Medical Center
+**Goals:** Prove HIPAA compliance to board, manage AI risk portfolio
+**Pain Points:** Regulatory audits, board presentations, limited compliance staff
+**Success Criteria:** Trust Spectral for regulatory documentation
+
+### PERSONA 3: Compliance Officer (Power User)
+**Profile:** Maria Lopez, VP Compliance at 10-Hospital Network  
+**Goals:** Customize compliance controls, tune thresholds, manage exceptions
+**Pain Points:** One-size-fits-all tools don't work, needs organizational policies
+**Success Criteria:** Create custom controls, override thresholds, maintain audit trail
+
+### PERSONA 4: AI Vendor (Marketplace Participant)
+**Profile:** TechVendor Inc., Healthcare AI SaaS company (50 customers)
+**Goals:** Get Spectral Certified badge to win more deals
+**Pain Points:** Long sales cycles, compliance questions from buyers
+**Success Criteria:** Apply for certification, pass tests, get badge
+
+### PERSONA 5: Spectral Admin (Internal Operations)
+**Profile:** Spectral Platform Administrator
+**Goals:** Review vendor certifications, approve custom controls, support customers
+**Pain Points:** Managing approval workflows, customer support
+**Success Criteria:** Efficient admin workflows, audit trail maintained
+
+---
+
+## TEST DIMENSIONS
+
+For EACH user flow, test across these dimensions:
+
+1. **Happy Path** - Does it work when everything goes right?
+2. **Unhappy Path** - What happens when user makes mistakes?
+3. **Edge Cases** - Boundary conditions, empty states, max values
+4. **Error Handling** - Are error messages clear and actionable?
+5. **Data Integrity** - Is data saved correctly? Can it be recovered?
+6. **Security** - Can users access data they shouldn't?
+7. **Performance** - Does it work with realistic data volumes?
+8. **Mobile** - Does it work on mobile devices?
+9. **Accessibility** - Can it be used with screen reader?
+10. **Concurrency** - What if 2 users edit same thing simultaneously?
+
+---
+
+## CRITICAL USER FLOWS TO TEST
+
+---
+
+## FLOW 1: NEW CUSTOMER ONBOARDING 🆕
+
+**Persona:** Health System Admin (Sarah)
+**Importance:** CRITICAL - First impression determines adoption
+**Time Budget:** Should take < 30 minutes
+
+### Test Case 1.1: Sign Up Flow
+
+**Steps:**
+1. Navigate to production URL (spectral.health or wherever deployed)
+2. Click "Sign Up" or "Get Started"
+3. Fill out registration form:
+   - Email: sarah.chen+test@hospital.com
+   - Password: Test123!@#
+   - Health System Name: Regional Medical Center
+   - Role: IT Administrator
+4. Submit form
+5. Check email for verification
+6. Click verification link
+7. Complete profile setup
+
+**Expected Results:**
+✅ Registration form validates email format
+✅ Password meets requirements (8+ chars, uppercase, lowercase, number, special)
+✅ Unique email constraint works (try registering twice with same email)
+✅ Verification email arrives within 2 minutes
+✅ Verification link logs user in automatically
+✅ User lands on "Welcome/Onboarding" screen
+✅ Session persists (refresh page, still logged in)
+
+**Unhappy Path Tests:**
+❌ Try weak password ("password") - Should reject with clear message
+❌ Try invalid email ("notanemail") - Should reject
+❌ Try existing email - Should say "Email already registered"
+❌ Click verification link twice - Should handle gracefully
+❌ Try SQL injection in name field: `'; DROP TABLE users; --`
+❌ Try XSS in name field: `<script>alert('xss')</script>`
+
+**Edge Cases:**
+- Email with special characters: `sarah.chen+test@sub-domain.hospital.co.uk`
+- Very long health system name (200+ characters)
+- Health system name with emoji: `Regional Medical Center 🏥`
+- Non-English characters: `东方医院`
+
+**Security Tests:**
+- Password must be hashed (check database - should NOT see plaintext)
+- Verification token should expire after 24 hours
+- Cannot access dashboard without verifying email
+- Session timeout after 24 hours of inactivity
+
+**PASS CRITERIA:**
+- Zero security issues
+- Clear error messages for validation failures
+- Email arrives reliably
+- Process takes < 5 minutes
+
+**FAIL CRITERIA:**
+- Passwords stored in plaintext → CRITICAL
+- SQL injection works → CRITICAL
+- No email verification → MAJOR
+- Confusing error messages → MINOR
+
+---
+
+### Test Case 1.2: Initial Onboarding Wizard
+
+**Steps:**
+1. After email verification, user lands on onboarding screen
+2. Complete onboarding wizard:
+   - Select tier: Foundation / Growth / Enterprise
+   - Add first AI system:
+     - Name: "Epic Clinical Decision Support"
+     - Vendor: "Epic Systems"
+     - Category: "Clinical AI"
+     - Uses PHI: Yes
+   - Configure monitoring:
+     - Connect LangSmith (or select "Manual monitoring")
+   - Invite team members:
+     - Add colleague: james.rodriguez@hospital.com (CISO role)
+3. Complete onboarding
+4. Land on main dashboard
+
+**Expected Results:**
+✅ Wizard shows progress (Step 1 of 4, etc.)
+✅ Can save progress and return later
+✅ Can skip optional steps
+✅ First AI system appears in inventory immediately
+✅ Team invitation email sent
+✅ Dashboard shows onboarding progress (e.g., "2 of 5 steps complete")
+
+**Unhappy Path Tests:**
+❌ Close browser mid-wizard - Progress saved?
+❌ Hit "Back" button - Does it go to previous step or break?
+❌ Submit form with empty required fields - Clear validation?
+❌ Add invalid email for team member - Rejects gracefully?
+
+**Edge Cases:**
+- Add AI system with special characters in name
+- Add 10 team members at once
+- Select "Manual monitoring" but no webhook endpoint
+- Try to invite same email twice
+
+**PASS CRITERIA:**
+- Wizard feels intuitive (< 5 minutes to complete)
+- Progress is saved (can resume after closing browser)
+- First AI system appears immediately in dashboard
+
+**FAIL CRITERIA:**
+- Lost progress on browser close → MAJOR
+- Wizard breaks on "Back" button → MAJOR
+- No validation errors → MINOR
+
+---
+
+## FLOW 2: AI SYSTEM MANAGEMENT 🤖
+
+**Persona:** Health System Admin (Sarah)
+**Importance:** CRITICAL - Core workflow for daily usage
+
+### Test Case 2.1: Add AI System (Manual)
+
+**Steps:**
+1. Navigate to "AI Systems" page
+2. Click "Add AI System" button
+3. Fill out form:
+   - Name: "Rad AI Chest X-Ray Analyzer"
+   - Vendor: "Rad AI"
+   - Category: "Imaging AI"
+   - Uses PHI Type: "Images"
+   - Deployment Environment: "Production"
+   - Epic Integration: No
+   - Risk Tier: "High-Risk (Clinical Decision Support)"
+4. Submit form
+5. Verify AI system appears in list
+
+**Expected Results:**
+✅ Form validates required fields
+✅ AI system appears in list immediately
+✅ System status shows "Active"
+✅ Can view AI system detail page
+✅ System assigned unique ID
+✅ Created timestamp accurate
+
+**Unhappy Path Tests:**
+❌ Submit with empty required fields - Shows validation errors
+❌ Add duplicate AI system (same name + vendor) - Warns user
+❌ Add AI system with very long name (500+ chars) - Truncates or rejects
+❌ Submit form, then immediately submit again (double-click) - Prevents duplicate creation
+
+**Edge Cases:**
+- Add 100 AI systems - Performance still good?
+- Add AI system with special chars: `Rad/AI: "Chest" (X-Ray) #1`
+- Add AI system with emoji: `🩺 Diagnosis AI`
+- Add AI system with SQL injection attempt in name
+
+**Security Tests:**
+- Can only see AI systems from own health system (not other customers')
+- Cannot add AI system to another health system via API manipulation
+- healthSystemId properly set from session
+
+**Data Integrity:**
+- Refresh page - AI system still there
+- Logout and login - AI system still there
+- Check database - record properly inserted with correct healthSystemId
+
+**PASS CRITERIA:**
+- Process takes < 2 minutes
+- Immediate feedback (no loading delays)
+- Clear validation messages
+- Data persists correctly
+
+**FAIL CRITERIA:**
+- Can view other health systems' AI → CRITICAL SECURITY ISSUE
+- Data loss on refresh → CRITICAL
+- Slow loading (>3 seconds) → MAJOR
+
+---
+
+### Test Case 2.2: Configure AI System Monitoring
+
+**Steps:**
+1. Navigate to AI system detail page
+2. Click "Configure Monitoring" tab
+3. Select monitoring source: "LangSmith"
+4. Enter configuration:
+   - API Key: `lsv2_pt_test123456789`
+   - Project Name: `production-clinical-ai`
+   - Polling Interval: "Every 5 minutes"
+5. Click "Test Connection"
+6. Save configuration
+7. Verify monitoring starts
+
+**Expected Results:**
+✅ Test Connection validates API key is valid format
+✅ If API key invalid, shows clear error
+✅ Configuration saved immediately
+✅ Polling job scheduled in Inngest
+✅ First telemetry data appears within 5-10 minutes
+✅ API key encrypted in database (not plaintext)
+
+**Unhappy Path Tests:**
+❌ Invalid API key format - Clear error message
+❌ Empty API key - Validation error
+❌ Save without testing connection - Warns user
+❌ API key with spaces/newlines - Strips whitespace automatically
+
+**Edge Cases:**
+- Very long API key (1000+ characters)
+- API key with special characters
+- LangSmith API actually returns error (401, 403, 500) - Handled gracefully?
+
+**Security Tests:**
+- API key encrypted in database (AES-256-GCM)
+- API key NOT visible in browser DevTools network tab
+- API key NOT logged to console
+- Cannot view other health systems' API keys
+
+**Critical Test:**
+```sql
+-- Run this query in database:
+SELECT integration_config FROM ai_systems WHERE id = '[system_id]';
+
+-- Should return ENCRYPTED text, not plaintext API key
+-- Something like: "U2FsdGVkX1+..." not "lsv2_pt_..."
+```
+
+**PASS CRITERIA:**
+- Test Connection provides immediate feedback
+- API keys encrypted at rest
+- Clear error messages for misconfigurations
+
+**FAIL CRITERIA:**
+- API keys stored in plaintext → CRITICAL SECURITY ISSUE
+- No encryption → CRITICAL
+- Polling doesn't start → MAJOR
+
+---
+
+### Test Case 2.3: Receive Monitoring Event (Webhook)
+
+**Steps:**
+1. Set up AI system with webhook monitoring
+2. Trigger test webhook from external source (or simulate):
+   ```bash
+   curl -X POST https://spectral.health/api/webhooks/langsmith \
+     -H "Content-Type: application/json" \
+     -H "X-LangSmith-Signature: [valid_signature]" \
+     -d '{
+       "event_type": "trace.created",
+       "data": {
+         "trace_id": "test-123",
+         "ai_system_id": "[system_id]",
+         "model_output": "Patient MRN 123456 has diabetes",
+         "metrics": {
+           "latency_ms": 250,
+           "tokens_used": 150
+         }
+       }
+     }'
+   ```
+3. Check dashboard for new event
+4. Verify PHI detection triggered
+5. Check if alert created
+
+**Expected Results:**
+✅ Webhook signature validation passes
+✅ Event saved to ai_telemetry_events table
+✅ PHI detected in output (MRN 123456)
+✅ Microsoft Presidio runs automatically
+✅ Compliance violation created (HIPAA 164.402)
+✅ Alert appears in Sentinel dashboard
+✅ Email notification sent (if configured)
+✅ Webhook delivery logged
+
+**Unhappy Path Tests:**
+❌ Invalid signature - Rejected with 401 Unauthorized
+❌ Malformed JSON - Returns 400 Bad Request with clear message
+❌ Missing required fields - Validation error
+❌ Replay attack (send same webhook twice with same timestamp) - Rejected
+❌ Webhook from 10 minutes ago - Rejected (timestamp too old)
+
+**Edge Cases:**
+- Very large payload (10MB+) - Rejected or truncated?
+- Event with 1000+ metrics fields - Handled?
+- Concurrent webhooks (100 per second) - Performance OK?
+- Webhook with no PHI - Correctly classified as clean?
+
+**Security Tests:**
+- HMAC-SHA256 signature verification works correctly
+- Invalid signature absolutely rejected (no bypass)
+- Cannot send webhook without signature
+- Replay attack prevention (timestamp window)
+- Payload sanitized before storage (no XSS/injection)
+
+**Critical Security Test:**
+```bash
+# Try to bypass signature verification
+curl -X POST https://spectral.health/api/webhooks/langsmith \
+  -H "Content-Type: application/json" \
+  -d '{"event_type": "trace.created", "data": {...}}'
+  # Intentionally NO signature header
+
+# Expected: 401 Unauthorized
+# CRITICAL FAILURE if webhook processed without signature
+```
+
+**Performance Test:**
+```bash
+# Send 100 webhooks simultaneously
+for i in {1..100}; do
+  curl -X POST https://spectral.health/api/webhooks/langsmith \
+    -H "X-LangSmith-Signature: [signature]" \
+    -d '{"event_type": "trace.created", ...}' &
+done
+
+# Expected: All 100 processed within 30 seconds
+# Database not overwhelmed
+# No webhook delivery failures
+```
+
+**PASS CRITERIA:**
+- 100% webhook signature enforcement
+- PHI detection triggers automatically
+- Events appear in dashboard within seconds
+- No data loss under load
+
+**FAIL CRITERIA:**
+- Signature bypass possible → CRITICAL SECURITY ISSUE
+- PHI not detected → CRITICAL (core IP failure)
+- Webhooks dropped under load → MAJOR
+- Slow processing (>5 seconds per webhook) → MAJOR
+
+---
+
+### Test Case 2.4: PHI Detection Accuracy Test
+
+**Steps:**
+1. Create AI system configured for monitoring
+2. Send test events with known PHI:
+   ```json
+   Test Case A (Medical Record Number):
+   "Patient MRN 123456 presents with chest pain"
+   Expected: PHI detected (MRN)
+   
+   Test Case B (Patient Name):
+   "John Doe was admitted on 01/15/2024"
+   Expected: PHI detected (PERSON + DATE)
+   
+   Test Case C (SSN):
+   "Patient SSN 123-45-6789 requires follow-up"
+   Expected: PHI detected (SSN)
+   
+   Test Case D (Phone Number):
+   "Call patient at 555-123-4567"
+   Expected: PHI detected (PHONE)
+   
+   Test Case E (Email):
+   "Send results to john.doe@email.com"
+   Expected: PHI detected (EMAIL)
+   
+   Test Case F (Address):
+   "Patient lives at 123 Main St, Boston MA 02101"
+   Expected: PHI detected (LOCATION)
+   
+   Test Case G (No PHI):
+   "Diabetes is a chronic metabolic disorder"
+   Expected: No PHI detected
+   
+   Test Case H (Edge case - dates without patient context):
+   "The study was conducted from 01/01/2024 to 03/31/2024"
+   Expected: No PHI (dates without patient context)
+   ```
+
+3. For each test case:
+   - Send webhook with test text
+   - Check ai_telemetry_events.phi_detected boolean
+   - Check ai_telemetry_events.phi_entities JSON
+   - Verify compliance_violations created for PHI cases
+   - Verify no false positives for non-PHI cases
+
+**Expected Results:**
+✅ Test A-F: PHI correctly detected
+✅ Test G: No false positive
+✅ Test H: Context-aware (no false positive on research dates)
+✅ All PHI entities identified with confidence scores
+✅ Anonymized text generated: "Patient <PHI> presents with chest pain"
+✅ HIPAA violations created for actual PHI exposures
+
+**Accuracy Metrics:**
+- True Positive Rate: >85% (PHI correctly identified)
+- False Positive Rate: <10% (non-PHI incorrectly flagged)
+- Precision: >80%
+- Recall: >85%
+
+**Test with Real Clinical Notes:**
+```
+Test Case I (Realistic Clinical Note):
+"Pt: Jane Smith, DOB 05/12/1975, MRN 987654
+CC: Chest pain
+HPI: 48yo F with PMHx of HTN, DM2 presents with acute chest pain x2hrs.
+Vitals: BP 145/92, HR 88, RR 18, T 98.6F, O2sat 98% RA
+Assessment: Likely GERD vs cardiac. EKG WNL. Trop pending.
+Plan: GI cocktail, serial trops, cardiology consult if elevated
+Contact: Cell 555-987-6543, email j.smith@email.com"
+
+Expected PHI detected:
+- Name: Jane Smith
+- DOB: 05/12/1975
+- MRN: 987654
+- Phone: 555-987-6543
+- Email: j.smith@email.com
+
+Should NOT detect as PHI:
+- Medical abbreviations (HTN, DM2, GERD, EKG, WNL)
+- Vital signs (non-identifying numbers)
+- Treatment plans (clinical terms)
+```
+
+**PASS CRITERIA:**
+- 85%+ accuracy on test suite
+- All test cases A-F detected
+- Test G has no false positive
+- Realistic clinical note properly parsed
+
+**FAIL CRITERIA:**
+- <80% accuracy → MAJOR ISSUE (core IP failure)
+- False positive rate >15% → MAJOR (unusable)
+- MRNs not detected → CRITICAL (common PHI type)
+- Names not detected → CRITICAL
+
+---
+
+## FLOW 3: COMPLIANCE MONITORING & ALERTS 🚨
+
+**Persona:** Health System CISO (Dr. Rodriguez)
+**Importance:** CRITICAL - Core value proposition
+
+### Test Case 3.1: View Compliance Dashboard (Watchtower)
+
+**Steps:**
+1. Login as CISO user
+2. Navigate to "Compliance" dashboard (Watchtower)
+3. Review compliance status across frameworks:
+   - HIPAA
+   - NIST AI RMF
+   - FDA SaMD
+   - ISO 27001
+   - ISO 42001
+4. Filter by AI system
+5. Filter by time range (Last 7 days, Last 30 days, Last quarter)
+6. Export compliance report
+
+**Expected Results:**
+✅ Dashboard loads in <2 seconds
+✅ Shows compliance percentage per framework
+✅ Color-coded risk levels (Green/Yellow/Red)
+✅ Can drill down into specific controls
+✅ Shows trend over time (improving/declining)
+✅ Filters work correctly
+✅ Export generates PDF within 10 seconds
+
+**Visual Tests:**
+- Compliance percentage shows correctly: "HIPAA: 94% (43/47 controls)"
+- Risk heatmap clearly shows problem areas
+- Charts are readable and professional
+- No broken images or missing data
+- Mobile-responsive (test on phone)
+
+**Performance Tests:**
+- Load dashboard with 50 AI systems - Still fast?
+- Load 6 months of historical data - Performance OK?
+- Generate report for 50 systems - Completes in <30 seconds?
+
+**Edge Cases:**
+- New customer with 0 AI systems - Shows empty state with clear CTA
+- Customer with 0 violations - Shows "100% compliant" not errors
+- Filter that returns no results - Clear "No results found" message
+
+**Data Accuracy Tests:**
+```
+Scenario: Health system has 3 AI systems:
+- System A: 2 HIPAA violations, 1 NIST violation
+- System B: 0 violations
+- System C: 5 HIPAA violations
+
+Expected Dashboard Calculations:
+- Total violations: 8
+- HIPAA violations: 7 (2 + 5)
+- NIST violations: 1
+- Risk score: Weighted average based on severity
+
+Verify calculations are correct.
+```
+
+**PASS CRITERIA:**
+- Professional, board-ready presentation
+- Fast loading (<2 seconds)
+- Accurate calculations
+- Export works reliably
+
+**FAIL CRITERIA:**
+- Slow loading (>5 seconds) → MAJOR
+- Incorrect calculations → CRITICAL
+- Export fails → MAJOR
+- Unprofessional appearance → MINOR
+
+---
+
+### Test Case 3.2: Real-Time Alert System (Sentinel)
+
+**Steps:**
+1. Configure alert preferences:
+   - Email alerts: Enabled
+   - Slack alerts: Disabled
+   - Alert threshold: Critical and High severity only
+   - Business hours only: No (24/7 monitoring)
+2. Trigger test alert by sending webhook with PHI exposure
+3. Check Sentinel dashboard for new alert
+4. Verify email notification received
+5. Click alert to view details
+6. Acknowledge alert
+7. Verify alert marked as "Acknowledged"
+
+**Expected Results:**
+✅ Alert appears in Sentinel within 30 seconds of event
+✅ Email notification sent within 2 minutes
+✅ Alert shows:
+   - Severity (Critical/High/Medium/Low)
+   - AI system affected
+   - Control violated (HIPAA 164.402)
+   - Timestamp
+   - Recommended action
+✅ Can acknowledge alert with comment
+✅ Acknowledged alerts visually distinct from new alerts
+✅ Can filter alerts by severity, status, AI system
+
+**Email Content Tests:**
+- Subject line clear: "CRITICAL: PHI Exposure Detected - Epic CDS"
+- Body includes key details (system, violation, action)
+- Includes link back to dashboard
+- Professional formatting (not plain text)
+- Unsubscribe link present (compliance requirement)
+
+**Unhappy Path Tests:**
+❌ Email server down - Alert still saved to database, shows in dashboard
+❌ User with no email configured - Doesn't crash, shows warning
+❌ Malformed email address - Validation prevents saving
+
+**Performance Tests:**
+- Send 10 alerts simultaneously - All appear in dashboard
+- Load Sentinel with 1000+ historical alerts - Still fast?
+- Acknowledge 50 alerts at once (bulk action) - Works?
+
+**Edge Cases:**
+- Alert triggered at exactly midnight - Timestamp correct?
+- Alert for deleted AI system - Handled gracefully?
+- User acknowledges alert twice - Idempotent?
+
+**Critical Alert Workflow Test:**
+```
+Scenario: Critical PHI exposure detected
+
+Expected Sequence:
+1. Event received (T+0 seconds)
+2. PHI detection runs (T+2 seconds)
+3. Violation created (T+3 seconds)
+4. Alert created (T+5 seconds)
+5. Alert appears in dashboard (T+10 seconds)
+6. Email sent (T+60 seconds)
+7. User acknowledges (T+5 minutes)
+8. Audit log entry created (T+5 minutes + 1 second)
+
+Verify timing is reasonable and no steps skipped.
+```
+
+**PASS CRITERIA:**
+- Alerts arrive within 60 seconds
+- Email notifications reliable (>95% delivery)
+- Dashboard real-time or near real-time
+- Can handle high alert volume
+
+**FAIL CRITERIA:**
+- Alerts delayed >5 minutes → MAJOR
+- Email delivery <90% → MAJOR
+- Dashboard doesn't update without refresh → MINOR
+- Can't acknowledge alerts → MAJOR
+
+---
+
+### Test Case 3.3: Compliance Report Generation
+
+**Steps:**
+1. Navigate to Constellation (Executive Reporting)
+2. Click "Generate Report"
+3. Configure report:
+   - Date range: Last quarter (Q4 2024)
+   - Include frameworks: HIPAA, NIST AI RMF
+   - AI systems: All systems (or select specific)
+   - Format: PDF
+   - Audience: Board of Directors
+4. Click "Generate"
+5. Wait for processing
+6. Download PDF
+7. Open and review report
+
+**Expected Results:**
+✅ Report generates within 30 seconds (for 10 systems)
+✅ PDF is well-formatted (not broken layout)
+✅ Includes all sections:
+   - Executive Summary (plain English narrative)
+   - Risk Score Overview (charts/graphs)
+   - Framework Compliance Status
+   - Top Violations (severity-ranked)
+   - Trend Analysis (week-over-week changes)
+   - Recommendations (actionable next steps)
+✅ Professional branding (logo, colors)
+✅ Page numbers and table of contents
+✅ Charts are high-resolution (not pixelated)
+✅ Data is accurate (matches dashboard)
+
+**Content Quality Tests:**
+- Executive summary is readable (not jargon)
+- Charts have clear labels and legends
+- Recommendations are specific ("Retrain model X" not "Improve compliance")
+- No typos or grammatical errors
+- All data points cited with timestamps
+
+**Technical Tests:**
+- PDF opens in all major readers (Adobe, Chrome, Preview)
+- File size reasonable (<5MB for 10-page report)
+- Searchable text (not image-based)
+- Can print without layout issues
+
+**Edge Cases:**
+- Report for 0 violations - Generates "All Clear" report, not errors
+- Report for 100+ violations - Truncates gracefully with "Top 50" section
+- Very long AI system name (200 chars) - Wraps correctly in table
+- Date range with no data - Shows "No data available for period" not crash
+
+**Performance Tests:**
+- Generate report for 50 AI systems - Completes in <2 minutes?
+- Generate 5 reports simultaneously (different users) - All succeed?
+- Generate report with 6 months of data - Completes in <3 minutes?
+
+**Data Accuracy Spot Check:**
+```
+Dashboard shows:
+- HIPAA: 94% compliant (43/47 controls met)
+- 3 Critical violations
+- 5 High violations
+- Risk score: 72/100
+
+PDF Report should show EXACT SAME numbers.
+Verify no discrepancies.
+```
+
+**PASS CRITERIA:**
+- Professional, board-ready quality
+- Data accuracy 100%
+- Generates in <60 seconds for typical workload
+- No broken formatting
+
+**FAIL CRITERIA:**
+- Data discrepancies with dashboard → CRITICAL
+- Broken PDF layout → MAJOR
+- Generation takes >5 minutes → MAJOR
+- Unprofessional appearance → MINOR
+
+---
+
+## FLOW 4: TIER-BASED CUSTOMIZATION 🎚️
+
+**Persona:** Compliance Officer (Maria) - Enterprise Tier Customer
+**Importance:** CRITICAL - This is the monetization moat
+
+### Test Case 4.1: Threshold Tuning (Growth Tier Feature)
+
+**Pre-condition:** User has Growth or Enterprise tier subscription
+
+**Steps:**
+1. Navigate to AI system detail page
+2. Click "Customize" tab
+3. Find "PHI Detection Threshold" setting
+   - Current: 0.85 (default)
+   - Description: "Confidence threshold for PHI entity detection"
+4. Adjust slider to 0.70 (lower threshold = more sensitive)
+5. Add justification: "Reducing false negatives for critical systems"
+6. Click "Save Override"
+7. Verify override saved
+8. Send test webhook with borderline PHI (confidence 0.75)
+9. Verify now detected as PHI (where previously it wouldn't be)
+
+**Expected Results:**
+✅ Threshold slider has clear labels (0.5 = Very Sensitive, 0.95 = Very Strict)
+✅ Shows preview: "Lowering threshold may increase false positives"
+✅ Requires justification (business reason for change)
+✅ Saves to threshold_overrides table
+✅ Override applies immediately (next event processed with new threshold)
+✅ Shows "Customized" badge on AI system
+✅ Audit log entry created
+
+**Tier Gating Tests:**
+❌ Foundation tier user tries to access - Shows upgrade prompt
+❌ Foundation user tries API call to create override - Returns 403 Forbidden
+❌ Growth tier user has customization_count < max - Allowed
+❌ Growth tier user exceeds max customizations (10) - Soft limit with upgrade CTA
+
+**Unhappy Path Tests:**
+❌ Try to set threshold to invalid value (1.5) - Validation error
+❌ Try to set threshold to 0 or 1 - Warning: "Extreme values not recommended"
+❌ Save without justification - Validation error
+❌ SQL injection in justification field - Sanitized
+
+**Edge Cases:**
+- Override same threshold twice - Updates existing, doesn't create duplicate
+- Delete AI system with overrides - Cascade deletes overrides
+- User creates override, downgrades to Foundation tier - Override becomes inactive (but preserved)
+
+**Business Logic Tests:**
+```
+Test scenario:
+1. Set threshold to 0.70
+2. Send event with PHI entity (score 0.75)
+3. Verify PHI detected (because 0.75 > 0.70)
+4. Set threshold to 0.80
+5. Send same event (score 0.75)
+6. Verify PHI NOT detected (because 0.75 < 0.80)
+
+This proves override is actually applied to detection logic.
+```
+
+**Audit Trail Test:**
+```sql
+-- After creating override, verify audit log:
+SELECT * FROM customization_audit_log 
+WHERE action = 'threshold_override_created'
+ORDER BY timestamp DESC LIMIT 1;
+
+-- Should show:
+-- user_id, ai_system_id, action, old_value, new_value, justification, timestamp
+```
+
+**PASS CRITERIA:**
+- Tier gating enforced (Foundation can't access)
+- Overrides actually apply to detection logic
+- Audit trail complete
+- Clear UI with preview/warnings
+
+**FAIL CRITERIA:**
+- Tier gating bypassable → CRITICAL (revenue leak)
+- Override doesn't apply to logic → CRITICAL (feature doesn't work)
+- No audit trail → MAJOR (compliance issue)
+
+---
+
+### Test Case 4.2: Control Toggle (Growth Tier Feature)
+
+**Pre-condition:** User has Growth or Enterprise tier subscription
+
+**Steps:**
+1. Navigate to AI system detail page
+2. Click "Customize" tab
+3. Go to "Control Management" section
+4. See list of all 104 compliance controls
+5. Find non-HIPAA control (e.g., "NIST AI RMF 1.2 - Bias Monitoring")
+6. Toggle switch to "Disabled"
+7. Add justification: "Internal clinical AI, not subject to NIST requirements"
+8. Save
+9. Trigger violation of that control
+10. Verify no alert generated (control disabled)
+11. Try to disable HIPAA control (e.g., "HIPAA 164.312(a) - Access Controls")
+12. Verify blocked with message: "HIPAA controls cannot be disabled"
+
+**Expected Results:**
+✅ Can toggle non-HIPAA controls on/off
+✅ Toggle saves to control_toggles table
+✅ Disabled controls don't generate violations
+✅ Disabled controls grayed out in compliance dashboard
+✅ HIPAA controls have toggle disabled with explanation
+✅ Toggle requires justification
+✅ Audit log entry created
+
+**Regulatory Guardrails Test (CRITICAL):**
+```
+HIPAA controls (47 total) should NEVER be disableable.
+
+Test each HIPAA control:
+- Toggle switch should be disabled
+- Tooltip should say "HIPAA controls cannot be disabled (regulatory requirement)"
+- API call to disable should return 403 with error message
+
+If ANY HIPAA control can be disabled → CRITICAL FAILURE
+This would expose customer to regulatory violations.
+```
+
+**Business Logic Test:**
+```
+1. Enable "NIST AI RMF 2.1 - Model Drift Monitoring"
+2. Trigger model drift event
+3. Verify violation + alert created
+4. Disable "NIST AI RMF 2.1"
+5. Trigger same drift event
+6. Verify NO violation, NO alert
+7. Re-enable control
+8. Trigger drift event
+9. Verify violation + alert created again
+
+This proves toggle actually affects violation generation.
+```
+
+**Edge Cases:**
+- Disable control, then trigger 100 events that would violate it - None create violations
+- Toggle same control multiple times rapidly - Idempotent
+- Disable control, downgrade to Foundation tier - Control re-enables automatically
+- User with multiple AI systems - Toggle only affects selected system, not others
+
+**Audit Trail:**
+```sql
+SELECT * FROM customization_audit_log
+WHERE action LIKE 'control_toggle_%'
+ORDER BY timestamp DESC;
+
+-- Should show complete history:
+-- control_toggle_disabled (with justification)
+-- control_toggle_enabled (re-enabling later)
+```
+
+**PASS CRITERIA:**
+- HIPAA controls absolutely cannot be disabled (100% enforcement)
+- Non-HIPAA controls toggleable with justification
+- Toggles actually apply to violation logic
+- Audit trail complete
+
+**FAIL CRITERIA:**
+- HIPAA control can be disabled → CRITICAL (regulatory violation)
+- Toggle doesn't affect logic → CRITICAL (broken feature)
+- Can bypass tier gating → CRITICAL (revenue leak)
+- No audit trail → MAJOR
+
+---
+
+### Test Case 4.3: Custom Compliance Control (Enterprise Tier Only)
+
+**Pre-condition:** User has Enterprise tier subscription
+
+**Steps:**
+1. Navigate to "Compliance" > "Custom Controls"
+2. Click "Create Custom Control"
+3. Fill out form:
+   - Control Name: "Internal Policy: AI Explanation Requirement"
+   - Framework: "Organizational Policy"
+   - Description: "All clinical AI must provide explanations for decisions"
+   - Detection Logic: "Check if model output includes 'reasoning' field"
+   - Severity: "High"
+   - Remediation: "Update model to include explanation generator"
+   - Applies To: [Select 3 AI systems]
+4. Submit for review
+5. Verify status = "Pending Spectral Approval"
+6. Switch to Spectral Admin user
+7. Navigate to "Admin" > "Custom Control Approvals"
+8. Review custom control request
+9. Test detection logic with sample data
+10. Approve with comment: "Approved - good organizational governance"
+11. Switch back to customer user
+12. Verify control now active
+13. Trigger violation of custom control
+14. Verify alert generated
+
+**Expected Results:**
+✅ Form validates required fields
+✅ Enterprise tier users can create custom controls
+✅ Growth/Foundation users see upgrade prompt
+✅ Custom control enters "pending_review" status
+✅ Cannot activate until Spectral admin approves
+✅ Spectral admin sees approval request in queue
+✅ Admin can test detection logic before approving
+✅ Admin can approve or reject with comments
+✅ On approval, control becomes active
+✅ Active custom controls generate violations like built-in controls
+✅ Custom controls show in compliance dashboard
+✅ Full audit trail maintained
+
+**Tier Gating Tests:**
+❌ Growth tier user tries to create - Shows "Enterprise feature" modal with upgrade CTA
+❌ Foundation tier user - Same upgrade prompt
+❌ API bypass attempt - Returns 403 Forbidden
+
+**Approval Workflow Tests:**
+```
+Workflow states:
+1. Created → pending_review (active: false)
+2. Submitted for approval → in_review (active: false)
+3. Approved by admin → approved (active: true)
+4. Rejected by admin → rejected (active: false, can edit and resubmit)
+
+Test each state transition works correctly.
+```
+
+**5-Day SLA Test:**
+```
+When custom control created:
+- slaDeadline = created_at + 5 business days
+- If not reviewed by deadline, automated reminder to Spectral admin
+- Dashboard shows "X days remaining for approval"
+
+Test:
+1. Create control
+2. Wait (or manually set deadline to past)
+3. Verify reminder email sent
+4. Verify dashboard shows "Overdue" status
+```
+
+**Detection Logic Test:**
+```
+Custom control: "AI must provide explanations"
+Detection logic: "Check if output contains 'reasoning:' key"
+
+Test Case A:
+Input: {"output": "Diagnosis: Pneumonia"}
+Expected: VIOLATION (no reasoning)
+
+Test Case B:
+Input: {"output": "Diagnosis: Pneumonia", "reasoning": "Based on chest x-ray infiltrates"}
+Expected: NO VIOLATION (reasoning present)
+
+Verify custom detection logic actually executes.
+```
+
+**Audit Trail (Complete History):**
+```sql
+SELECT * FROM customization_audit_log
+WHERE custom_control_id = '[control_id]'
+ORDER BY timestamp ASC;
+
+-- Should show:
+-- 1. custom_control_created (customer user)
+-- 2. custom_control_submitted (customer user)
+-- 3. custom_control_reviewed (admin user)
+-- 4. custom_control_approved (admin user)
+-- 5. custom_control_activated (system)
+-- 6. violation_detected (system, first violation)
+```
+
+**Configuration Lock-In Proof:**
+```
+Scenario: Enterprise customer creates 10 custom controls over 6 months.
+
+Switching Cost Analysis:
+1. Each control took 2 hours to define
+2. Each control took 3 days for Spectral approval
+3. Total investment: 20 hours + 30 days of approvals
+4. All controls tied to specific organizational policies
+5. Audit trail embedded in Spectral platform
+6. Compliance reports reference custom controls
+
+If customer tries to switch to competitor:
+- Lose all 10 custom controls
+- Lose 6 months of compliance history
+- Lose audit trail (regulatory risk)
+- Must recreate all controls in new system
+- Must get re-approved by new vendor (if they even support custom controls)
+
+Estimated switching cost: $50K + 3 months of work
+
+This is the configuration debt moat.
+```
+
+**PASS CRITERIA:**
+- Enterprise-only (tier gating enforced)
+- Approval workflow functional end-to-end
+- Detection logic actually executes
+- 5-day SLA tracked and enforced
+- Complete audit trail
+- Configuration creates switching cost
+
+**FAIL CRITERIA:**
+- Non-Enterprise can create custom controls → CRITICAL (revenue leak)
+- Approval can be bypassed → CRITICAL (quality control issue)
+- Detection logic doesn't execute → CRITICAL (broken feature)
+- No audit trail → MAJOR (compliance risk)
+
+---
+
+## FLOW 5: VENDOR CERTIFICATION (BEACON) 🏅
+
+**Persona:** AI Vendor (TechVendor Inc.)
+**Importance:** CRITICAL - Two-sided marketplace, network effects
+
+### Test Case 5.1: Vendor Registration
+
+**Steps:**
+1. Navigate to vendor portal (separate URL or section)
+2. Click "Register as Vendor"
+3. Fill out registration:
+   - Company Name: "TechVendor Inc."
+   - Website: "https://techvendor.com"
+   - Contact Email: "partnerships@techvendor.com"
+   - Product Name: "RadAI Imaging"
+   - Product Category: "Medical Imaging AI"
+   - Description: "AI-powered chest x-ray analysis"
+4. Submit registration
+5. Verify email sent
+6. Click verification link
+7. Complete vendor profile
+
+**Expected Results:**
+✅ Vendor registration form separate from health system registration
+✅ Company name unique constraint (can't register same company twice)
+✅ Email verification required
+✅ Vendor profile page created
+✅ Status = "Registered" (not yet certified)
+✅ Can access vendor dashboard
+
+**Unhappy Path Tests:**
+❌ Try to register with existing company name - Error: "Company already registered"
+❌ Invalid website URL - Validation error
+❌ Try to register as both vendor and health system with same email - Blocked
+
+**Edge Cases:**
+- Register vendor with 100+ products - All appear in profile
+- Very long company name (500 chars)
+- International characters in company name: "北京医疗AI"
+- Register, verify email, then try to register again - Redirected to login
+
+**PASS CRITERIA:**
+- Separate registration flow for vendors vs. health systems
+- Verification required
+- Clean vendor dashboard
+
+**FAIL CRITERIA:**
+- Can register duplicate vendors → MAJOR (data integrity)
+- No email verification → MINOR
+
+---
+
+### Test Case 5.2: Apply for Certification
+
+**Steps:**
+1. Login as vendor
+2. Navigate to "Certification" page
+3. Click "Apply for Certification"
+4. Select certification tier: "Certified" ($15K/year)
+5. Select product: "RadAI Imaging"
+6. Provide test credentials:
+   - API Endpoint: "https://api.techvendor.com/v1"
+   - API Key: "test_key_12345"
+   - Webhook URL: "https://api.techvendor.com/webhooks/spectral"
+7. Upload documentation:
+   - Privacy Policy (PDF)
+   - Security Whitepaper (PDF)
+   - Clinical Validation Study (PDF)
+8. Submit application
+9. Verify application created
+10. Check status = "Pending Review"
+
+**Expected Results:**
+✅ Application form validates required fields
+✅ File uploads work (PDF, DOC, max 10MB each)
+✅ Application saved to certification_applications table
+✅ Status = "pending_review"
+✅ Vendor receives confirmation email
+✅ Spectral admin receives notification
+✅ Application appears in admin approval queue
+
+**Unhappy Path Tests:**
+❌ Submit without required documentation - Validation error
+❌ Upload malicious file (.exe renamed to .pdf) - Rejected
+❌ Upload file >10MB - Rejected with clear message
+❌ Submit duplicate application for same product - Warning: "Application already exists"
+
+**Edge Cases:**
+- Upload 10 documents (max allowed) - All saved correctly
+- Apply for multiple certifications simultaneously - All appear in queue
+- Cancel application mid-process - Draft saved
+
+**File Upload Security Tests:**
+- PDF with embedded JavaScript - Sanitized before storage
+- File with malicious filename: `../../etc/passwd.pdf` - Path traversal prevented
+- Zero-byte file - Rejected
+- Corrupted PDF - Validated before accepting
+
+**PASS CRITERIA:**
+- Application process smooth (<5 minutes)
+- File uploads secure
+- Confirmation sent to vendor
+
+**FAIL CRITERIA:**
+- File upload vulnerabilities → CRITICAL (security)
+- Can submit without documentation → MAJOR (certification integrity)
+
+---
+
+### Test Case 5.3: Automated Certification Testing
+
+**Pre-condition:** Vendor application submitted with test credentials
+
+**Steps:**
+1. Spectral admin triggers automated tests
+2. Inngest background job queue processes tests:
+   - PHI Exposure Test
+   - Bias Detection Test  
+   - Clinical Accuracy Test
+   - Security Scan Test
+3. Wait for test completion (5-10 minutes)
+4. Check vendor_test_results table
+5. Review test results in admin dashboard
+6. Verify pass/fail status for each test
+
+**PHI Exposure Test:**
+```
+Test Setup:
+1. Call vendor API with test inputs containing PHI
+2. Analyze responses with Microsoft Presidio
+3. Check if PHI leaked in output
+
+Test Cases:
+A. Input: "Analyze chest x-ray for patient MRN 123456"
+   Expected: Output does NOT contain "MRN 123456"
+   
+B. Input: Chest x-ray with patient name in DICOM metadata
+   Expected: Output does NOT contain patient name
+   
+C. Input: Query about "John Doe's diagnosis"
+   Expected: Output does NOT contain "John Doe"
+
+Pass Criteria: 0 PHI leaks across all test cases
+Fail Criteria: Any PHI leaked → Immediate rejection
+```
+
+**Bias Detection Test:**
+```
+Test Setup:
+1. Call vendor API with test data containing demographic info
+2. Analyze predictions across demographic groups (race, gender, age)
+3. Calculate fairness metrics with Microsoft Fairlearn
+
+Test Data:
+- 100 chest x-rays: 50 male, 50 female (with ground truth labels)
+- 100 chest x-rays: 50 white, 50 black (with ground truth labels)
+
+Fairness Metrics:
+- Demographic Parity Difference: <0.2 (80% rule)
+- Equalized Odds Difference: <0.15
+- Disparate Impact Ratio: >0.8
+
+Pass Criteria: All metrics within thresholds
+Fail Criteria: Any metric exceeds threshold → Requires vendor remediation
+```
+
+**Clinical Accuracy Test:**
+```
+Test Setup:
+1. Call vendor API with validation dataset (expert-labeled)
+2. Compare predictions to ground truth
+3. Calculate performance metrics
+
+Test Data:
+- 200 chest x-rays with confirmed diagnoses (pneumonia, normal, other)
+
+Metrics:
+- Sensitivity: >0.90 (true positive rate)
+- Specificity: >0.85 (true negative rate)
+- AUC-ROC: >0.90
+
+Pass Criteria: All metrics meet thresholds
+Fail Criteria: Metrics below threshold → Vendor must improve model
+```
+
+**Security Scan Test:**
+```
+Test Setup:
+1. Check vendor API security configuration
+2. Test authentication mechanisms
+3. Check TLS/SSL configuration
+
+Tests:
+- HTTPS enforced (not HTTP)
+- TLS 1.2+ required
+- Valid SSL certificate
+- API key authentication working
+- Rate limiting implemented
+- No exposed secrets in API responses
+
+Pass Criteria: All security checks pass
+Fail Criteria: Major security issue → Immediate rejection
+```
+
+**Expected Results:**
+✅ All 4 test suites execute automatically
+✅ Results saved to vendor_test_results table
+✅ Pass/fail status clear
+✅ Detailed feedback for failures
+✅ Test logs available for review
+✅ Vendor notified of results
+
+**Test Execution Monitoring:**
+```sql
+-- Track test progress
+SELECT 
+  application_id,
+  test_type,
+  status,
+  started_at,
+  completed_at,
+  pass_fail,
+  error_message
+FROM vendor_test_results
+WHERE application_id = '[application_id]'
+ORDER BY started_at DESC;
+
+-- All 4 tests should complete within 10 minutes
+-- Status should progress: pending → running → completed
+```
+
+**Edge Cases:**
+- Vendor API returns 500 error during test - Marked as "Error, retry needed"
+- Vendor API rate-limits test requests - Handled with exponential backoff
+- Tests take >30 minutes - Timeout and mark as failed
+- Vendor updates API mid-test - Test fails, requires re-submission
+
+**PASS CRITERIA:**
+- All 4 test suites functional
+- Tests actually call vendor API (not mocked)
+- Results accurately reflect vendor quality
+- Clear pass/fail criteria
+
+**FAIL CRITERIA:**
+- Tests are mocked/hardcoded → CRITICAL (certification integrity)
+- PHI detection doesn't work → CRITICAL (regulatory risk)
+- No test execution → CRITICAL (broken certification)
+
+---
+
+### Test Case 5.4: Certification Approval & Badge
+
+**Pre-condition:** Vendor passed automated tests
+
+**Steps:**
+1. Spectral admin reviews test results
+2. Admin reviews uploaded documentation
+3. Admin approves application
+4. Verify certification record created
+5. Vendor receives approval email
+6. Vendor can download badge assets
+7. Check vendor public profile shows "Spectral Certified" badge
+8. Health systems can see certified vendor in marketplace
+
+**Expected Results:**
+✅ Admin can approve/reject with comments
+✅ Approval creates certification record
+✅ Certification has expiration date (1 year from approval)
+✅ Vendor dashboard shows active certification
+✅ Badge downloadable (PNG, SVG formats)
+✅ Public vendor profile shows badge
+✅ Badge appears in health system vendor directory
+
+**Badge Assets:**
+- PNG logo (300x300, transparent background)
+- SVG logo (vector, scalable)
+- Badge embed code for vendor website
+- Trust page content (Markdown)
+
+**Marketplace Integration:**
+```
+Health System View:
+1. Login as health system user
+2. Navigate to "Vendor Directory"
+3. Filter by "Certified Vendors"
+4. See list of certified vendors including TechVendor Inc.
+5. Click vendor profile
+6. See certification details:
+   - Tier: Certified
+   - Issued: [date]
+   - Expires: [date]
+   - Test Results: [summary]
+7. Can add vendor to "Preferred Vendors" list
+```
+
+**Certification Expiration:**
+```
+Test Setup:
+1. Set certification expiration to tomorrow
+2. Wait for expiration (or manually trigger cron job)
+3. Verify certification status changes to "Expired"
+4. Verify badge removed from public profile
+5. Verify vendor receives renewal reminder 30 days before expiration
+```
+
+**Network Effects Metrics:**
+```sql
+-- Track marketplace activity
+SELECT 
+  vendor_id,
+  COUNT(DISTINCT health_system_id) as unique_health_systems_viewing,
+  COUNT(*) as total_profile_views,
+  SUM(CASE WHEN added_to_preferred = true THEN 1 ELSE 0 END) as preferred_adds
+FROM vendor_profile_analytics
+WHERE vendor_id = '[vendor_id]'
+  AND event_date >= CURRENT_DATE - INTERVAL '30 days'
+GROUP BY vendor_id;
+
+-- These metrics prove network effects are real
+```
+
+**PASS CRITERIA:**
+- Approval workflow smooth
+- Badge assets professional
+- Marketplace integration functional
+- Expiration logic works
+
+**FAIL CRITERIA:**
+- Badge doesn't appear on profile → MAJOR (vendor value prop broken)
+- Marketplace not showing certified vendors → CRITICAL (network effects broken)
+- No expiration enforcement → MAJOR (ongoing quality control issue)
+
+---
+
+## FLOW 6: BILLING & SUBSCRIPTIONS 💳
+
+**Persona:** Health System Admin (Sarah) - Upgrading from Foundation to Growth
+**Importance:** CRITICAL - Revenue realization
+
+### Test Case 6.1: Subscription Upgrade
+
+**Pre-condition:** User on Foundation tier ($75K/year)
+
+**Steps:**
+1. Navigate to "Settings" > "Billing"
+2. See current plan: Foundation
+3. Click "Upgrade to Growth" button
+4. Review Growth tier features:
+   - 10 AI systems (vs. 3 on Foundation)
+   - Threshold tuning
+   - Control toggles
+   - Advanced analytics
+   - Price: $200K/year
+5. Click "Upgrade Now"
+6. Enter payment details (Stripe checkout):
+   - Card: 4242 4242 4242 4242 (Stripe test card)
+   - Expiry: 12/25
+   - CVC: 123
+7. Complete checkout
+8. Verify tier upgraded immediately
+9. Verify can now access Growth tier features
+10. Verify invoice generated
+
+**Expected Results:**
+✅ Stripe checkout modal loads
+✅ Payment processes successfully
+✅ Tier upgraded immediately (no delay)
+✅ Growth tier features unlocked instantly
+✅ Invoice emailed to billing contact
+✅ Subscription record updated in database
+✅ Proration handled correctly (credit for unused Foundation time)
+
+**Stripe Integration Tests:**
+- Card declined (4000 0000 0000 0002) - Shows clear error message
+- Insufficient funds (4000 0000 0000 9995) - Handled gracefully
+- Payment requires 3D Secure - Redirects correctly
+- Successful payment - Webhook received and processed
+
+**Proration Test:**
+```
+Scenario:
+- Foundation plan: $75K/year, paid monthly ($6,250/month)
+- Upgraded on day 15 of month (50% through billing cycle)
+- Growth plan: $200K/year ($16,667/month)
+
+Expected proration:
+- Credit for unused Foundation time: $6,250 * 0.5 = $3,125
+- Prorated Growth charge: $16,667 * 0.5 = $8,333
+- Net charge: $8,333 - $3,125 = $5,208
+
+Verify invoice shows correct proration math.
+```
+
+**Feature Unlocking Test:**
+```
+Before upgrade:
+- Try to tune threshold - Blocked with upgrade CTA
+- Try to toggle control - Blocked with upgrade CTA
+- Try to add 4th AI system - Blocked (limit 3)
+
+After upgrade:
+- Tune threshold - Works immediately
+- Toggle control - Works immediately
+- Add 4th AI system - Works immediately
+
+Features should unlock IMMEDIATELY, not after 24 hours.
+```
+
+**Webhook Processing:**
+```
+Stripe sends webhooks for:
+1. checkout.session.completed - Payment successful
+2. customer.subscription.updated - Subscription tier changed
+3. invoice.payment_succeeded - Invoice paid
+
+All 3 webhooks should be:
+- Received within 1 minute
+- Signature verified (HMAC-SHA256)
+- Processed correctly
+- Logged to webhook_delivery_logs
+
+Check webhook logs in Stripe dashboard - all should show 200 OK.
+```
+
+**Edge Cases:**
+- Upgrade, then immediately downgrade - Handled?
+- Upgrade during billing cycle - Prorated correctly?
+- Card expires during upgrade - Error message clear?
+- Upgrade from Growth to Enterprise - Works?
+
+**PASS CRITERIA:**
+- Stripe integration seamless
+- Tier upgrades instantly
+- Proration accurate
+- Webhooks processed reliably
+
+**FAIL CRITERIA:**
+- Payment issues → CRITICAL (revenue blocker)
+- Tier doesn't upgrade → CRITICAL (broken monetization)
+- Features don't unlock → CRITICAL (customer dissatisfaction)
+- Proration wrong → MAJOR (billing disputes)
+
+---
+
+### Test Case 6.2: Usage-Based Billing Overages
+
+**Pre-condition:** User on Growth tier (10 AI systems included)
+
+**Steps:**
+1. Add 11th AI system (1 over limit)
+2. Receive notification: "You've exceeded your plan limit. Additional AI systems are $5K/year each."
+3. Accept overage charge
+4. Verify 11th system added successfully
+5. At end of billing cycle, verify invoice includes:
+   - Base Growth tier: $200K/year
+   - Overage: 1 AI system × $5K = $5K
+   - Total: $205K
+6. Verify usage meter tracked correctly
+
+**Expected Results:**
+✅ Clear warning before exceeding limit
+✅ Can proceed with overage (not hard-blocked)
+✅ usage_meters table tracks overages
+✅ Invoice includes itemized overage charges
+✅ Can remove 11th system to avoid future overage
+
+**Usage Tracking Test:**
+```sql
+-- Verify usage meter
+SELECT 
+  health_system_id,
+  metric_type,
+  included_quantity,
+  actual_usage,
+  overage_units,
+  overage_cost
+FROM usage_meters
+WHERE health_system_id = '[health_system_id]'
+  AND metric_type = 'ai_systems'
+  AND billing_period = '2024-10';
+
+-- Expected:
+-- included_quantity: 10
+-- actual_usage: 11
+-- overage_units: 1
+-- overage_cost: 5000
+```
+
+**Edge Cases:**
+- Add 5 systems over limit - All tracked separately
+- Remove systems mid-month - Prorated overage credit?
+- Upgrade tier mid-month (10 → unlimited) - Overage charges stop
+- Downgrade tier (unlimited → 10) - Overages start
+
+**PASS CRITERIA:**
+- Usage tracking accurate
+- Overages billed correctly
+- Clear communication to customer
+
+**FAIL CRITERIA:**
+- Usage not tracked → CRITICAL (revenue leak)
+- Overages not billed → CRITICAL (revenue loss)
+- Hard block at limit → MAJOR (poor UX, customer dissatisfaction)
+
+---
+
+## FLOW 7: MULTI-TENANT SECURITY 🔒
+
+**Persona:** Malicious Actor trying to access other health systems' data
+**Importance:** CRITICAL - Security breach = acquisition killer
+
+### Test Case 7.1: Cross-Tenant Data Access Prevention
+
+**Setup:**
+1. Create Health System A (ID: hs_test_a)
+2. Create AI System for HS A: "HS A System 1"
+3. Create Health System B (ID: hs_test_b)
+4. Create AI System for HS B: "HS B System 1"
+5. Login as HS A user
+
+**Attack Vectors to Test:**
+
+**Attack 1: Direct API Manipulation**
+```bash
+# As HS A user, try to fetch HS B's AI system
+curl https://spectral.health/api/ai-systems/[hs_b_system_id] \
+  -H "Cookie: session=[hs_a_session_cookie]"
+
+# Expected: 403 Forbidden or 404 Not Found (data isolation)
+# CRITICAL FAILURE: If returns HS B's system data
+```
+
+**Attack 2: Parameter Tampering**
+```bash
+# Try to modify health_system_id in request
+curl https://spectral.health/api/ai-systems \
+  -H "Cookie: session=[hs_a_session_cookie]" \
+  -d '{"health_system_id": "hs_test_b", "name": "Evil System"}'
+
+# Expected: Request rejected, health_system_id forced from session
+# CRITICAL FAILURE: If creates system for HS B
+```
+
+**Attack 3: SQL Injection**
+```bash
+# Try SQL injection in query parameter
+curl "https://spectral.health/api/ai-systems?name=test' OR '1'='1" \
+  -H "Cookie: session=[hs_a_session_cookie]"
+
+# Expected: Query safely parameterized, no data leak
+# CRITICAL FAILURE: If returns data from all health systems
+```
+
+**Attack 4: IDOR (Insecure Direct Object Reference)**
+```bash
+# HS A user knows HS B's AI system ID (from predictable ID scheme)
+# Try to update HS B's system
+curl -X PATCH https://spectral.health/api/ai-systems/hs_b_system_1 \
+  -H "Cookie: session=[hs_a_session_cookie]" \
+  -d '{"name": "Hacked Name"}'
+
+# Expected: 403 Forbidden
+# CRITICAL FAILURE: If updates HS B's data
+```
+
+**Attack 5: JWT/Session Token Manipulation**
+```bash
+# Decode session token, change health_system_id, re-encode
+# Try to use modified token
+
+# Expected: Token signature invalid, request rejected
+# CRITICAL FAILURE: If modified token accepted
+```
+
+**Database Query Audit:**
+```sql
+-- EVERY query touching tenant data should include health_system_id filter
+
+-- BAD (leaks cross-tenant data):
+SELECT * FROM ai_systems WHERE id = '[system_id]';
+
+-- GOOD (enforces isolation):
+SELECT * FROM ai_systems 
+WHERE id = '[system_id]' 
+  AND health_system_id = '[session_health_system_id]';
+
+-- Audit ALL queries in codebase
+-- If ANY query is missing health_system_id filter → CRITICAL
+```
+
+**PASS CRITERIA:**
+- 100% of attacks blocked
+- No cross-tenant data access possible
+- All queries properly filtered
+
+**FAIL CRITERIA:**
+- ANY attack succeeds → CRITICAL SECURITY ISSUE (blocks acquisition)
+- Missing health_system_id filters → CRITICAL
+- Predictable IDs + IDOR → MAJOR
+
+---
+
+### Test Case 7.2: PHI Encryption & Access Logging
+
+**Steps:**
+1. Create AI system with PHI in telemetry
+2. Check database encryption
+3. View data through dashboard
+4. Check audit logs
+
+**Database Encryption Test:**
+```sql
+-- Query raw database (not through app)
+SELECT 
+  id,
+  ai_system_id,
+  payload,  -- Should be encrypted
+  phi_detected
+FROM ai_telemetry_events
+WHERE ai_system_id = '[system_id]'
+LIMIT 1;
+
+-- payload column should contain ENCRYPTED blob, not plaintext JSON
+-- Should look like: "U2FsdGVkX1+vupppZksvRf5pq5g5XLFxqcJIOvv..."
+-- NOT: "{"model_output": "Patient MRN 123456..."}"
+
+-- If plaintext visible → CRITICAL HIPAA VIOLATION
+```
+
+**Decryption Test:**
+```typescript
+// Through app, verify decryption works
+const event = await getAITelemetryEvent(eventId);
+console.log(event.payload);
+
+// Should be decrypted JSON with PHI
+// {"model_output": "Patient MRN 123456..."}
+
+// But database query should NEVER show plaintext
+```
+
+**Audit Log Test:**
+```sql
+-- EVERY access to PHI should be logged
+SELECT * FROM audit_logs
+WHERE resource_type = 'ai_telemetry_event'
+  AND resource_id = '[event_id]'
+  AND action = 'view'
+ORDER BY timestamp DESC;
+
+-- Should show:
+-- user_id, timestamp, ip_address, action, resource
+-- If no audit log → CRITICAL (HIPAA requires audit trail)
+```
+
+**PHI Access Scenarios:**
+```
+1. User views AI system with telemetry events
+   → Audit log: "user_123 viewed ai_system abc123"
+   
+2. User generates compliance report (includes PHI)
+   → Audit log: "user_123 generated_report containing [event_ids]"
+   
+3. Background job processes telemetry
+   → Audit log: "system processed event xyz789"
+   
+4. Admin views customer's AI systems (support)
+   → Audit log: "admin_456 accessed health_system def456 data"
+
+ALL PHI access must be logged, no exceptions.
+```
+
+**PASS CRITERIA:**
+- PHI encrypted in database (AES-256-GCM)
+- All PHI access logged comprehensively
+- Audit logs immutable (append-only)
+
+**FAIL CRITERIA:**
+- PHI in plaintext → CRITICAL (HIPAA violation, acquisition blocker)
+- Missing audit logs → CRITICAL (regulatory requirement)
+- Audit logs can be deleted/modified → MAJOR
+
+---
+
+## FINAL SCORING & ACQUISITION READINESS
+
+### Scoring Rubric
+
+For each test case:
+- ✅ **PASS**: Functions as expected, no issues
+- ⚠️ **PASS WITH MINOR ISSUES**: Works but has UX problems
+- ❌ **FAIL - MINOR**: Broken but not critical
+- 🔥 **FAIL - MAJOR**: Blocks customer usage
+- 💀 **FAIL - CRITICAL**: Security/data loss/acquisition blocker
+
+### Critical Failure Thresholds
+
+**BLOCK ACQUISITION (Do Not Proceed):**
+- Any security vulnerability (cross-tenant access, PHI exposure)
+- Any data loss scenario
+- Any HIPAA compliance violation
+- ML not actually working (just stubs)
+
+**REDUCE VALUATION 30%:**
+- 3+ major bugs
+- Core features broken
+- Poor performance (load times >5 seconds)
+
+**NEEDS POLISH BEFORE CUSTOMERS:**
+- 5+ UX issues
+- Confusing workflows
+- Missing error messages
+
+### Overall Assessment Template
+
+```
+ACQUISITION READINESS SCORE: ___/100
+
+Critical Issues (Blocks $300M Exit):
+1. ___
+2. ___
+3. ___
+
+Major Issues (Reduces Valuation):
+1. ___
+2. ___
+3. ___
+
+Minor Issues (Polish Before Scale):
+1. ___
+2. ___
+3. ___
+
+RECOMMENDATION:
+[ ] READY FOR ACQUISITION CONVERSATIONS - Proceed to M&A
+[ ] READY FOR CUSTOMERS - Launch pilots immediately
+[ ] NEEDS 1-2 WEEKS WORK - Fix critical issues first
+[ ] NEEDS MAJOR REWORK - Not production-ready
+
+NEXT STEPS:
+1. ___
+2. ___
+3. ___
+```
+
+---
+
+## EXECUTION INSTRUCTIONS
+
+**How to run this audit:**
+
+1. **Copy this entire prompt**
+2. **Paste into Replit**
+3. **Add at the end:**
+   ```
+   Execute comprehensive testing of ALL flows above.
+   For each test case:
+   - Run actual tests (don't simulate)
+   - Document exact results
+   - Show evidence (screenshots, SQL queries, API responses)
+   - Grade: PASS / PASS WITH ISSUES / FAIL
+   - Identify criticality: MINOR / MAJOR / CRITICAL
+   
+   Provide final acquisition readiness score and recommendation.
+   ```
+
+4. **Wait 15-20 minutes for complete audit**
+5. **Review results and prioritize fixes**
+
+---
+
+This is the most comprehensive QA audit you'll get before Epic's due diligence team does theirs.
+
+**Better to find issues now than during $300M acquisition negotiations.** 🎯
+```
+
+---
+
+## 🎯 WHY THIS PROMPT IS BRUTAL
+
+**1. Tests Like Epic's QA Team Would**
+- Not "does it work?" but "would we approve this?"
+- Security vulnerabilities = acquisition blocker
+- Data loss = deal killer
+
+**2. Tests ALL User Personas**
+- Health system admin (primary user)
+- CISO (decision maker)
+- Compliance officer (power user)
+- Vendor (marketplace participant)
+- Spectral admin (internal ops)
+
+**3. Tests Happy Path + Unhappy Path + Edge Cases**
+- Most founders only test happy path
+- This tests what happens when things go wrong
+- Edge cases reveal bugs
+
+**4. Tests Acquisition-Critical Features**
+- ML actually working (not stubs)
+- Security (cross-tenant isolation)
+- Monetization (tier gating)
+- Network effects (vendor certification)
+
+**5. Provides Specific Attack Vectors**
+- SQL injection attempts
+- Cross-tenant access attempts
+- IDOR exploits
+- Session manipulation
+
+**6. Gives Pass/Fail Criteria**
+- Not subjective ("seems good")
+- Objective ("PHI in plaintext = CRITICAL FAILURE")
+
+**7. Includes Evidence Requirements**
+- Screenshots
+- SQL queries
+- API responses
+- Database checks
+
+---
+
+## 💪 EXPECTED OUTCOME
+
+**Realistic expectations:**
+
+**Critical Issues: 0-3**
+- If 0 → Ready for acquisition
+- If 1-2 → Fix before customers
+- If 3+ → Not production-ready
+
+**Major Issues: 5-15**
+- Normal for week 1 product
+- Prioritize top 5
+- Fix over 2-3 weeks
+
+**Minor Issues: 20-50**
+- Polish over time
+- Not acquisition blockers
+- UX improvements
+
+---
+
+## 🔥 BOTTOM LINE
+
+**This prompt will find every bug that could:**
+1. Kill a customer deal
+2. Create security breach
+3. Block acquisition
+4. Reduce valuation
+
+**Better to find them now in testing than:**
+1. During customer demo (lost deal)
+2. During security audit (lost trust)
+3. During acquisition due diligence (lost $200M)
+
+**Paste it. Run it. Fix critical issues.**
+
+**Then you'll have acquisition-grade product.** 🚀
