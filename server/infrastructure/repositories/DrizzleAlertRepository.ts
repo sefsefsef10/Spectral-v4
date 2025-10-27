@@ -2,13 +2,13 @@
  * INFRASTRUCTURE LAYER: Alert Repository
  */
 
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, sql } from 'drizzle-orm';
 import { Alert, type Severity, type AlertChannel } from '../../domain/entities/Alert';
-import type { AlertRepository } from '../../application/alert-management/CreateAlertUseCase';
+import type { IAlertRepository } from '../../domain/repositories/IAlertRepository';
 import { db } from '../../db';
 import { monitoringAlerts } from '../../../shared/schema';
 
-export class DrizzleAlertRepository implements AlertRepository {
+export class DrizzleAlertRepository implements IAlertRepository {
   private constructor(private database: typeof db) {}
 
   private static instance: DrizzleAlertRepository;
@@ -73,6 +73,34 @@ export class DrizzleAlertRepository implements AlertRepository {
     return rows
       .map(row => this.toDomain(row))
       .filter(a => a.createdAt >= oneHourAgo && a.status === 'open');
+  }
+
+  async findByDeduplicationKey(key: string, withinHours: number): Promise<Alert | null> {
+    const timeThreshold = new Date(Date.now() - withinHours * 60 * 60 * 1000);
+    
+    // Parse the deduplication key: "aiSystemId:type:severity"
+    const [aiSystemId, type, severity] = key.split(':');
+    
+    const rows = await this.database
+      .select()
+      .from(monitoringAlerts)
+      .where(
+        and(
+          eq(monitoringAlerts.aiSystemId, aiSystemId),
+          eq(monitoringAlerts.type, type),
+          eq(monitoringAlerts.severity, severity),
+          sql`${monitoringAlerts.createdAt} >= ${timeThreshold}`
+        )
+      )
+      .orderBy(desc(monitoringAlerts.createdAt))
+      .limit(1);
+
+    return rows.length > 0 ? this.toDomain(rows[0]) : null;
+  }
+
+  async exists(id: string): Promise<boolean> {
+    const alert = await this.findById(id);
+    return alert !== null;
   }
 
   private toDatabase(alert: Alert): any {

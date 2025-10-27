@@ -4,11 +4,11 @@
 
 import { eq } from 'drizzle-orm';
 import { Deployment, type DeploymentStrategy } from '../../domain/entities/Deployment';
-import type { DeploymentRepository } from '../../application/deployment/ValidateDeploymentUseCase';
+import type { IDeploymentRepository } from '../../domain/repositories/IDeploymentRepository';
 import { db } from '../../db';
 import { aiSystemDeployments } from '../../../shared/schema';
 
-export class DrizzleDeploymentRepository implements DeploymentRepository {
+export class DrizzleDeploymentRepository implements IDeploymentRepository {
   async save(deployment: Deployment): Promise<void> {
     const data = this.toDatabase(deployment);
     
@@ -50,6 +50,11 @@ export class DrizzleDeploymentRepository implements DeploymentRepository {
       .from(aiSystemDeployments);
 
     return rows.map(row => this.toDomain(row));
+  }
+
+  async exists(id: string): Promise<boolean> {
+    const deployment = await this.findById(id);
+    return deployment !== null;
   }
 
   private toDatabase(deployment: Deployment): any {

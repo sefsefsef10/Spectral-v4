@@ -5,11 +5,11 @@
 
 import { eq, and } from 'drizzle-orm';
 import { User, type UserRole } from '../../domain/entities/User';
-import type { UserRepository } from '../../application/user-management/RegisterUserUseCase';
+import type { IUserRepository } from '../../domain/repositories/IUserRepository';
 import { db } from '../../db';
 import { users } from '../../../shared/schema';
 
-export class DrizzleUserRepository implements UserRepository {
+export class DrizzleUserRepository implements IUserRepository {
   async save(user: User): Promise<void> {
     if (!user.id) {
       throw new Error('Cannot save user without ID. Use saveWithPassword for new users.');
@@ -90,6 +90,11 @@ export class DrizzleUserRepository implements UserRepository {
       .limit(1);
 
     return row ? this.toDomain(row) : null;
+  }
+
+  async exists(id: string): Promise<boolean> {
+    const user = await this.findById(id);
+    return user !== null;
   }
 
   private toDatabase(user: User): any {
