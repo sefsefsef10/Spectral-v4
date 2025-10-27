@@ -3,11 +3,7 @@
  */
 
 import { Deployment } from '../../domain/entities/Deployment';
-
-export interface DeploymentRepository {
-  findById(id: string): Promise<Deployment | null>;
-  save(deployment: Deployment): Promise<void>;
-}
+import type { IDeploymentRepository } from '../../domain/repositories/IDeploymentRepository';
 
 export interface ValidateDeploymentInput {
   deploymentId: string;
@@ -20,7 +16,7 @@ export interface ValidateDeploymentResult {
 }
 
 export class ValidateDeploymentUseCase {
-  constructor(private deploymentRepository: DeploymentRepository) {}
+  constructor(private deploymentRepository: IDeploymentRepository) {}
 
   async execute(input: ValidateDeploymentInput): Promise<ValidateDeploymentResult> {
     const deployment = await this.deploymentRepository.findById(input.deploymentId);

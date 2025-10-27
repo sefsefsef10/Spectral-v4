@@ -3,11 +3,7 @@
  */
 
 import { RateLimitPolicy, type RateLimitTier } from '../../domain/entities/RateLimitPolicy';
-
-export interface RateLimitRepository {
-  findByHealthSystemId(healthSystemId: string): Promise<RateLimitPolicy | null>;
-  save(policy: RateLimitPolicy): Promise<void>;
-}
+import type { IRateLimitPolicyRepository } from '../../domain/repositories/IRateLimitPolicyRepository';
 
 export interface UpgradeTierInput {
   healthSystemId: string;
@@ -21,7 +17,7 @@ export interface UpgradeTierResult {
 }
 
 export class UpgradeTierUseCase {
-  constructor(private rateLimitRepository: RateLimitRepository) {}
+  constructor(private rateLimitRepository: IRateLimitPolicyRepository) {}
 
   async execute(input: UpgradeTierInput): Promise<UpgradeTierResult> {
     const policy = await this.rateLimitRepository.findByHealthSystemId(input.healthSystemId);

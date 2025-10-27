@@ -3,10 +3,7 @@
  */
 
 import { Alert } from '../../domain/entities/Alert';
-
-export interface AlertRepository {
-  findByAiSystemId(aiSystemId: string): Promise<Alert[]>;
-}
+import type { IAlertRepository } from '../../domain/repositories/IAlertRepository';
 
 interface ListAlertsRequest {
   aiSystemId: string;
@@ -15,7 +12,7 @@ interface ListAlertsRequest {
 }
 
 export class ListAlertsUseCase {
-  constructor(private alertRepository: AlertRepository) {}
+  constructor(private alertRepository: IAlertRepository) {}
 
   async execute(request: ListAlertsRequest): Promise<Alert[]> {
     const { aiSystemId, severity, status } = request;

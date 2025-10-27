@@ -3,10 +3,7 @@
  */
 
 import { Deployment, type DeploymentStrategy, type HealthCheck, type RollbackPolicy } from '../../domain/entities/Deployment';
-
-export interface DeploymentRepository {
-  save(deployment: Deployment): Promise<void>;
-}
+import type { IDeploymentRepository } from '../../domain/repositories/IDeploymentRepository';
 
 interface CreateDeploymentRequest {
   aiSystemId: string;
@@ -19,7 +16,7 @@ interface CreateDeploymentRequest {
 }
 
 export class CreateDeploymentUseCase {
-  constructor(private deploymentRepository: DeploymentRepository) {}
+  constructor(private deploymentRepository: IDeploymentRepository) {}
 
   async execute(request: CreateDeploymentRequest): Promise<Deployment> {
     const deployment = Deployment.create({

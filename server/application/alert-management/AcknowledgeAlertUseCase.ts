@@ -5,14 +5,7 @@
  */
 
 import { Alert } from '../../domain/entities/Alert';
-
-/**
- * Repository interface for alert persistence
- */
-export interface AlertRepository {
-  findById(id: string): Promise<Alert | null>;
-  save(alert: Alert): Promise<void>;
-}
+import type { IAlertRepository } from '../../domain/repositories/IAlertRepository';
 
 /**
  * Input data for acknowledging an alert
@@ -40,7 +33,7 @@ export interface AcknowledgeAlertResult {
  * 3. Save updated alert
  */
 export class AcknowledgeAlertUseCase {
-  constructor(private alertRepository: AlertRepository) {}
+  constructor(private alertRepository: IAlertRepository) {}
 
   async execute(input: AcknowledgeAlertInput): Promise<AcknowledgeAlertResult> {
     // Step 1: Load alert from repository

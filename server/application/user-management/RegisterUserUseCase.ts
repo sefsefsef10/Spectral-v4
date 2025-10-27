@@ -3,12 +3,7 @@
  */
 
 import { User, type UserRole } from '../../domain/entities/User';
-
-export interface UserRepository {
-  save(user: User): Promise<void>;
-  saveWithPassword(user: User, passwordHash: string): Promise<void>;
-  findByEmail(email: string): Promise<User | null>;
-}
+import type { IUserRepository } from '../../domain/repositories/IUserRepository';
 
 export interface PasswordHasher {
   hash(password: string): Promise<string>;
@@ -32,7 +27,7 @@ export interface RegisterUserResult {
 
 export class RegisterUserUseCase {
   constructor(
-    private userRepository: UserRepository,
+    private userRepository: IUserRepository,
     private passwordHasher: PasswordHasher
   ) {}
 

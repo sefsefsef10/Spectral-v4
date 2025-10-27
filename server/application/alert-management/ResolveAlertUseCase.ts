@@ -5,14 +5,7 @@
  */
 
 import { Alert } from '../../domain/entities/Alert';
-
-/**
- * Repository interface for alert persistence
- */
-export interface AlertRepository {
-  findById(id: string): Promise<Alert | null>;
-  save(alert: Alert): Promise<void>;
-}
+import type { IAlertRepository } from '../../domain/repositories/IAlertRepository';
 
 /**
  * Audit logger interface
@@ -50,7 +43,7 @@ export interface ResolveAlertResult {
  */
 export class ResolveAlertUseCase {
   constructor(
-    private alertRepository: AlertRepository,
+    private alertRepository: IAlertRepository,
     private auditLogger: AuditLogger
   ) {}
 

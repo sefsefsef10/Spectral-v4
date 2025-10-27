@@ -3,11 +3,7 @@
  */
 
 import { Deployment } from '../../domain/entities/Deployment';
-
-export interface DeploymentRepository {
-  findByAiSystemId(aiSystemId: string): Promise<Deployment[]>;
-  findAll(): Promise<Deployment[]>;
-}
+import type { IDeploymentRepository } from '../../domain/repositories/IDeploymentRepository';
 
 interface ListDeploymentsRequest {
   aiSystemId?: string;
@@ -15,7 +11,7 @@ interface ListDeploymentsRequest {
 }
 
 export class ListDeploymentsUseCase {
-  constructor(private deploymentRepository: DeploymentRepository) {}
+  constructor(private deploymentRepository: IDeploymentRepository) {}
 
   async execute(request: ListDeploymentsRequest): Promise<Deployment[]> {
     const { aiSystemId, status } = request;

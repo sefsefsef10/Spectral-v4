@@ -3,18 +3,14 @@
  */
 
 import { Deployment } from '../../domain/entities/Deployment';
-
-export interface DeploymentRepository {
-  findById(id: string): Promise<Deployment | null>;
-  save(deployment: Deployment): Promise<void>;
-}
+import type { IDeploymentRepository } from '../../domain/repositories/IDeploymentRepository';
 
 interface AdvanceCanaryRequest {
   deploymentId: string;
 }
 
 export class AdvanceCanaryUseCase {
-  constructor(private deploymentRepository: DeploymentRepository) {}
+  constructor(private deploymentRepository: IDeploymentRepository) {}
 
   async execute(request: AdvanceCanaryRequest): Promise<Deployment> {
     const { deploymentId } = request;

@@ -3,11 +3,7 @@
  */
 
 import { User } from '../../domain/entities/User';
-
-export interface UserRepository {
-  save(user: User): Promise<void>;
-  findById(id: string): Promise<User | null>;
-}
+import type { IUserRepository } from '../../domain/repositories/IUserRepository';
 
 export interface DeactivateUserInput {
   userId: string;
@@ -21,7 +17,7 @@ export interface DeactivateUserResult {
 }
 
 export class DeactivateUserUseCase {
-  constructor(private userRepository: UserRepository) {}
+  constructor(private userRepository: IUserRepository) {}
 
   async execute(input: DeactivateUserInput): Promise<DeactivateUserResult> {
     const user = await this.userRepository.findById(input.userId);

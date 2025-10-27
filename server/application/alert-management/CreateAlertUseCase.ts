@@ -6,14 +6,7 @@
  */
 
 import { Alert, type AlertType, type AlertSeverity, type NotificationChannel } from '../../domain/entities/Alert';
-
-/**
- * Repository interface for alert persistence (adapter pattern)
- */
-export interface AlertRepository {
-  save(alert: Alert): Promise<void>;
-  findByDeduplicationKey(key: string, withinHours: number): Promise<Alert | null>;
-}
+import type { IAlertRepository } from '../../domain/repositories/IAlertRepository';
 
 /**
  * Notification gateway interface (adapter pattern)
@@ -55,7 +48,7 @@ export interface CreateAlertResult {
  */
 export class CreateAlertUseCase {
   constructor(
-    private alertRepository: AlertRepository,
+    private alertRepository: IAlertRepository,
     private notificationGateway: NotificationGateway
   ) {}
 

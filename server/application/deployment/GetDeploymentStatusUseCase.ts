@@ -3,17 +3,14 @@
  */
 
 import { Deployment } from '../../domain/entities/Deployment';
+import type { IDeploymentRepository } from '../../domain/repositories/IDeploymentRepository';
 
-export interface DeploymentRepository {
-  findById(id: string): Promise<Deployment | null>;
-}
-
-interface GetDeploymentStatusRequest {
+interface GetDeploymentStatusRequest{
   deploymentId: string;
 }
 
 export class GetDeploymentStatusUseCase {
-  constructor(private deploymentRepository: DeploymentRepository) {}
+  constructor(private deploymentRepository: IDeploymentRepository) {}
 
   async execute(request: GetDeploymentStatusRequest): Promise<Deployment> {
     const { deploymentId } = request;

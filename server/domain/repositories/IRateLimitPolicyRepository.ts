@@ -24,6 +24,11 @@ export interface IRateLimitPolicyRepository {
   findByApiKey(apiKey: string): Promise<RateLimitPolicy | null>;
 
   /**
+   * Find policy by health system ID
+   */
+  findByHealthSystemId(healthSystemId: string): Promise<RateLimitPolicy | null>;
+
+  /**
    * Check if policy exists by ID
    */
   exists(id: string): Promise<boolean>;

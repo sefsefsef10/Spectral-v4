@@ -3,11 +3,7 @@
  */
 
 import { User, type UserRole } from '../../domain/entities/User';
-
-export interface UserRepository {
-  save(user: User): Promise<void>;
-  findById(id: string): Promise<User | null>;
-}
+import type { IUserRepository } from '../../domain/repositories/IUserRepository';
 
 export interface UpdateUserRoleInput {
   userId: string;
@@ -22,7 +18,7 @@ export interface UpdateUserRoleResult {
 }
 
 export class UpdateUserRoleUseCase {
-  constructor(private userRepository: UserRepository) {}
+  constructor(private userRepository: IUserRepository) {}
 
   async execute(input: UpdateUserRoleInput): Promise<UpdateUserRoleResult> {
     const user = await this.userRepository.findById(input.userId);

@@ -3,17 +3,14 @@
  */
 
 import { Alert } from '../../domain/entities/Alert';
-
-export interface AlertRepository {
-  findById(id: string): Promise<Alert | null>;
-}
+import type { IAlertRepository } from '../../domain/repositories/IAlertRepository';
 
 interface GetAlertRequest {
   alertId: string;
 }
 
 export class GetAlertUseCase {
-  constructor(private alertRepository: AlertRepository) {}
+  constructor(private alertRepository: IAlertRepository) {}
 
   async execute(request: GetAlertRequest): Promise<Alert> {
     const { alertId } = request;

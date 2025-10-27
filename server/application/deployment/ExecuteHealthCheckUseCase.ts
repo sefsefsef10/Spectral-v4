@@ -3,11 +3,7 @@
  */
 
 import { Deployment } from '../../domain/entities/Deployment';
-
-export interface DeploymentRepository {
-  findById(id: string): Promise<Deployment | null>;
-  save(deployment: Deployment): Promise<void>;
-}
+import type { IDeploymentRepository } from '../../domain/repositories/IDeploymentRepository';
 
 export interface HealthCheckExecutor {
   execute(endpoint: string, expectedStatus: number, timeout: number): Promise<{ success: boolean; error?: string }>;
@@ -26,7 +22,7 @@ export interface ExecuteHealthCheckResult {
 
 export class ExecuteHealthCheckUseCase {
   constructor(
-    private deploymentRepository: DeploymentRepository,
+    private deploymentRepository: IDeploymentRepository,
     private healthCheckExecutor: HealthCheckExecutor
   ) {}
 

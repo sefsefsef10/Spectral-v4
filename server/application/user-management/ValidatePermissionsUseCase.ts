@@ -3,10 +3,7 @@
  */
 
 import { User } from '../../domain/entities/User';
-
-export interface UserRepository {
-  findById(id: string): Promise<User | null>;
-}
+import type { IUserRepository } from '../../domain/repositories/IUserRepository';
 
 export interface ValidatePermissionsInput {
   userId: string;
@@ -22,7 +19,7 @@ export interface ValidatePermissionsResult {
 }
 
 export class ValidatePermissionsUseCase {
-  constructor(private userRepository: UserRepository) {}
+  constructor(private userRepository: IUserRepository) {}
 
   async execute(input: ValidatePermissionsInput): Promise<ValidatePermissionsResult> {
     const user = await this.userRepository.findById(input.userId);

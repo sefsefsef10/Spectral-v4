@@ -3,11 +3,7 @@
  */
 
 import { Deployment } from '../../domain/entities/Deployment';
-
-export interface DeploymentRepository {
-  findById(id: string): Promise<Deployment | null>;
-  save(deployment: Deployment): Promise<void>;
-}
+import type { IDeploymentRepository } from '../../domain/repositories/IDeploymentRepository';
 
 export interface RollbackExecutor {
   execute(aiSystemId: string, toPreviousVersion: boolean): Promise<void>;
@@ -26,7 +22,7 @@ export interface RollbackDeploymentResult {
 
 export class RollbackDeploymentUseCase {
   constructor(
-    private deploymentRepository: DeploymentRepository,
+    private deploymentRepository: IDeploymentRepository,
     private rollbackExecutor: RollbackExecutor
   ) {}
 
