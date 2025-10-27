@@ -102,19 +102,35 @@ export class ReVerificationService {
     const results: ReVerificationResult[] = [];
 
     for (const cert of expiring) {
-      if (cert.status === 'expired') {
-        // Grace period has passed - downgrade tier
+      if (cert.status === 'expired' || cert.status === 'grace_period') {
+        // Check if we already downgraded recently (within grace period)
+        const system = await storage.getAISystem(cert.aiSystemId);
+        if (system?.verificationDate) {
+          const daysSinceLastChange = Math.floor(
+            (new Date().getTime() - system.verificationDate.getTime()) / (1000 * 60 * 60 * 24)
+          );
+          
+          if (daysSinceLastChange < this.GRACE_PERIOD_DAYS) {
+            // Recently changed - skip to avoid double-processing
+            logger.debug({
+              aiSystemId: cert.aiSystemId,
+              daysSinceLastChange,
+            }, 'Certification recently downgraded - skipping');
+            continue;
+          }
+        }
+
+        // Certification has expired and grace period passed - downgrade
         const result = await this.downgradeCertification(cert.aiSystemId, cert.currentTier);
         results.push(result);
-      } else if (cert.status === 'grace_period') {
-        // In grace period - send urgent notification
+        
         logger.warn({
           aiSystemId: cert.aiSystemId,
           currentTier: cert.currentTier,
           daysOverdue: Math.abs(cert.daysUntilExpiry),
-        }, 'Certification in grace period');
+        }, 'Certification expired - downgraded');
 
-        // TODO: Send urgent notification to health system
+        // TODO: Send downgrade notification to health system
       } else if (cert.daysUntilExpiry <= this.WARNING_DAYS && cert.daysUntilExpiry > 0) {
         // Expiring soon - send warning notification
         logger.info({
@@ -172,19 +188,16 @@ export class ReVerificationService {
           message: 'Certification removed - quarterly re-verification not completed',
         };
       } else {
-        // Downgrade to next tier
-        const newExpiry = new Date();
-        newExpiry.setDate(newExpiry.getDate() + this.VERIFICATION_PERIOD_DAYS);
-
+        // Downgrade to next tier - keep expiry at NOW to stay visible in daily scans
         await db.update(aiSystems)
           .set({
             verificationTier: newTier,
-            verificationDate: new Date(),
-            verificationExpiry: newExpiry,
+            verificationDate: new Date(), // Track when downgrade happened
+            verificationExpiry: new Date(), // Set to now - stays expired for next scan
           })
           .where(eq(aiSystems.id, aiSystemId));
 
-        logger.info({ aiSystemId, previousTier: currentTier, newTier }, 'Certification downgraded');
+        logger.info({ aiSystemId, previousTier: currentTier, newTier }, 'Certification downgraded - will cascade in 7 days if not re-verified');
 
         return {
           success: true,
@@ -192,7 +205,7 @@ export class ReVerificationService {
           previousTier: currentTier,
           newTier,
           action: 'downgraded',
-          message: `Downgraded from ${currentTier} to ${newTier} due to expiry`,
+          message: `Downgraded from ${currentTier} to ${newTier} - ${this.GRACE_PERIOD_DAYS} days to re-verify`,
         };
       }
     } catch (error) {

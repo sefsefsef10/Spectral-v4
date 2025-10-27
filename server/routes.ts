@@ -7992,6 +7992,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const { registerRollbackRoutes } = await import("./routes/rollback");
   registerRollbackRoutes(app);
 
+  // 🔄 Beacon Re-Verification Routes (Quarterly Certification)
+  const { registerReVerificationRoutes } = await import("./routes/re-verification");
+  registerReVerificationRoutes(app);
+
   // 🌐 Public API Routes (Network Effects - NO AUTH REQUIRED)
   const { publicRouter } = await import("./routes/public");
   app.use("/api/public", publicRouter);
