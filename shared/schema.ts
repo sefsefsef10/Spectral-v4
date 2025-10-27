@@ -85,6 +85,7 @@ export const healthSystems = pgTable("health_systems", {
   state: text("state"), // US state code (e.g., 'CA', 'NY', 'TX') for state-specific compliance
   settings: jsonb("settings"), // JSONB: org preferences, branding, compliance thresholds, etc.
   // Stripe billing for health system subscriptions
+  subscriptionId: varchar("subscription_id"), // Unique subscription ID from domain layer
   stripeCustomerId: text("stripe_customer_id"), // Stripe customer ID
   stripeSubscriptionId: text("stripe_subscription_id"), // Active subscription
   subscriptionTier: text("subscription_tier"), // 'starter', 'professional', 'enterprise' ($75K/$200K/$400K)
